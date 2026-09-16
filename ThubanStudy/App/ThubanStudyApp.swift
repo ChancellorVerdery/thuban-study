@@ -3,10 +3,63 @@ import ThubanCore
 
 @main
 struct ThubanStudyApp: App {
+    @State private var appModel = AppModel()
+
     var body: some Scene {
         WindowGroup("Thuban Study") {
-            Text("Thuban Study \(ThubanCoreInfo.version)")
-                .frame(minWidth: 900, minHeight: 600)
+            ShellView()
+                .environment(appModel)
+                .frame(minWidth: 1100, minHeight: 700)
+                .task { await appModel.load() }
         }
+        .windowStyle(.hiddenTitleBar)
+        .windowToolbarStyle(.unifiedCompact)
+        .windowResizability(.contentMinSize)
+        .defaultSize(width: 1280, height: 820)
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                Button("New Class") { appModel.perform(.newClass) }
+                    .keyboardShortcut("n", modifiers: .command)
+                Button("Import…") { appModel.perform(.importDocuments) }
+                    .keyboardShortcut("i", modifiers: .command)
+            }
+            CommandGroup(replacing: .appSettings) {
+                SettingsCommandButton()
+                    .environment(appModel)
+            }
+            CommandMenu("Study") {
+                Button("Toggle Graph") { appModel.perform(.toggleGraph) }
+                    .keyboardShortcut("g", modifiers: .command)
+                Button("Toggle Calculator") { appModel.perform(.toggleCalculator) }
+                    .keyboardShortcut("k", modifiers: .command)
+                Button("Toggle Keyboard") { appModel.perform(.toggleKeyboard) }
+                    .keyboardShortcut("k", modifiers: [.command, .shift])
+                Divider()
+                Button("Check Answers") { appModel.perform(.checkAnswers) }
+                    .keyboardShortcut(.return, modifiers: .command)
+                Button("Regenerate Numbers") { appModel.perform(.regenerate) }
+                    .keyboardShortcut("r", modifiers: [.command, .shift])
+                Button("Next Question") { appModel.perform(.nextQuestion) }
+                    .keyboardShortcut(.rightArrow, modifiers: .command)
+            }
+        }
+
+        Window("Settings", id: "settings") {
+            SettingsView()
+                .environment(appModel)
+                .frame(minWidth: 760, minHeight: 560)
+        }
+        .windowResizability(.contentMinSize)
+        .defaultSize(width: 860, height: 640)
+    }
+}
+
+/// "Settings… ⌘," — lives in the App menu; opens the Settings window scene.
+private struct SettingsCommandButton: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Settings…") { openWindow(id: "settings") }
+            .keyboardShortcut(",", modifiers: .command)
     }
 }
