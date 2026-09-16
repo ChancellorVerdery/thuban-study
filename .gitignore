@@ -1,0 +1,18 @@
+# Xcode / SwiftPM
+.build/
+.build-*/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+.swiftpm/xcode/
+# Secrets (never commit keys)
+Config/Secrets.xcconfig
+ThubanStudy/Resources/Secrets.plist
+# macOS
+.DS_Store
+# Claude worktrees
+.claude/worktrees/
+# Vendored JS is committed; node artifacts are not
+node_modules/
