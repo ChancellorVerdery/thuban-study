@@ -29,6 +29,7 @@
 		57E3D38B19ACD154D4C9EF08 /* ClassSession+Study.swift in Sources */ = {isa = PBXBuildFile; fileRef = C463C7A24FD856196E75CCB0 /* ClassSession+Study.swift */; };
 		59AE510E5F6DD2F378A95AB6 /* Secrets.plist in Resources */ = {isa = PBXBuildFile; fileRef = 34F954E0F3E1D9921D4D2EFD /* Secrets.plist */; };
 		5DEDD52A79EB1C3F9730E9E3 /* ImportPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A391222166318AE58BCB0724 /* ImportPipeline.swift */; };
+		5FFC677A7BC3CAE782194A3C /* SmokeHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E03B635E9538573BCC73AD9 /* SmokeHarness.swift */; };
 		6A9CFA5D72DBF4609716BC12 /* QuestionFormWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BC5BBCEB0C00BC5DD7BF2A4 /* QuestionFormWebView.swift */; };
 		6DD396B5F938A6CDF3265E01 /* ImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC57D74813573353742F38B9 /* ImportView.swift */; };
 		6ED3DA554BD3A365D2EE3392 /* ThubanCore in Frameworks */ = {isa = PBXBuildFile; productRef = 76221F8984A6FD75CBCDF290 /* ThubanCore */; };
@@ -91,6 +92,7 @@
 		602C1A81214764A12216C714 /* QuestionBankSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionBankSettings.swift; sourceTree = "<group>"; };
 		60C9B921445F87FD56D4E7B8 /* ThubanMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThubanMark.swift; sourceTree = "<group>"; };
 		629F19F6ECDB6EF2A1B4BD1C /* WebBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebBridge.swift; sourceTree = "<group>"; };
+		6E03B635E9538573BCC73AD9 /* SmokeHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeHarness.swift; sourceTree = "<group>"; };
 		778E2B04690D737EF33E3A47 /* ChatWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatWebView.swift; sourceTree = "<group>"; };
 		7894F9FB81802ADA1BED0437 /* ConnectClaudeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectClaudeSheet.swift; sourceTree = "<group>"; };
 		792DD5DF1A29C472185321F8 /* CalculatorWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorWebView.swift; sourceTree = "<group>"; };
@@ -224,6 +226,7 @@
 				1710E26A041E0E14AE2E570F /* ClassSession+QuestionBankandImport.swift */,
 				C463C7A24FD856196E75CCB0 /* ClassSession+Study.swift */,
 				ECB3AFA5D45551F433544E15 /* CommandBus.swift */,
+				6E03B635E9538573BCC73AD9 /* SmokeHarness.swift */,
 				600754474895BA108F79E955 /* ThubanStudyApp.swift */,
 			);
 			path = App;
@@ -446,6 +449,7 @@
 				0D16D7D6B5771F4D08B56A25 /* SegmentedPicker.swift in Sources */,
 				E87E99E9DCA289CD7BE24475 /* SettingsView.swift in Sources */,
 				FDE734AB1F0C9DFC4F503B88 /* ShellView.swift in Sources */,
+				5FFC677A7BC3CAE782194A3C /* SmokeHarness.swift in Sources */,
 				200ACCC663E1348C2BA273D6 /* StudyView.swift in Sources */,
 				AD33A2ABE5478DF889C87097 /* ThemeEnvironment.swift in Sources */,
 				77D6B405D61E3A607CB47999 /* ThubanMark.swift in Sources */,

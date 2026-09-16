@@ -135,7 +135,8 @@ struct GraphWebView: View {
             if let mode { self.mode = mode }
             var payload: [String: JSONValue] = ["desmosKey": .string(desmosKey)]
             payload["mode"] = .string(self.mode.rawValue)
-            bridge.send("config", .object(payload))
+            // Sticky: the page is reloaded whenever its hosting view is re-created and needs the key again.
+            bridge.sendSticky("config", .object(payload))
         }
 
         func setMode(_ mode: GraphMode) {

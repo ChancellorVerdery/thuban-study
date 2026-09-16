@@ -108,6 +108,22 @@ struct QuestionPane: View {
     // MARK: Form
 
     private var formCard: some View {
+        GeometryReader { geometry in
+            formScroll(availableHeight: geometry.size.height)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The page reports its own height and the form hugs it. While the virtual keyboard is showing (it is fixed to
+    /// the bottom of the page's viewport) the web view is capped to the visible height instead, so the keyboard
+    /// docks at the bottom of the pane and the page scrolls internally above it.
+    private func formHeight(availableHeight: CGFloat) -> CGFloat {
+        let natural = max(state.formHeight, 240)
+        guard session.showKeyboard, availableHeight > 240 else { return natural }
+        return min(natural, availableHeight - 6)
+    }
+
+    private func formScroll(availableHeight: CGFloat) -> some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 12) {
                 if !state.figures.isEmpty {
@@ -115,7 +131,7 @@ struct QuestionPane: View {
                 }
                 ZStack(alignment: .top) {
                     QuestionFormWebView(controller: form)
-                        .frame(height: max(state.formHeight, 240))
+                        .frame(height: formHeight(availableHeight: availableHeight))
                         .opacity(session.isInstantiating && session.currentInstance == nil ? 0 : 1)
                     if session.isInstantiating && session.currentInstance == nil {
                         loading("Preparing fresh numbers…")
@@ -154,53 +170,77 @@ struct QuestionPane: View {
     // MARK: Action bar
 
     private var actionBar: some View {
-        HStack(spacing: 10) {
-            Button {
-                Task { await session.checkAnswers() }
-            } label: {
-                HStack(spacing: 6) {
-                    if state.isGrading {
-                        ProgressView().controlSize(.small)
-                    }
-                    Text(state.isGrading ? "Checking…" : "Check answers")
-                }
+        // The single row is preferred; when the pane is narrow (graph open at the minimum window width) the
+        // regenerate label shortens and the source caption drops to its own line instead of wrapping the buttons.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                actionButtons(compact: false)
+                Spacer(minLength: 8)
+                sourceCaption
             }
-            .buttonStyle(.thubanPrimary)
-            .disabled(session.currentInstance == nil || state.isGrading)
-            .help("Check answers (⌘⏎)")
-
-            if session.currentQuestion?.kind == .mathTemplate {
-                Button {
-                    Task { await session.regenerate() }
-                } label: {
-                    HStack(spacing: 6) {
-                        Icon(.mathEngine, size: 16)
-                        Text("Regenerate numbers")
-                    }
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 10) {
+                    actionButtons(compact: true)
+                    Spacer(minLength: 0)
                 }
-                .buttonStyle(.thubanSecondary)
-                .disabled(session.isInstantiating)
-                .help("Fresh numbers for this question (⌘⇧R)")
-            }
-
-            Button("Show a hint") { session.askForHint() }
-                .buttonStyle(.thubanGhost)
-                .disabled(session.isTutorStreaming || session.currentInstance == nil)
-                .help("Ask the tutor for a small hint")
-
-            Spacer(minLength: 8)
-
-            if let source = session.currentQuestion?.sourceRef, !source.isEmpty {
-                Text("Source: \(source)")
-                    .font(ThubanFont.small)
-                    .foregroundStyle(theme.brassInkColor)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                sourceCaption
             }
         }
     }
 
-    // MARK: Progress row
+    @ViewBuilder
+    private func actionButtons(compact: Bool) -> some View {
+        Button {
+            Task { await session.checkAnswers() }
+        } label: {
+            HStack(spacing: 6) {
+                if state.isGrading {
+                    ProgressView().controlSize(.small)
+                }
+                Text(state.isGrading ? "Checking…" : "Check answers")
+                    .lineLimit(1)
+            }
+        }
+        .buttonStyle(.thubanPrimary)
+        .fixedSize()
+        .disabled(session.currentInstance == nil || state.isGrading)
+        .help("Check answers (⌘⏎)")
+
+        if session.currentQuestion?.kind == .mathTemplate {
+            Button {
+                Task { await session.regenerate() }
+            } label: {
+                HStack(spacing: 6) {
+                    Icon(.mathEngine, size: 16)
+                    Text(compact ? "Regenerate" : "Regenerate numbers")
+                        .lineLimit(1)
+                }
+            }
+            .buttonStyle(.thubanSecondary)
+            .fixedSize()
+            .disabled(session.isInstantiating)
+            .help("Fresh numbers for this question (⌘⇧R)")
+        }
+
+        Button("Show a hint") { session.askForHint() }
+            .buttonStyle(.thubanGhost)
+            .fixedSize()
+            .disabled(session.isTutorStreaming || session.currentInstance == nil)
+            .help("Ask the tutor for a small hint")
+    }
+
+    @ViewBuilder
+    private var sourceCaption: some View {
+        if let source = session.currentQuestion?.sourceRef, !source.isEmpty {
+            Text("Source: \(source)")
+                .font(ThubanFont.small)
+                .foregroundStyle(theme.brassInkColor)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+    }
+
+    // MARK: Progress
 
     private var progressRow: some View {
         let counts = session.progressCounts
@@ -211,6 +251,8 @@ struct QuestionPane: View {
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
                     .monospacedDigit()
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                 Spacer()
                 if session.questionCount > 1 {
                     Button {
@@ -219,12 +261,14 @@ struct QuestionPane: View {
                         HStack(spacing: 4) { Glyph(.chevronLeft, size: 14); Text("Previous") }
                     }
                     .buttonStyle(GhostButtonStyle(height: 26, horizontalPadding: 8))
+                    .fixedSize()
                     Button {
                         session.next()
                     } label: {
                         HStack(spacing: 4) { Text("Next question"); Glyph(.chevronRight, size: 14) }
                     }
                     .buttonStyle(GhostButtonStyle(height: 26, tinted: true, horizontalPadding: 8))
+                    .fixedSize()
                     .help("Next question (⌘→)")
                 }
             }

@@ -98,21 +98,27 @@ struct GraphPane: View {
         HStack(spacing: 10) {
             Icon(.graph2D, size: 18)
                 .foregroundStyle(theme.brassInkColor)
+            // The title is the only thing allowed to shrink when the pane is narrow; controls keep their labels.
             Text("Graph")
                 .font(ThubanFont.display(16))
                 .foregroundStyle(theme.inkColor)
+                .lineLimit(1)
+                .layoutPriority(-1)
             SegmentedPicker(selection: $session.graphMode, options: [
                 SegmentOption(.twoD, "2D", icon: .graph2D),
                 SegmentOption(.threeD, "3D", icon: .graph3D),
             ], segmentHeight: 24)
+                .fixedSize()
             if session.tutorEditedRecently {
                 Chip("Tutor is editing", kind: .accent, dot: true)
+                    .fixedSize()
                     .id(chipTick)
                     .transition(.opacity)
             }
             Spacer(minLength: 4)
             Button("Reset view") { controller?.resetView() }
                 .buttonStyle(GhostButtonStyle(height: 28, horizontalPadding: 8))
+                .fixedSize()
                 .disabled(controller == nil || !app.hasDesmosKey)
             IconButton(glyph: .close, label: "Close graph", size: 28, iconSize: 14) {
                 session.showGraph = false

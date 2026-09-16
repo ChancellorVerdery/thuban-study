@@ -244,15 +244,23 @@ final class QuestionBankModel {
         for marker in ["$$", "$", "\\(", "\\)", "\\[", "\\]", "**", "__", "`"] {
             text = text.replacingOccurrences(of: marker, with: "")
         }
+        // \frac{a}{b} / \dfrac{a}{b} → (a)/(b) (one level; nested braces are rare in a one-line preview).
+        text = text.replacingOccurrences(
+            of: #"\\d?frac\{([^{}]*)\}\{([^{}]*)\}"#, with: "($1)/($2)", options: .regularExpression
+        )
         let replacements: [(String, String)] = [
+            ("\\left", ""), ("\\right", ""),   // before \\le so "\\left" is not read as "\\le" + "ft"
             ("\\cdot", "·"), ("\\times", "×"), ("\\pi", "π"), ("\\theta", "θ"), ("\\infty", "∞"),
             ("\\le", "≤"), ("\\ge", "≥"), ("\\ne", "≠"), ("\\pm", "±"), ("\\sqrt", "√"),
-            ("\\left", ""), ("\\right", ""), ("\\,", " "), ("\\;", " "), ("\\!", ""),
+            ("\\,", " "), ("\\;", " "), ("\\!", ""),
             ("\\mathrm", ""), ("\\text", ""), ("\\frac", ""), ("\\dfrac", ""), ("\\partial", "∂"),
+            ("\\nabla", "∇"), ("\\to", "→"), ("\\displaystyle", ""), ("\\mathbf", ""),
         ]
         for (command, replacement) in replacements {
             text = text.replacingOccurrences(of: command, with: replacement)
         }
+        // Any other command keeps its name without the backslash (\sin → sin, \lim → lim).
+        text = text.replacingOccurrences(of: #"\\([A-Za-z]+)"#, with: "$1", options: .regularExpression)
         return text
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }

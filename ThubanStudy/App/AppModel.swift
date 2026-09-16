@@ -114,6 +114,7 @@ final class AppModel {
         } catch {
             startupError = startupError ?? error.localizedDescription
         }
+        await SmokeHarness.seedIfEnabled(store: store)
         do {
             if let selection = try await store.get(.theme, as: ThemeSelection.self) {
                 themeSelection = selection
@@ -135,6 +136,7 @@ final class AppModel {
         Task.detached(priority: .utility) { [engine] in
             try? await engine.warmUp()
         }
+        SmokeHarness.startIfEnabled(app: self)
     }
 
     /// `DesmosAPIKey` from the bundled `Secrets.plist`, if present.

@@ -18,6 +18,9 @@ final class WebBridge: NSObject, WKScriptMessageHandler {
     private(set) var isReady = false
     private var handlers: [String: [(JSONValue) -> Void]] = [:]
     private var queue: [(type: String, payload: JSONValue)] = []
+    /// Messages re-sent on every `ready` (one per type), e.g. a page's `config`: the hosting view may be
+    /// re-created (pane toggled, section switched), which reloads the page and would otherwise lose them.
+    private var sticky: [(type: String, payload: JSONValue)] = []
     private var theme: ResolvedTheme?
 
     init(name: String = "page") {
@@ -69,6 +72,15 @@ final class WebBridge: NSObject, WKScriptMessageHandler {
         send(type, Self.jsonValue(payload))
     }
 
+    /// Sends a message now (if ready) and again after every future page load, replacing any earlier sticky
+    /// message of the same type. Sticky messages go out before the regular queue on `ready`.
+    func sendSticky(_ type: String, _ payload: JSONValue = .object([:])) {
+        sticky.removeAll { $0.type == type }
+        sticky.append((type, payload))
+        guard isReady, let webView else { return }
+        evaluate(type: type, payload: payload, on: webView)
+    }
+
     /// Pushes the theme css now (if ready) and remembers it for the next `ready`.
     func setTheme(_ theme: ResolvedTheme) {
         self.theme = theme
@@ -96,6 +108,7 @@ final class WebBridge: NSObject, WKScriptMessageHandler {
             isReady = true
             if let webView {
                 if let theme { evaluate(type: "theme", payload: Self.themePayload(theme), on: webView) }
+                for item in sticky { evaluate(type: item.type, payload: item.payload, on: webView) }
                 let pending = queue
                 queue.removeAll()
                 for item in pending { evaluate(type: item.type, payload: item.payload, on: webView) }

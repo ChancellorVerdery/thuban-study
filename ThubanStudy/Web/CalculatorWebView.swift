@@ -52,7 +52,7 @@ struct CalculatorWebView: View {
         func configure(desmosKey: String, forceFallback: Bool = false) {
             var payload: [String: JSONValue] = ["desmosKey": .string(desmosKey)]
             if forceFallback { payload["forceFallback"] = .bool(true) }
-            bridge.send("config", .object(payload))
+            bridge.sendSticky("config", .object(payload))   // re-sent when the panel is re-created
         }
 
         /// Delivers an evaluation result to the fallback calculator.

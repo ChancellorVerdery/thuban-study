@@ -22,7 +22,7 @@ struct QuestionTable: View {
             TableColumn("Question") { row in
                 StemCell(row: row)
             }
-            .width(min: 240, ideal: 520)
+            .width(min: 240, ideal: 320)   // ideal widths must sum below the table width at 1280 pt or the trailing columns clip
 
             TableColumn("Type") { row in
                 Chip.kind(row.question.kind)
@@ -37,7 +37,7 @@ struct QuestionTable: View {
                     .truncationMode(.middle)
                     .help(row.source)
             }
-            .width(min: 120, ideal: 180, max: 260)
+            .width(min: 120, ideal: 160, max: 260)
 
             TableColumn("Status") { row in
                 Chip.status(row.status)

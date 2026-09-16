@@ -200,9 +200,11 @@ struct TutorComposer: View {
                     HStack(spacing: 5) {
                         Glyph(.lock, size: 13)
                         Text("Ask for the solution")
+                            .lineLimit(1)
                     }
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(theme.brassInkColor)
+                    .fixedSize()
                 }
                 .buttonStyle(.plain)
                 .disabled(session.isTutorStreaming || session.currentInstance == nil)
@@ -223,10 +225,16 @@ struct TutorComposer: View {
                 Text("Only on your explicit request")
                     .font(.system(size: 12))
                     .foregroundStyle(theme.inkFaintColor)
-                Spacer()
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 4)
+                // The keyboard hint is the first thing to go in the 420-pt pane; the lock link never wraps.
                 Text("Shift+Enter for a new line")
                     .font(.system(size: 12))
                     .foregroundStyle(theme.inkFaintColor)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .layoutPriority(-1)
             }
         }
         .padding(12)
