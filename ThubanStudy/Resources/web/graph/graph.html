@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Grapher</title>
+
+  <!-- The bridge must load first: it defines window.thuban (send / on / receive) and the 'theme' handler. -->
+  <script src="thuban://bundle/shared/bridge.js"></script>
+  <script>
+    // Debug shim: only used when bridge.js could not be loaded (page opened in a normal browser).
+    // Mirrors the bridge contract so the page can be exercised without the native host.
+    if (!window.thuban) {
+      (function () {
+        var handlers = {};
+        window.thuban = {
+          debug: true,
+          on: function (type, fn) { handlers[type] = fn; },
+          send: function (type, payload) { console.log('[thuban:send]', type, payload); },
+          receive: function (type, payload) {
+            if (typeof payload === 'string') { try { payload = JSON.parse(payload); } catch (e) { /* keep string */ } }
+            if (handlers[type]) handlers[type](payload);
+          }
+        };
+        handlers.theme = function (p) {
+          var s = document.getElementById('theme');
+          if (s && p && p.css) s.textContent = p.css;
+          document.documentElement.dataset.theme = p && p.isDark ? 'dark' : 'light';
+        };
+      })();
+    }
+  </script>
+
+  <link rel="stylesheet" href="thuban://bundle/shared/theme.css">
+  <style id="theme"></style>
+
+  <style>
+    /* Page fills the WKWebView; the Desmos instance fills the page. */
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--panel, #fffdf7);
+      color: var(--ink, #161a21);
+      font-family: system-ui, -apple-system, "Helvetica Neue", sans-serif;
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    * { box-sizing: border-box; }
+
+    #calculator {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Centered overlays: loading status and the failure notice. */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: var(--panel, #fffdf7);
+      z-index: 5;
+    }
+    .overlay[hidden] { display: none; }
+
+    .status {
+      color: var(--ink-dim, #535a68);
+      font-size: 13px;
+    }
+
+    .notice {
+      max-width: 360px;
+      padding: 20px 22px;
+      border: 1px solid var(--line-2, #D3D0C8);
+      border-radius: 10px;
+      background: var(--panel, #fffdf7);
+      text-align: center;
+    }
+    .notice h2 {
+      margin: 0 0 6px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink, #161a21);
+    }
+    .notice p {
+      margin: 0 0 14px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--ink-dim, #535a68);
+    }
+    .notice .detail {
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 11px;
+      color: var(--ink-faint, #858c9b);
+      word-break: break-word;
+    }
+
+    button.primary {
+      height: 32px;
+      padding: 0 16px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent, #e0b15c);
+      color: var(--on-accent, #14100a);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.primary:hover { background: var(--accent-deep, #a17f42); color: var(--on-accent, #14100a); }
+    button.primary:focus-visible { outline: 2px solid var(--accent, #e0b15c); outline-offset: 2px; }
+  </style>
+</head>
+<body>
+  <div id="calculator"></div>
+
+  <div id="status" class="overlay">
+    <div class="status" id="status-text">Waiting for configuration…</div>
+  </div>
+
+  <div id="notice" class="overlay" hidden>
+    <div class="notice" role="alert">
+      <h2>Desmos could not load</h2>
+      <p id="notice-text">Desmos could not load — check the API key in Settings › Grapher or your connection.</p>
+      <p class="detail" id="notice-detail" hidden></p>
+      <button id="retry" class="primary" type="button">Retry</button>
+    </div>
+  </div>
+
+  <script src="thuban://bundle/graph/graph.js"></script>
+</body>
+</html>

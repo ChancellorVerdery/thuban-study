@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Calculator</title>
+
+  <!-- The bridge must load first: it defines window.thuban (send / on / receive) and the 'theme' handler. -->
+  <script src="thuban://bundle/shared/bridge.js"></script>
+  <script>
+    // Debug shim: only used when bridge.js could not be loaded (page opened in a normal browser).
+    if (!window.thuban) {
+      (function () {
+        var handlers = {};
+        window.thuban = {
+          debug: true,
+          on: function (type, fn) { handlers[type] = fn; },
+          send: function (type, payload) { console.log('[thuban:send]', type, payload); },
+          receive: function (type, payload) {
+            if (typeof payload === 'string') { try { payload = JSON.parse(payload); } catch (e) { /* keep string */ } }
+            if (handlers[type]) handlers[type](payload);
+          }
+        };
+        handlers.theme = function (p) {
+          var s = document.getElementById('theme');
+          if (s && p && p.css) s.textContent = p.css;
+          document.documentElement.dataset.theme = p && p.isDark ? 'dark' : 'light';
+        };
+      })();
+    }
+  </script>
+
+  <link rel="stylesheet" href="thuban://bundle/shared/theme.css">
+  <style id="theme"></style>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--panel, #fffdf7);
+      color: var(--ink, #161a21);
+      font-family: system-ui, -apple-system, "Helvetica Neue", sans-serif;
+      font-size: 14px;
+      line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
+    }
+    * { box-sizing: border-box; }
+    button { font: inherit; cursor: pointer; }
+    [hidden] { display: none !important; }
+
+    /* Desmos scientific calculator fills the page. */
+    #calculator {
+      position: absolute;
+      inset: 0;
+    }
+
+    /* Loading status. */
+    #status {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--ink-dim, #535a68);
+      font-size: 13px;
+      background: var(--panel, #fffdf7);
+      z-index: 5;
+    }
+
+    /* ---- Fallback calculator (MathLive input evaluated by the native MathEngine) ---- */
+    #fallback {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--panel, #fffdf7);
+    }
+
+    .fb-note {
+      padding: 6px 12px;
+      font-size: 12px;
+      color: var(--ink-dim, #535a68);
+      background: var(--warn-soft, #F8EBD4);
+      border-bottom: 1px solid var(--line, #E3E0D9);
+    }
+
+    .fb-input {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      padding: 12px 12px 8px;
+    }
+    .mf-host { flex: 1; min-width: 0; display: flex; }
+    math-field {
+      flex: 1;
+      min-width: 0;
+      min-height: 44px;
+      padding: 6px 10px;
+      font-size: 20px;
+      border: 1px solid var(--line-2, #D3D0C8);
+      border-radius: 8px;
+      background: var(--bg, #f6f2e8);
+      color: var(--ink, #161a21);
+      --caret-color: var(--accent, #e0b15c);
+      --selection-background-color: var(--accent-tint, #F8EBD4);
+      --selection-color: var(--ink, #161a21);
+      --contains-highlight-background-color: var(--accent-tint, #F8EBD4);
+      --placeholder-color: var(--ink-faint, #858c9b);
+      --smart-fence-color: var(--accent-text, #A5772A);
+    }
+    math-field:focus-within {
+      outline: 2px solid var(--accent, #e0b15c);
+      outline-offset: 2px;
+    }
+    math-field::part(menu-toggle), math-field::part(virtual-keyboard-toggle) { display: none; }
+
+    .btn {
+      height: 36px;
+      padding: 0 14px;
+      border-radius: 8px;
+      border: 1px solid var(--line-2, #D3D0C8);
+      background: var(--panel, #fffdf7);
+      color: var(--ink, #161a21);
+      font-weight: 600;
+    }
+    .btn:hover { background: var(--panel-2, #F1ECE0); }
+    .btn:disabled { opacity: .45; cursor: default; }
+    .btn:disabled:hover { background: var(--panel, #fffdf7); }
+    .btn:focus-visible { outline: 2px solid var(--accent, #e0b15c); outline-offset: 2px; }
+    .btn.primary {
+      border-color: transparent;
+      background: var(--accent, #e0b15c);
+      color: var(--on-accent, #14100a);
+    }
+    .btn.primary:hover { background: var(--accent-deep, #a17f42); }
+    .btn.primary:disabled:hover { background: var(--accent, #e0b15c); }
+    .btn.eval {
+      align-self: stretch;
+      height: auto;
+      min-width: 44px;
+      font-size: 20px;
+      font-weight: 500;
+      padding: 0 12px;
+    }
+
+    /* Current result line. */
+    .fb-result {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      min-height: 40px;
+      margin: 0 12px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: var(--panel-2, #F1ECE0);
+      font-size: 20px;
+      overflow-x: auto;
+    }
+    .fb-result .eq { color: var(--ink-faint, #858c9b); font-size: 16px; }
+    .fb-result .placeholder { color: var(--ink-faint, #858c9b); font-size: 14px; }
+    .fb-result .error { color: var(--neg-text, #B5484A); font-size: 14px; }
+    .fb-result .pending { color: var(--ink-dim, #535a68); font-size: 14px; }
+
+    /* History list — most recent first, last 20 kept. */
+    .fb-history-label {
+      margin: 12px 12px 4px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--ink-dim, #535a68);
+    }
+    .fb-history {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      margin: 0 12px;
+      border-top: 1px solid var(--line, #E3E0D9);
+    }
+    .fb-history .empty {
+      padding: 12px 2px;
+      font-size: 13px;
+      color: var(--ink-faint, #858c9b);
+    }
+    .fb-entry {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: baseline;
+      gap: 8px;
+      width: 100%;
+      padding: 8px 8px;
+      border: 0;
+      border-bottom: 1px solid var(--line, #E3E0D9);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--ink, #161a21);
+      font-size: 15px;
+      text-align: left;
+    }
+    .fb-entry:hover { background: var(--panel-2, #F1ECE0); }
+    .fb-entry[aria-selected="true"] {
+      background: var(--accent-tint, #F8EBD4);
+      box-shadow: inset 0 0 0 1px var(--accent, #e0b15c);
+    }
+    .fb-entry .in { color: var(--ink-dim, #535a68); overflow: hidden; }
+    .fb-entry .eq { color: var(--ink-faint, #858c9b); }
+    .fb-entry .out { overflow: hidden; }
+    .fb-entry .out.error { color: var(--neg-text, #B5484A); font-size: 13px; }
+
+    .fb-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 10px 12px;
+      border-top: 1px solid var(--line, #E3E0D9);
+    }
+  </style>
+</head>
+<body>
+  <div id="calculator"></div>
+  <div id="status">Waiting for configuration…</div>
+
+  <div id="fallback" hidden>
+    <div class="fb-note" id="fb-note" hidden></div>
+    <div class="fb-input">
+      <!-- The <math-field> is created by calc.js once MathLive has loaded (fonts directory must be set first). -->
+      <div id="mf-host" class="mf-host"></div>
+      <button id="eval" class="btn eval" type="button" aria-label="Evaluate">=</button>
+    </div>
+    <div class="fb-result" id="result" aria-live="polite">
+      <span class="placeholder">Type an expression and press Return</span>
+    </div>
+    <div class="fb-history-label">History</div>
+    <div class="fb-history" id="history" role="listbox" aria-label="History">
+      <div class="empty">Results appear here — select one to copy it into an answer.</div>
+    </div>
+    <div class="fb-actions">
+      <button id="clear-history" class="btn" type="button">Clear</button>
+      <button id="copy" class="btn primary" type="button" disabled>Copy to answer</button>
+    </div>
+  </div>
+
+  <script src="thuban://bundle/calc/calc.js"></script>
+</body>
+</html>

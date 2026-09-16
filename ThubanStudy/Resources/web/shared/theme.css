@@ -1,0 +1,182 @@
+/*
+ * Thuban Study — shared base styles for every WKWebView page.
+ *
+ * Colors ONLY come from the CSS variables the native app sends in the 'theme' message
+ * (--bg, --panel, --panel-2, --line, --line-2, --ink, --ink-dim, --ink-faint, --accent, --accent-text,
+ *  --accent-deep, --accent-tint, --on-accent, --signal, --signal-text, --pos, --pos-text, --neg, --neg-text,
+ *  --pos-soft, --neg-soft, --warn-soft, --signal-soft, --accent-rgb, --ink-rgb).
+ * Every use carries a Brass-light fallback so the page is legible before the theme arrives.
+ *
+ * Look: quiet, academic, precise. 1px hairlines, 10px radii on cards, 8px on controls, 6px on chips.
+ * UI text is the system font (matches the native app); math uses MathLive's KaTeX fonts.
+ */
+
+/* ---------------------------------------------------------------- resets */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--bg, #f6f2e8);
+  color: var(--ink, #161a21);
+  font-family: system-ui, -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a { color: var(--accent-text, #A5772A); text-decoration: none; }
+a:hover { color: var(--accent-deep, #a17f42); text-decoration: underline; text-underline-offset: 2px; }
+
+button, input, textarea, select { font: inherit; color: inherit; margin: 0; }
+button { cursor: pointer; }
+img, svg { display: inline-block; vertical-align: middle; }
+p { margin: 0 0 0.6em; }
+p:last-child { margin-bottom: 0; }
+ul, ol { margin: 0.2em 0 0.6em; padding-left: 1.4em; }
+strong { font-weight: 600; }
+hr { border: 0; border-top: 1px solid var(--line, #E3E0D9); margin: 12px 0; }
+code, kbd, .mono {
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+}
+code { background: var(--panel-2, #F1ECE0); border-radius: 4px; padding: 0.05em 0.3em; }
+pre { background: var(--panel-2, #F1ECE0); border-radius: 8px; padding: 10px 12px; overflow: auto; }
+pre code { background: none; padding: 0; }
+blockquote { margin: 0.4em 0; padding: 0 0 0 12px; border-left: 0; color: var(--ink-dim, #535a68); }
+table { border-collapse: collapse; }
+th, td { border-bottom: 1px solid var(--line, #E3E0D9); padding: 4px 10px 4px 0; text-align: left; }
+
+::selection { background: var(--accent-tint, #F8EBD4); }
+
+/* Focus ring: 2px accent, offset 2px — only for keyboard focus. */
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--accent, #e0b15c); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* ------------------------------------------------------------ typography */
+
+.t-title { font-size: 18px; font-weight: 600; line-height: 1.3; }
+.t-body { font-size: 15px; line-height: 1.45; }
+.t-small { font-size: 13px; line-height: 1.4; }
+.eyebrow, .t-micro {
+  font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--ink-dim, #535a68);
+}
+.dim { color: var(--ink-dim, #535a68); }
+.faint { color: var(--ink-faint, #858c9b); }   /* only at ≥14px */
+.accent-text { color: var(--accent-text, #A5772A); }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ------------------------------------------------------------------ chips */
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 22px; padding: 0 8px;
+  border-radius: 6px; border: 1px solid transparent;
+  font-size: 12px; font-weight: 600; line-height: 1.2;
+  background: var(--panel-2, #F1ECE0); color: var(--ink-dim, #535a68);
+  white-space: nowrap; vertical-align: middle;
+}
+.chip svg { width: 14px; height: 14px; flex: none; }
+.chip-neutral { background: var(--panel-2, #F1ECE0); color: var(--ink-dim, #535a68); }
+.chip-pos { background: var(--pos-soft, #DFF3E6); color: var(--pos-text, #2F8A55); }
+.chip-neg { background: var(--neg-soft, #F9E1E1); color: var(--neg-text, #B5484A); }
+.chip-warn { background: var(--warn-soft, #F8EBD4); color: var(--accent-text, #A5772A); }
+.chip-signal { background: var(--signal-soft, #DDF4F0); color: var(--signal-text, #2E8C7C); }
+.chip-accent {
+  background: var(--accent-tint, #F8EBD4); color: var(--accent-text, #A5772A);
+  border-color: var(--accent, #e0b15c);
+}
+.chip-outline { background: transparent; border-color: var(--line-2, #D3D0C8); color: var(--ink-dim, #535a68); }
+.chip-dot::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none;
+}
+/* A chip that may wrap onto several lines (verdict messages). */
+.chip-wrap { white-space: normal; padding-top: 3px; padding-bottom: 3px; line-height: 1.3; align-items: flex-start; }
+.chip-wrap svg { margin-top: 1px; }
+
+.badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  font-size: 11px; font-weight: 600; line-height: 1;
+  background: var(--accent-tint, #F8EBD4); color: var(--accent-text, #A5772A);
+}
+
+/* ---------------------------------------------------------------- buttons */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 36px; padding: 0 14px;
+  border-radius: 8px; border: 1px solid transparent;
+  font-size: 14px; font-weight: 600; line-height: 1;
+  background: transparent; color: var(--ink, #161a21);
+  cursor: pointer; user-select: none; -webkit-user-select: none;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.btn svg { width: 16px; height: 16px; flex: none; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn-sm { height: 30px; padding: 0 10px; font-size: 13px; }
+
+.btn-primary { background: var(--accent, #e0b15c); color: var(--on-accent, #14100a); }
+.btn-primary:hover:not(:disabled) { background: var(--accent-deep, #a17f42); }
+.btn-primary:active:not(:disabled) { background: var(--accent-deep, #a17f42); }
+
+.btn-secondary {
+  background: var(--panel, #fffdf7); border-color: var(--line-2, #D3D0C8); color: var(--ink, #161a21);
+}
+.btn-secondary:hover:not(:disabled) { background: var(--panel-2, #F1ECE0); }
+.btn-secondary:active:not(:disabled) { border-color: var(--accent-deep, #a17f42); }
+
+.btn-ghost { background: transparent; color: var(--ink-dim, #535a68); }
+.btn-ghost:hover:not(:disabled) { background: var(--panel-2, #F1ECE0); color: var(--ink, #161a21); }
+
+.btn-icon { width: 34px; height: 34px; padding: 0; }
+
+/* Selected toggle / segment: accent tint + accent text + 1px accent border. */
+.is-selected, .btn.is-on {
+  background: var(--accent-tint, #F8EBD4); color: var(--accent-text, #A5772A);
+  border-color: var(--accent, #e0b15c);
+}
+
+/* ----------------------------------------------------------------- fields */
+
+.field {
+  display: block; width: 100%; height: 36px; padding: 0 10px;
+  border: 1px solid var(--line-2, #D3D0C8); border-radius: 8px;
+  background: var(--panel, #fffdf7); color: var(--ink, #161a21);
+  font-size: 15px; line-height: 34px;
+  transition: border-color 120ms ease;
+}
+.field::placeholder { color: var(--ink-faint, #858c9b); opacity: 1; }
+.field:hover { border-color: var(--line-2, #D3D0C8); }
+.field:focus { border-color: var(--accent, #e0b15c); }
+.field:focus-visible { outline: 2px solid var(--accent, #e0b15c); outline-offset: 2px; }
+textarea.field { height: auto; min-height: 96px; padding: 8px 10px; line-height: 1.45; resize: vertical; }
+
+input[type="radio"], input[type="checkbox"] { accent-color: var(--accent, #e0b15c); }
+
+/* ----------------------------------------------------------- surfaces etc */
+
+.card {
+  background: var(--panel, #fffdf7);
+  border: 1px solid var(--line, #E3E0D9);
+  border-radius: 10px;
+}
+.inset { background: var(--panel-2, #F1ECE0); border-radius: 8px; }
+.hairline { border: 0; border-top: 1px solid var(--line, #E3E0D9); margin: 0; }
+.hairline-dashed { border: 0; border-top: 1px dashed var(--line-2, #D3D0C8); margin: 0; }
+
+/* Static math rendered by MathLive (renderMathInElement) inherits the surrounding text color. */
+.ML__latex { color: inherit; }

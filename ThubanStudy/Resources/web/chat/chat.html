@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tutor</title>
+
+  <!-- The bridge must load first: it defines window.thuban (send / on / receive) and the 'theme' handler. -->
+  <script src="thuban://bundle/shared/bridge.js"></script>
+  <script>
+    // Debug shim: only used when bridge.js could not be loaded (page opened in a normal browser).
+    if (!window.thuban) {
+      (function () {
+        var handlers = {};
+        window.thuban = {
+          debug: true,
+          on: function (type, fn) { handlers[type] = fn; },
+          send: function (type, payload) { console.log('[thuban:send]', type, payload); },
+          receive: function (type, payload) {
+            if (typeof payload === 'string') { try { payload = JSON.parse(payload); } catch (e) { /* keep string */ } }
+            if (handlers[type]) handlers[type](payload);
+          }
+        };
+        handlers.theme = function (p) {
+          var s = document.getElementById('theme');
+          if (s && p && p.css) s.textContent = p.css;
+          document.documentElement.dataset.theme = p && p.isDark ? 'dark' : 'light';
+        };
+      })();
+    }
+  </script>
+
+  <link rel="stylesheet" href="thuban://bundle/shared/theme.css">
+  <style id="theme"></style>
+  <link rel="stylesheet" href="thuban://bundle/vendor/mathlive/mathlive-static.css">
+  <link rel="stylesheet" href="thuban://bundle/chat/chat.css">
+</head>
+<body>
+  <!-- The transcript scrolls; the native composer lives outside this web view. -->
+  <main id="transcript" class="transcript" aria-live="polite" aria-label="Tutor conversation">
+    <div id="empty" class="empty">
+      <svg class="empty-mark" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 3.5V16H6.5A2.5 2.5 0 0 1 4 13.5z"/>
+        <path d="M9 9.5h6M9 12.5h4"/>
+      </svg>
+      <p>Ask the tutor anything about this question. It will guide you, not answer for you.</p>
+    </div>
+    <div id="messages" class="messages"></div>
+  </main>
+
+  <script src="thuban://bundle/vendor/marked/marked.min.js"></script>
+  <script src="thuban://bundle/vendor/dompurify/purify.min.js"></script>
+  <script src="thuban://bundle/vendor/mathlive/mathlive.min.js"></script>
+  <script src="thuban://bundle/chat/chat.js"></script>
+</body>
+</html>
