@@ -10,6 +10,7 @@
 		022274114360E72EEB83852F /* ToggleChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18F8238DE2B3A5DD7E6347D9 /* ToggleChip.swift */; };
 		056324BB9650D43E7DD9E14C /* AppModel+Study.swift in Sources */ = {isa = PBXBuildFile; fileRef = A161475E8A77D80B61222775 /* AppModel+Study.swift */; };
 		063BC9B7289680F3E06EC728 /* AppIconRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BF203952EBA1DDEF711F3B9 /* AppIconRenderer.swift */; };
+		06BBABBBBB90680BE89AAE37 /* AppearanceSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2120D3155393CE3BAFC6A61 /* AppearanceSettings.swift */; };
 		07F9F1538C63906F03C15A62 /* GraphPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC23E75A3BD4D34CA12E5CDF /* GraphPane.swift */; };
 		0D16D7D6B5771F4D08B56A25 /* SegmentedPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B204DFD6226F3128D480D100 /* SegmentedPicker.swift */; };
 		0F3BB856007941681BA7EF9A /* QuestionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D57B1783CECAD81129F93064 /* QuestionRow.swift */; };
@@ -22,6 +23,7 @@
 		372D7354E20E09DF5D20D8C0 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103ADF805FA9261CE62259F6 /* Buttons.swift */; };
 		3DC7A321F7AFF374AB74AA96 /* CalculatorWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 792DD5DF1A29C472185321F8 /* CalculatorWebView.swift */; };
 		418A485B7A86954B315D5D9C /* FigureReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 240822C8E06814D5515BE58B /* FigureReviewView.swift */; };
+		48AAFC082686844540B24964 /* AgentsSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F600DBB9A79C49F036836DC /* AgentsSettings.swift */; };
 		4E9A8D4FDA7D6CE5C5665833 /* BridgeWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF742A5BBBD3EE9A6AA601FC /* BridgeWebView.swift */; };
 		579E05E36348858B8D5D4627 /* AnswerResultsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ABB35DCD3AC0CE45BE92549 /* AnswerResultsSheet.swift */; };
 		57E3D38B19ACD154D4C9EF08 /* ClassSession+Study.swift in Sources */ = {isa = PBXBuildFile; fileRef = C463C7A24FD856196E75CCB0 /* ClassSession+Study.swift */; };
@@ -31,6 +33,7 @@
 		6DD396B5F938A6CDF3265E01 /* ImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC57D74813573353742F38B9 /* ImportView.swift */; };
 		6ED3DA554BD3A365D2EE3392 /* ThubanCore in Frameworks */ = {isa = PBXBuildFile; productRef = 76221F8984A6FD75CBCDF290 /* ThubanCore */; };
 		70CA6676D30B924DA53E159F /* ClassSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2886ED56B0FBA5FDB2A38A0A /* ClassSession.swift */; };
+		723D6A4B0D9716118AED355E /* AboutSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0E7785B11EF0A5DC15E9CD /* AboutSettings.swift */; };
 		77D6B405D61E3A607CB47999 /* ThubanMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60C9B921445F87FD56D4E7B8 /* ThubanMark.swift */; };
 		78089632D161182381DB77AC /* Icon.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB1E418EE8AF7B971BC9F46C /* Icon.swift */; };
 		7C1231DD149B6AEEDC68C602 /* DeleteClassAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34CCBA064123C65B63E41283 /* DeleteClassAlert.swift */; };
@@ -43,16 +46,23 @@
 		AD33A2ABE5478DF889C87097 /* ThemeEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBEF16E5283165BA53AA11EA /* ThemeEnvironment.swift */; };
 		AE75FBD8540B0F8D14B895D8 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584E744841F901041301BD7D /* AppModel.swift */; };
 		B29E66951672F8E3947D01B6 /* QuestionEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0CF911E2DBCB6A859A6EAB4 /* QuestionEditSheet.swift */; };
+		B6B2B40B727A8EF172C590D1 /* AppModel+SettingsandModals.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9138405FEDB4C9F2D51C45F2 /* AppModel+SettingsandModals.swift */; };
+		C14FCDF02B8D76B26F1972FE /* CustomSchemeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0846196F21D1A6D3843390 /* CustomSchemeSheet.swift */; };
+		C205839B56E041CD0CE3B4C6 /* DataSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC21B934895FF778EEB1EFC /* DataSettings.swift */; };
 		C235CA97EED7B40B239A2DB2 /* web in Resources */ = {isa = PBXBuildFile; fileRef = 9676B93BD738E096D9763F0A /* web */; };
 		D27E19C594D5A91022B18FFC /* AppModel+QuestionBankandImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0A38543D1D943A77A1F22E /* AppModel+QuestionBankandImport.swift */; };
 		D50835DDBE78AEA8CB2F6102 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2FF00823B59C2E35C3920F72 /* Assets.xcassets */; };
+		D603C8EC0D33212CDDB4786C /* GrapherSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BCA71970A36B0D2FF429D95 /* GrapherSettings.swift */; };
 		D8121396F229C3621712CAD5 /* ThubanSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57D930C066D04D1B08182F2 /* ThubanSchemeHandler.swift */; };
+		D91612C56563A4C9A6CC4437 /* ConnectClaudeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7894F9FB81802ADA1BED0437 /* ConnectClaudeSheet.swift */; };
 		D9E52116495A98ACC0E1B261 /* ClassSession+QuestionBankandImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1710E26A041E0E14AE2E570F /* ClassSession+QuestionBankandImport.swift */; };
 		DBC3689599DC3AE8F2FC9EFC /* WebBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 629F19F6ECDB6EF2A1B4BD1C /* WebBridge.swift */; };
 		DEB76CDE8C55648A6B92EB01 /* QuestionBankView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10D54CDF78E7A6F2E150EAB6 /* QuestionBankView.swift */; };
+		E19CA64ADBB21FDAC007E741 /* QuestionBankSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 602C1A81214764A12216C714 /* QuestionBankSettings.swift */; };
 		E1AE33EB7B734FAF3F8A4CDD /* ChatWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 778E2B04690D737EF33E3A47 /* ChatWebView.swift */; };
 		E87E99E9DCA289CD7BE24475 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF47D19073731C2724D19052 /* SettingsView.swift */; };
 		EA3622FC5EC48AF3ED58F529 /* ThubanStudyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 600754474895BA108F79E955 /* ThubanStudyApp.swift */; };
+		EAD15F7EFB6E8147FD3C2C58 /* ClaudeAccountSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89F27B8A832C0FC7E38E208F /* ClaudeAccountSettings.swift */; };
 		FDE734AB1F0C9DFC4F503B88 /* ShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDC77D0C277A82BB684D9ADE /* ShellView.swift */; };
 /* End PBXBuildFile section */
 
@@ -64,6 +74,8 @@
 		15F03A03A4D361ACE53C61A3 /* NewClassSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewClassSheet.swift; sourceTree = "<group>"; };
 		1710E26A041E0E14AE2E570F /* ClassSession+QuestionBankandImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ClassSession+QuestionBankandImport.swift"; sourceTree = "<group>"; };
 		18F8238DE2B3A5DD7E6347D9 /* ToggleChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToggleChip.swift; sourceTree = "<group>"; };
+		1BCA71970A36B0D2FF429D95 /* GrapherSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrapherSettings.swift; sourceTree = "<group>"; };
+		1D0846196F21D1A6D3843390 /* CustomSchemeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomSchemeSheet.swift; sourceTree = "<group>"; };
 		240822C8E06814D5515BE58B /* FigureReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FigureReviewView.swift; sourceTree = "<group>"; };
 		2886ED56B0FBA5FDB2A38A0A /* ClassSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassSession.swift; sourceTree = "<group>"; };
 		2BC5BBCEB0C00BC5DD7BF2A4 /* QuestionFormWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionFormWebView.swift; sourceTree = "<group>"; };
@@ -72,15 +84,20 @@
 		2FF00823B59C2E35C3920F72 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		34CCBA064123C65B63E41283 /* DeleteClassAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteClassAlert.swift; sourceTree = "<group>"; };
 		34F954E0F3E1D9921D4D2EFD /* Secrets.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Secrets.plist; sourceTree = "<group>"; };
+		3F600DBB9A79C49F036836DC /* AgentsSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsSettings.swift; sourceTree = "<group>"; };
 		4A0A38543D1D943A77A1F22E /* AppModel+QuestionBankandImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+QuestionBankandImport.swift"; sourceTree = "<group>"; };
 		584E744841F901041301BD7D /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		600754474895BA108F79E955 /* ThubanStudyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThubanStudyApp.swift; sourceTree = "<group>"; };
+		602C1A81214764A12216C714 /* QuestionBankSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionBankSettings.swift; sourceTree = "<group>"; };
 		60C9B921445F87FD56D4E7B8 /* ThubanMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThubanMark.swift; sourceTree = "<group>"; };
 		629F19F6ECDB6EF2A1B4BD1C /* WebBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebBridge.swift; sourceTree = "<group>"; };
 		778E2B04690D737EF33E3A47 /* ChatWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatWebView.swift; sourceTree = "<group>"; };
+		7894F9FB81802ADA1BED0437 /* ConnectClaudeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectClaudeSheet.swift; sourceTree = "<group>"; };
 		792DD5DF1A29C472185321F8 /* CalculatorWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorWebView.swift; sourceTree = "<group>"; };
 		79B2C18B5C7D4AF8FA65BAB0 /* ThubanCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ThubanCore; path = Packages/ThubanCore; sourceTree = SOURCE_ROOT; };
 		7BF203952EBA1DDEF711F3B9 /* AppIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconRenderer.swift; sourceTree = "<group>"; };
+		89F27B8A832C0FC7E38E208F /* ClaudeAccountSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeAccountSettings.swift; sourceTree = "<group>"; };
+		9138405FEDB4C9F2D51C45F2 /* AppModel+SettingsandModals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+SettingsandModals.swift"; sourceTree = "<group>"; };
 		9676B93BD738E096D9763F0A /* web */ = {isa = PBXFileReference; lastKnownFileType = folder; name = web; path = ThubanStudy/Resources/web; sourceTree = SOURCE_ROOT; };
 		9ABB35DCD3AC0CE45BE92549 /* AnswerResultsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnswerResultsSheet.swift; sourceTree = "<group>"; };
 		A161475E8A77D80B61222775 /* AppModel+Study.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+Study.swift"; sourceTree = "<group>"; };
@@ -94,13 +111,16 @@
 		C463C7A24FD856196E75CCB0 /* ClassSession+Study.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ClassSession+Study.swift"; sourceTree = "<group>"; };
 		C57D930C066D04D1B08182F2 /* ThubanSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThubanSchemeHandler.swift; sourceTree = "<group>"; };
 		C6018324F1F6BF47F9E04CC8 /* Chip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chip.swift; sourceTree = "<group>"; };
+		CB0E7785B11EF0A5DC15E9CD /* AboutSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutSettings.swift; sourceTree = "<group>"; };
 		CC57D74813573353742F38B9 /* ImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportView.swift; sourceTree = "<group>"; };
 		D1CEB9ACB1D91668E88A25DC /* EmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyState.swift; sourceTree = "<group>"; };
+		D2120D3155393CE3BAFC6A61 /* AppearanceSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettings.swift; sourceTree = "<group>"; };
 		D57B1783CECAD81129F93064 /* QuestionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionRow.swift; sourceTree = "<group>"; };
 		E0CF911E2DBCB6A859A6EAB4 /* QuestionEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionEditSheet.swift; sourceTree = "<group>"; };
 		E2C0EEBAC23E4206B4D86048 /* TutorPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorPane.swift; sourceTree = "<group>"; };
 		EB1E418EE8AF7B971BC9F46C /* Icon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Icon.swift; sourceTree = "<group>"; };
 		ECB3AFA5D45551F433544E15 /* CommandBus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandBus.swift; sourceTree = "<group>"; };
+		EFC21B934895FF778EEB1EFC /* DataSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataSettings.swift; sourceTree = "<group>"; };
 		F119C01B449C902DF167CD7A /* GraphWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphWebView.swift; sourceTree = "<group>"; };
 		F20DF246D546C4759E93C243 /* ProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBar.swift; sourceTree = "<group>"; };
 		FBEF16E5283165BA53AA11EA /* ThemeEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeEnvironment.swift; sourceTree = "<group>"; };
@@ -198,6 +218,7 @@
 				7BF203952EBA1DDEF711F3B9 /* AppIconRenderer.swift */,
 				584E744841F901041301BD7D /* AppModel.swift */,
 				4A0A38543D1D943A77A1F22E /* AppModel+QuestionBankandImport.swift */,
+				9138405FEDB4C9F2D51C45F2 /* AppModel+SettingsandModals.swift */,
 				A161475E8A77D80B61222775 /* AppModel+Study.swift */,
 				2886ED56B0FBA5FDB2A38A0A /* ClassSession.swift */,
 				1710E26A041E0E14AE2E570F /* ClassSession+QuestionBankandImport.swift */,
@@ -211,6 +232,15 @@
 		611707499D28E520827AE1D5 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				CB0E7785B11EF0A5DC15E9CD /* AboutSettings.swift */,
+				3F600DBB9A79C49F036836DC /* AgentsSettings.swift */,
+				D2120D3155393CE3BAFC6A61 /* AppearanceSettings.swift */,
+				89F27B8A832C0FC7E38E208F /* ClaudeAccountSettings.swift */,
+				7894F9FB81802ADA1BED0437 /* ConnectClaudeSheet.swift */,
+				1D0846196F21D1A6D3843390 /* CustomSchemeSheet.swift */,
+				EFC21B934895FF778EEB1EFC /* DataSettings.swift */,
+				1BCA71970A36B0D2FF429D95 /* GrapherSettings.swift */,
+				602C1A81214764A12216C714 /* QuestionBankSettings.swift */,
 				BF47D19073731C2724D19052 /* SettingsView.swift */,
 			);
 			path = Settings;
@@ -371,11 +401,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				723D6A4B0D9716118AED355E /* AboutSettings.swift in Sources */,
+				48AAFC082686844540B24964 /* AgentsSettings.swift in Sources */,
 				579E05E36348858B8D5D4627 /* AnswerResultsSheet.swift in Sources */,
 				063BC9B7289680F3E06EC728 /* AppIconRenderer.swift in Sources */,
 				D27E19C594D5A91022B18FFC /* AppModel+QuestionBankandImport.swift in Sources */,
+				B6B2B40B727A8EF172C590D1 /* AppModel+SettingsandModals.swift in Sources */,
 				056324BB9650D43E7DD9E14C /* AppModel+Study.swift in Sources */,
 				AE75FBD8540B0F8D14B895D8 /* AppModel.swift in Sources */,
+				06BBABBBBB90680BE89AAE37 /* AppearanceSettings.swift in Sources */,
 				4E9A8D4FDA7D6CE5C5665833 /* BridgeWebView.swift in Sources */,
 				372D7354E20E09DF5D20D8C0 /* Buttons.swift in Sources */,
 				33EBF0DC0EDC2D787F94C831 /* CalculatorPanel.swift in Sources */,
@@ -385,12 +419,17 @@
 				D9E52116495A98ACC0E1B261 /* ClassSession+QuestionBankandImport.swift in Sources */,
 				57E3D38B19ACD154D4C9EF08 /* ClassSession+Study.swift in Sources */,
 				70CA6676D30B924DA53E159F /* ClassSession.swift in Sources */,
+				EAD15F7EFB6E8147FD3C2C58 /* ClaudeAccountSettings.swift in Sources */,
 				9ACF11AEFE1A4D0A1D72EB1B /* CommandBus.swift in Sources */,
+				D91612C56563A4C9A6CC4437 /* ConnectClaudeSheet.swift in Sources */,
+				C14FCDF02B8D76B26F1972FE /* CustomSchemeSheet.swift in Sources */,
+				C205839B56E041CD0CE3B4C6 /* DataSettings.swift in Sources */,
 				7C1231DD149B6AEEDC68C602 /* DeleteClassAlert.swift in Sources */,
 				8A579E26738F001B6B42A37D /* EmptyState.swift in Sources */,
 				418A485B7A86954B315D5D9C /* FigureReviewView.swift in Sources */,
 				07F9F1538C63906F03C15A62 /* GraphPane.swift in Sources */,
 				1B718E7426BAC757689A811B /* GraphWebView.swift in Sources */,
+				D603C8EC0D33212CDDB4786C /* GrapherSettings.swift in Sources */,
 				78089632D161182381DB77AC /* Icon.swift in Sources */,
 				5DEDD52A79EB1C3F9730E9E3 /* ImportPipeline.swift in Sources */,
 				A083F0121ADB9912B36197A8 /* ImportProgressSheet.swift in Sources */,
@@ -398,6 +437,7 @@
 				2604A79258DD0271E48FB0E2 /* NewClassSheet.swift in Sources */,
 				7F5B98D2F7E8519964BE5AF9 /* ProgressBar.swift in Sources */,
 				13539FEC06DBA060389E9552 /* QuestionBankModel.swift in Sources */,
+				E19CA64ADBB21FDAC007E741 /* QuestionBankSettings.swift in Sources */,
 				DEB76CDE8C55648A6B92EB01 /* QuestionBankView.swift in Sources */,
 				B29E66951672F8E3947D01B6 /* QuestionEditSheet.swift in Sources */,
 				6A9CFA5D72DBF4609716BC12 /* QuestionFormWebView.swift in Sources */,
