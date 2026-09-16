@@ -1,0 +1,58 @@
+name: ThubanStudy
+options:
+  bundleIdPrefix: com.thuban
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+packages:
+  ThubanCore:
+    path: Packages/ThubanCore
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  ThubanStudy:
+    type: application
+    platform: macOS
+    sources:
+      - path: ThubanStudy/App
+      - path: ThubanStudy/Views
+      - path: ThubanStudy/Web
+      - path: ThubanStudy/Resources/Assets.xcassets
+      - path: ThubanStudy/Resources/web
+        type: folder
+      - path: ThubanStudy/Resources/Secrets.plist
+        optional: true
+    dependencies:
+      - package: ThubanCore
+    info:
+      path: ThubanStudy/Resources/Info.plist
+      properties:
+        CFBundleName: Thuban Study
+        CFBundleDisplayName: Thuban Study
+        CFBundleIdentifier: com.thuban.study
+        LSMinimumSystemVersion: "15.0"
+        LSApplicationCategoryType: public.app-category.education
+        NSHumanReadableCopyright: "© 2026 Chancellor Verdery"
+        NSPrincipalClass: NSApplication
+        NSSupportsAutomaticTermination: false
+        NSSupportsSuddenTermination: false
+    entitlements:
+      path: ThubanStudy/Resources/ThubanStudy.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+        com.apple.security.network.client: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.thuban.study
+        PRODUCT_NAME: Thuban Study
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        ENABLE_HARDENED_RUNTIME: false
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_EMIT_LOC_STRINGS: false
