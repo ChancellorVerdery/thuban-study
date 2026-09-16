@@ -1,0 +1,359 @@
+import Foundation
+import Observation
+import ThubanCore
+import os
+
+/// Runs the import for one class: parse → figures → import agent → questions → figure agent, one file at a time.
+/// One pipeline exists per class (`ImportPipeline.pipeline(for:)`); it survives view rebuilds so a run can continue
+/// in the background while the student moves to another section.
+@MainActor
+@Observable
+final class ImportPipeline {
+    private static let logger = Logger(subsystem: "com.thuban.study", category: "import")
+    /// Figures analysed per document; the rest stay `.pending` and can be reviewed as originals.
+    static let maxAnalysedFigures = 24
+
+    /// Per-file progress shown in the activity list.
+    struct FileActivity: Identifiable, Equatable {
+        enum Phase: Equatable { case waiting, reading, figures, generating, escalated, analysingFigures, done, failed, cancelled }
+        var id: DocumentID
+        var filename: String
+        var phase: Phase = .waiting
+        var detail: String = "Waiting"
+        var model: ClaudeModel?
+        var questionCount = 0
+        var figureCount = 0
+        var chartCount = 0
+        var error: String?
+
+        var isFinished: Bool { phase == .done || phase == .failed || phase == .cancelled }
+    }
+
+    /// The agent asked for Opus on a file; the sheet offers to keep it or pin Sonnet for the rest of the run.
+    struct EscalationNotice: Equatable {
+        var documentId: DocumentID
+        var filename: String
+        var reason: String
+    }
+
+    // MARK: Registry
+
+    @ObservationIgnored private static var registry: [ClassID: ImportPipeline] = [:]
+
+    static func pipeline(for session: ClassSession) -> ImportPipeline {
+        if let existing = registry[session.classId] { return existing }
+        let pipeline = ImportPipeline(session: session)
+        registry[session.classId] = pipeline
+        return pipeline
+    }
+
+    // MARK: State
+
+    let classId: ClassID
+    @ObservationIgnored private let session: ClassSession
+    @ObservationIgnored private var runTask: Task<Void, Never>?
+
+    private(set) var isRunning = false
+    /// Documents of the current (or last) run, in order.
+    private(set) var activities: [FileActivity] = []
+    private(set) var escalationNotice: EscalationNotice?
+    /// Reasons already acknowledged (so the notice is not shown twice for one run).
+    private var acknowledgedEscalations: Set<DocumentID> = []
+    /// The policy for this run; "Use Sonnet anyway" pins Sonnet here for the remaining files.
+    private(set) var runPolicy: ModelPolicy = .default
+    /// Question kinds produced so far in this run.
+    private(set) var kindCounts: [QuestionKind: Int] = [:]
+    /// Set while a run is active and the progress sheet has not been dismissed to the background.
+    var isSheetPresented = false
+    /// A run-level error (nothing to import, not connected).
+    var lastError: String?
+
+    private init(session: ClassSession) {
+        self.classId = session.classId
+        self.session = session
+    }
+
+    // MARK: Derived
+
+    var batchIds: Set<DocumentID> { Set(activities.map(\.id)) }
+    var finishedCount: Int { activities.filter(\.isFinished).count }
+    var totalCount: Int { activities.count }
+    var questionsSoFar: Int { activities.reduce(0) { $0 + $1.questionCount } }
+    var fractionFinished: Double { totalCount == 0 ? 0 : Double(finishedCount) / Double(totalCount) }
+    var summaryLine: String {
+        "\(finishedCount) of \(totalCount) finished · \(questionsSoFar) question\(questionsSoFar == 1 ? "" : "s") so far"
+    }
+
+    func activity(for id: DocumentID) -> FileActivity? {
+        activities.first { $0.id == id }
+    }
+
+    // MARK: Control
+
+    /// Starts a run over the given queued documents. No-op while a run is active.
+    func start(documents: [ImportedDocument], policy: ModelPolicy) {
+        guard !isRunning else { return }
+        let queued = documents.filter { $0.status == .queued }
+        guard !queued.isEmpty else {
+            lastError = "Nothing to import: add files first."
+            return
+        }
+        lastError = nil
+        isRunning = true
+        isSheetPresented = true
+        escalationNotice = nil
+        acknowledgedEscalations = []
+        runPolicy = policy
+        kindCounts = [:]
+        activities = queued.map { FileActivity(id: $0.id, filename: $0.filename) }
+        runTask = Task { [weak self] in
+            guard let self else { return }
+            for document in queued {
+                if Task.isCancelled { self.markCancelled(document.id); continue }
+                await self.process(document)
+            }
+            self.isRunning = false
+            self.runTask = nil
+        }
+    }
+
+    /// Cancels the running import; the current file is reset to queued.
+    func cancel() {
+        runTask?.cancel()
+    }
+
+    /// "Keep Opus": dismisses the notice; the run keeps the policy as it is.
+    func keepEscalation() {
+        if let notice = escalationNotice { acknowledgedEscalations.insert(notice.documentId) }
+        escalationNotice = nil
+    }
+
+    /// "Use Sonnet anyway": pins Sonnet for the rest of this run (the file already escalated finishes on Opus).
+    func pinSonnetForRun() {
+        if let notice = escalationNotice { acknowledgedEscalations.insert(notice.documentId) }
+        runPolicy.pinned = .sonnet
+        escalationNotice = nil
+    }
+
+    // MARK: Per document
+
+    private func process(_ original: ImportedDocument) async {
+        var document = original
+        let store = session.store
+        let app = session.app
+        do {
+            // 1. Read
+            try Task.checkCancellation()
+            document = await setStatus(document, .reading, detail: "Reading \(document.filename)", model: nil)
+            update(document.id) { $0.phase = .reading; $0.detail = "Reading" }
+            let fileURL = AppPaths.documentURL(document.storedPath)
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                throw ThubanError.parse("The stored file is missing: \(document.storedPath)")
+            }
+            let content = try await DocumentParserRegistry.parse(url: fileURL)
+
+            // 2. Figures
+            try Task.checkCancellation()
+            let figureLabel = "Extracting figures (\(content.figures.count))"
+            document = await setStatus(document, .extractingFigures, detail: figureLabel, model: nil)
+            update(document.id) { $0.phase = .figures; $0.detail = figureLabel; $0.figureCount = content.figures.count }
+            let figureIds = try await storeFigures(content.figures, documentId: document.id)
+
+            // 3. Import agent
+            try Task.checkCancellation()
+            let policy = runPolicy
+            let model = policy.effectiveModel
+            document = await setStatus(document, .generating, detail: "Generating questions (\(model.shortName))", model: model.rawValue)
+            update(document.id) { $0.phase = .generating; $0.detail = "Generating questions"; $0.model = model }
+            let agent = ImportAgent(client: app.claudeClient, validator: { [engine = app.engine] template in
+                await engine.validate(template)
+            })
+            let documentId = document.id
+            let result = try await agent.run(
+                document: document,
+                content: content,
+                classContext: app.classContext(for: classId),
+                policy: policy
+            ) { [weak self] progress in
+                Task { @MainActor [weak self] in self?.handle(progress, for: documentId) }
+            }
+
+            // 4. Store questions
+            try Task.checkCancellation()
+            var questions = result.questions
+            for index in questions.indices {
+                let indices = result.figureIndicesByQuestion[questions[index].id] ?? []
+                questions[index].figureIds = indices.compactMap { figureIds[$0] }
+                questions[index].documentId = document.id
+                questions[index].classId = classId
+            }
+            try await store.insert(questions)
+            for question in questions { kindCounts[question.kind, default: 0] += 1 }
+            update(document.id) { $0.questionCount = questions.count; $0.model = result.modelUsed }
+            document.modelUsed = result.modelUsed.rawValue
+            document.classification = result.classification
+            document.questionCount = questions.count
+            document.figureCount = content.figures.count
+            try await store.update(classification: result.classification, questionCount: questions.count,
+                                   figureCount: content.figures.count, for: document.id)
+            await session.loadQuestions()
+
+            // 5. Figure agent
+            let charts = await analyseFigures(content.figures, figureIds: figureIds, document: &document)
+
+            // 6. Done
+            let doneDetail = "Done · \(questions.count) question\(questions.count == 1 ? "" : "s")"
+                + (charts > 0 ? " · \(charts) chart\(charts == 1 ? "" : "s")" : "")
+            document = await setStatus(document, .done, detail: doneDetail, model: document.modelUsed)
+            update(document.id) { $0.phase = .done; $0.detail = doneDetail; $0.chartCount = charts }
+            if !result.warnings.isEmpty {
+                Self.logger.notice("Import warnings for \(document.filename, privacy: .public): \(result.warnings.joined(separator: " | "), privacy: .public)")
+            }
+        } catch is CancellationError {
+            await resetToQueued(document)
+        } catch let error as ThubanError where error == .cancelled {
+            await resetToQueued(document)
+        } catch {
+            let message = error.localizedDescription
+            Self.logger.error("Import failed for \(document.filename, privacy: .public): \(message, privacy: .public)")
+            document = await setStatus(document, .failed, detail: message, model: document.modelUsed)
+            update(document.id) { $0.phase = .failed; $0.detail = "Failed"; $0.error = message }
+        }
+    }
+
+    private func handle(_ progress: ImportProgress, for id: DocumentID) {
+        switch progress {
+        case .classifying:
+            update(id) { $0.detail = "Classifying the document" }
+            setDetail(id, "Classifying the document")
+        case .chunk(let index, let count):
+            let text = count > 1 ? "Generating questions · part \(index + 1) of \(count)" : "Generating questions"
+            update(id) { $0.detail = text }
+            setDetail(id, text)
+        case .generating(let model):
+            update(id) { $0.phase = .generating; $0.model = model; $0.detail = "Generating questions (\(model.shortName))" }
+            Task { try? await session.store.update(status: .generating, detail: "Generating questions (\(model.shortName))", model: model.rawValue, for: id) }
+            if var document = session.importQueue.first(where: { $0.id == id }) {
+                document.status = .generating
+                document.statusDetail = "Generating questions (\(model.shortName))"
+                document.modelUsed = model.rawValue
+                session.updateDocument(document)
+            }
+        case .escalated(let reason):
+            update(id) { $0.phase = .escalated; $0.model = .opus; $0.detail = "Escalated to Opus" }
+            if var document = session.importQueue.first(where: { $0.id == id }) {
+                document.status = .escalated
+                document.statusDetail = "Escalated to Opus"
+                document.modelUsed = ClaudeModel.opus.rawValue
+                session.updateDocument(document)
+                Task { try? await session.store.update(status: .escalated, detail: "Escalated to Opus", model: ClaudeModel.opus.rawValue, for: id) }
+                if !acknowledgedEscalations.contains(id) {
+                    escalationNotice = EscalationNotice(documentId: id, filename: document.filename, reason: reason)
+                }
+            }
+        case .figures(let count):
+            if count > 0 { update(id) { $0.detail = "Linking \(count) figure\(count == 1 ? "" : "s")" } }
+        case .done:
+            break
+        }
+    }
+
+    // MARK: Figures
+
+    /// Saves the PNGs under `figures/<docId>/<index>.png` and inserts pending `Figure` rows. Returns index → id.
+    private func storeFigures(_ figures: [ExtractedFigure], documentId: DocumentID) async throws -> [Int: FigureID] {
+        guard !figures.isEmpty else { return [:] }
+        let directory = AppPaths.figures.appendingPathComponent(documentId.raw, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var ids: [Int: FigureID] = [:]
+        for extracted in figures {
+            try Task.checkCancellation()
+            let relative = "\(documentId.raw)/\(extracted.index).png"
+            try extracted.pngData.write(to: AppPaths.figureURL(relative), options: .atomic)
+            let figure = Figure(
+                documentId: documentId,
+                pageOrIndex: extracted.page ?? extracted.index,
+                originalPath: relative,
+                kind: .unknown,
+                status: .pending,
+                caption: extracted.nearbyText.isEmpty ? nil : String(extracted.nearbyText.prefix(200))
+            )
+            try await session.store.insert(figure)
+            ids[extracted.index] = figure.id
+        }
+        return ids
+    }
+
+    /// Runs the FigureAgent over the extracted figures; charts become `.reviewing`, everything else keeps its
+    /// original (`.keptOriginal`). Returns the number of charts found. Failures leave figures pending.
+    private func analyseFigures(_ figures: [ExtractedFigure], figureIds: [Int: FigureID], document: inout ImportedDocument) async -> Int {
+        guard !figures.isEmpty, session.app.isConnected else { return 0 }
+        let agent = FigureAgent(client: session.app.claudeClient, model: runPolicy.pinned ?? .sonnet)
+        let batch = figures.prefix(Self.maxAnalysedFigures)
+        var charts = 0
+        document = await setStatus(document, .extractingFigures, detail: "Analysing figures (0 of \(batch.count))", model: document.modelUsed)
+        update(document.id) { $0.phase = .analysingFigures; $0.detail = "Analysing figures" }
+        for (offset, extracted) in batch.enumerated() {
+            if Task.isCancelled { break }
+            guard let id = figureIds[extracted.index], var figure = try? await session.store.figure(id: id) else { continue }
+            let label = "Analysing figures (\(offset + 1) of \(batch.count))"
+            update(document.id) { $0.detail = label }
+            setDetail(document.id, label)
+            do {
+                let analysis = try await agent.analyze(png: extracted.pngData, nearbyText: extracted.nearbyText)
+                figure.kind = analysis.kind
+                figure.chart = analysis.chart
+                if let caption = analysis.caption, !caption.isEmpty { figure.caption = caption }
+                if analysis.kind == .chart, analysis.chart != nil {
+                    figure.status = .reviewing
+                    charts += 1
+                } else {
+                    figure.status = .keptOriginal
+                }
+                try await session.store.update(figure)
+            } catch is CancellationError {
+                break
+            } catch {
+                Self.logger.error("Figure analysis failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        return charts
+    }
+
+    // MARK: Status plumbing
+
+    private func setStatus(_ document: ImportedDocument, _ status: ImportStatus, detail: String?, model: String?) async -> ImportedDocument {
+        var updated = document
+        updated.status = status
+        updated.statusDetail = detail
+        updated.modelUsed = model
+        session.updateDocument(updated)
+        do {
+            try await session.store.update(status: status, detail: detail, model: model, for: document.id)
+        } catch {
+            Self.logger.error("Status update failed: \(error.localizedDescription, privacy: .public)")
+        }
+        return updated
+    }
+
+    private func setDetail(_ id: DocumentID, _ detail: String) {
+        guard var document = session.importQueue.first(where: { $0.id == id }) else { return }
+        document.statusDetail = detail
+        session.updateDocument(document)
+        Task { try? await session.store.update(status: document.status, detail: detail, model: document.modelUsed, for: id) }
+    }
+
+    private func resetToQueued(_ document: ImportedDocument) async {
+        _ = await setStatus(document, .queued, detail: "Cancelled", model: nil)
+        markCancelled(document.id)
+    }
+
+    private func markCancelled(_ id: DocumentID) {
+        update(id) { $0.phase = .cancelled; $0.detail = "Cancelled" }
+    }
+
+    private func update(_ id: DocumentID, _ change: (inout FileActivity) -> Void) {
+        guard let index = activities.firstIndex(where: { $0.id == id }) else { return }
+        change(&activities[index])
+    }
+}
