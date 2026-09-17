@@ -468,6 +468,7 @@ extension ClassSession {
             style: studyClass?.tutorStyle ?? .socratic,
             instance: currentInstance,
             sourceRef: currentQuestion?.sourceRef,
+            questionType: currentQuestion?.type,
             inputs: inputs,
             verdicts: verdicts,
             graphExpressions: visibleGraphExpressions.map(\.latex),

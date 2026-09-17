@@ -1,5 +1,7 @@
 import Foundation
 
+/// How a question is answered and graded (the engine's format). The student-facing category is `Question.type`,
+/// which the import agent classifies from the material ("Initial value problems", "Separation of variables").
 public enum QuestionKind: String, Codable, Sendable, CaseIterable {
     case mathTemplate, shortAnswer, multipleChoice, freeResponse, numeric
 }
@@ -178,6 +180,13 @@ public struct Question: Codable, Identifiable, Sendable, Equatable {
     /// "Homework 4 · Q3", "§14.4 p. 912"
     public var sourceRef: String?
     public var kind: QuestionKind
+    /// The problem type as the course names it, assigned by the import agent from the material: "Initial value
+    /// problems", "Separation of variables", "Chain rule". Not a preset; new types appear as the material introduces
+    /// them and existing ones are reused. Empty ⇒ unclassified (`typeLabel` shows "Unclassified"). Whitespace is
+    /// normalised on every write so one type never appears twice in the bank's filters.
+    public var type: String {
+        didSet { if type != Question.normalizedType(type) { type = Question.normalizedType(type) } }
+    }
     /// Markdown with $…$ / $$…$$ LaTeX.
     public var stem: String
     /// At least one part.
@@ -196,6 +205,7 @@ public struct Question: Codable, Identifiable, Sendable, Equatable {
         documentId: DocumentID? = nil,
         sourceRef: String? = nil,
         kind: QuestionKind,
+        type: String = "",
         stem: String,
         parts: [QuestionPart],
         template: MathTemplate? = nil,
@@ -209,6 +219,7 @@ public struct Question: Codable, Identifiable, Sendable, Equatable {
         self.documentId = documentId
         self.sourceRef = sourceRef
         self.kind = kind
+        self.type = Question.normalizedType(type)
         self.stem = stem
         self.parts = parts
         self.template = template
@@ -218,8 +229,18 @@ public struct Question: Codable, Identifiable, Sendable, Equatable {
         self.createdAt = createdAt
     }
 
+    /// Shown wherever the type is displayed; the empty type reads "Unclassified".
+    public var typeLabel: String { type.isEmpty ? Question.unclassifiedLabel : type }
+
+    public static let unclassifiedLabel = "Unclassified"
+
+    /// Trims and collapses whitespace so "chain  rule " and "chain rule" are one type; case is kept as written.
+    public static func normalizedType(_ raw: String) -> String {
+        raw.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
     private enum CodingKeys: String, CodingKey {
-        case id, classId, documentId, sourceRef, kind, stem, parts, template, figureIds, tags, difficulty, createdAt
+        case id, classId, documentId, sourceRef, kind, type, stem, parts, template, figureIds, tags, difficulty, createdAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -229,6 +250,7 @@ public struct Question: Codable, Identifiable, Sendable, Equatable {
         documentId = try c.decodeIfPresent(DocumentID.self, forKey: .documentId)
         sourceRef = try c.decodeIfPresent(String.self, forKey: .sourceRef)
         kind = try c.decode(QuestionKind.self, forKey: .kind)
+        type = Question.normalizedType(try c.decodeIfPresent(String.self, forKey: .type) ?? "")
         stem = try c.decode(String.self, forKey: .stem)
         parts = try c.decodeIfPresent([QuestionPart].self, forKey: .parts) ?? []
         template = try c.decodeIfPresent(MathTemplate.self, forKey: .template)

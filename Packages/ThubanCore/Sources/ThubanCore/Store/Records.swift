@@ -111,6 +111,7 @@ enum Col {
     static let stem = Column("stem")
     static let sourceRef = Column("sourceRef")
     static let tags = Column("tags")
+    static let type = Column("type")
     static let status = Column("status")
     static let statusDetail = Column("statusDetail")
     static let modelUsed = Column("modelUsed")

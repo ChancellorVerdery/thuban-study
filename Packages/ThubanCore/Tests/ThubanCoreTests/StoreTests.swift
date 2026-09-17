@@ -291,6 +291,39 @@ final class StoreTests: XCTestCase {
         XCTAssertTrue(none.isEmpty)
     }
 
+    func testQuestionTypeIsStoredFilteredSearchedAndListed() async throws {
+        let store = try makeMemoryStore()
+        let studyClass = sampleClass()
+        try await store.insert(studyClass)
+
+        var ivp1 = sampleQuestion(classId: studyClass.id, stem: "Solve $y' = 2y$, $y(0) = 3$.", createdAt: at(1))
+        ivp1.type = "Initial value problems"
+        var ivp2 = sampleQuestion(classId: studyClass.id, stem: "Solve $y' = -y$, $y(0) = 1$.", createdAt: at(2))
+        ivp2.type = "  Initial   value problems "
+        var sep = sampleQuestion(classId: studyClass.id, stem: "Separate $dy/dx = xy$.", createdAt: at(3))
+        sep.type = "Separation of variables"
+        let unclassified = sampleQuestion(classId: studyClass.id, stem: "Unsorted", createdAt: at(4))
+        try await store.insert([ivp1, ivp2, sep, unclassified])
+
+        XCTAssertEqual(ivp2.type, "Initial value problems", "types are whitespace-normalised on the way in")
+        let stored = try await store.question(id: ivp2.id)
+        XCTAssertEqual(stored?.type, "Initial value problems")
+        XCTAssertEqual(unclassified.typeLabel, "Unclassified")
+
+        let byType = try await store.questions(in: studyClass.id, filter: QuestionFilter(types: ["Initial value problems"]))
+        XCTAssertEqual(byType.map(\.id), [ivp1.id, ivp2.id])
+
+        let unsorted = try await store.questions(in: studyClass.id, filter: QuestionFilter(types: [""]))
+        XCTAssertEqual(unsorted.map(\.id), [unclassified.id], "the empty type selects unclassified questions")
+
+        let searched = try await store.questions(in: studyClass.id, filter: QuestionFilter(search: "separation"))
+        XCTAssertEqual(searched.map(\.id), [sep.id], "search covers the type")
+
+        let listed = try await store.questionTypes(in: studyClass.id)
+        XCTAssertEqual(listed.map(\.type), ["Initial value problems", "Separation of variables"], "most used first, unclassified omitted")
+        XCTAssertEqual(listed.map(\.count), [2, 1])
+    }
+
     func testQuestionFilterByProgressStatus() async throws {
         let store = try makeMemoryStore()
         let studyClass = sampleClass()

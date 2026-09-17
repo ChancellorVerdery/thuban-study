@@ -39,6 +39,16 @@ extension Chip {
         }
     }
 
+    /// The chip for a question's agent-classified type ("Initial value problems"); unclassified is muted.
+    static func type(_ question: Question) -> Chip {
+        question.type.isEmpty
+            ? Chip(Question.unclassifiedLabel, kind: .neutral)
+            : Chip(question.type, kind: .accent)
+    }
+
+    /// Marks a question the math engine regenerates with fresh numbers.
+    static let regenerates = Chip("Regenerates", kind: .neutral, icon: .mathEngine)
+
     /// The chip for a question kind ("Math · engine", …).
     static func kind(_ kind: QuestionKind) -> Chip {
         switch kind {

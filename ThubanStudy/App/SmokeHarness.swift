@@ -72,7 +72,7 @@ enum SmokeHarness {
 
         // 1. Partial derivatives + tangent plane (math template mirroring the design brief: a = 1, b = 2).
         let partialDerivative = Question(
-            classId: classId, documentId: documentId, sourceRef: "Homework 4 · Q3", kind: .mathTemplate,
+            classId: classId, documentId: documentId, sourceRef: "Homework 4 · Q3", kind: .mathTemplate, type: "Tangent planes",
             stem: "Let $f(x, y) = x^2 y + 3xy^3 - 2y$. The surface $z = f(x, y)$ passes through the point $P(1, 2, f(1, 2))$.",
             parts: [
                 QuestionPart(id: "a", prompt: "Find $f_x(1, 2)$.", answerKind: .math, answer: AnswerSpec(latex: "28")),
@@ -105,7 +105,7 @@ enum SmokeHarness {
 
         // 2. Asymptotes of a rational function (math template).
         let asymptotes = Question(
-            classId: classId, documentId: documentId, sourceRef: "Homework 4 · Q1", kind: .mathTemplate,
+            classId: classId, documentId: documentId, sourceRef: "Homework 4 · Q1", kind: .mathTemplate, type: "Asymptotes",
             stem: "Let $f(x) = \\dfrac{2x^2 + 1}{x^2 - 4}$.",
             parts: [
                 QuestionPart(id: "a", prompt: "The vertical asymptotes are $x = \\pm c$. Find $c$.", answerKind: .math, answer: AnswerSpec(latex: "2")),
@@ -127,7 +127,7 @@ enum SmokeHarness {
 
         // 3–4. Static math questions.
         let staticPartial = Question(
-            classId: classId, documentId: documentId, sourceRef: "Homework 4 · Q2", kind: .shortAnswer,
+            classId: classId, documentId: documentId, sourceRef: "Homework 4 · Q2", kind: .shortAnswer, type: "Partial derivatives",
             stem: "Let $g(x, y) = \\sin(xy) + e^{x}$.",
             parts: [
                 QuestionPart(id: "a", prompt: "Find $g_x(x, y)$.", answerKind: .math, answer: AnswerSpec(latex: "y\\cos(xy) + e^{x}")),
@@ -136,7 +136,7 @@ enum SmokeHarness {
             tags: ["partial derivatives"], difficulty: 2, createdAt: at(2)
         )
         let staticLimit = Question(
-            classId: classId, documentId: documentId, sourceRef: "Homework 4 · Q4", kind: .numeric,
+            classId: classId, documentId: documentId, sourceRef: "Homework 4 · Q4", kind: .numeric, type: "Limits of two variables",
             stem: "Consider $\\displaystyle \\lim_{(x, y) \\to (0, 0)} \\frac{x^2 y}{x^2 + y^2}$.",
             parts: [
                 QuestionPart(id: "a", prompt: "Evaluate the limit (use polar coordinates).", answerKind: .numeric, answer: AnswerSpec(latex: "0")),
@@ -152,7 +152,7 @@ enum SmokeHarness {
             "$f_{xy} = f_{yx}$ only when $f$ is linear",
         ]
         let multipleChoice = Question(
-            classId: classId, documentId: documentId, sourceRef: "Homework 4 · Q5", kind: .multipleChoice,
+            classId: classId, documentId: documentId, sourceRef: "Homework 4 · Q5", kind: .multipleChoice, type: "Partial derivatives",
             stem: "Which statement does Clairaut's theorem guarantee for a function $f(x, y)$ with continuous second partials?",
             parts: [
                 QuestionPart(id: "a", prompt: "Choose one.", answerKind: .choice, answer: AnswerSpec(text: choices[0]), choices: choices),
@@ -162,7 +162,7 @@ enum SmokeHarness {
 
         // 6. Free response.
         let freeResponse = Question(
-            classId: classId, documentId: documentId, sourceRef: "Homework 4 · Q6", kind: .freeResponse,
+            classId: classId, documentId: documentId, sourceRef: "Homework 4 · Q6", kind: .freeResponse, type: "Gradient and directional derivatives",
             stem: "The gradient $\\nabla f(P)$ points in the direction of steepest ascent of $f$ at $P$.",
             parts: [
                 QuestionPart(id: "a", prompt: "Explain in your own words why this is true, using the directional derivative $D_{\\mathbf{u}} f = \\nabla f \\cdot \\mathbf{u}$.",

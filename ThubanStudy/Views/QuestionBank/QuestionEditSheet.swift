@@ -8,19 +8,24 @@ struct QuestionEditSheet: View {
     @Environment(\.thubanTheme) private var theme
     @Environment(\.dismiss) private var dismiss
     var onSave: (Question) -> Void
+    /// The class's other types, offered as a menu next to the type field.
+    var knownTypes: [String]
 
     @State private var draft: Question
     @State private var stem: String
     @State private var sourceRef: String
+    @State private var type: String
     @State private var parts: [PartDraft]
     @State private var validation: String?
 
-    init(question: Question, onSave: @escaping (Question) -> Void) {
+    init(question: Question, knownTypes: [String] = [], onSave: @escaping (Question) -> Void) {
         self.onSave = onSave
+        self.knownTypes = knownTypes
         _draft = State(initialValue: question)
         let template = question.kind == .mathTemplate ? question.template : nil
         _stem = State(initialValue: template?.stem ?? question.stem)
         _sourceRef = State(initialValue: question.sourceRef ?? "")
+        _type = State(initialValue: question.type)
         _parts = State(initialValue: PartDraft.drafts(for: question))
     }
 
@@ -31,7 +36,7 @@ struct QuestionEditSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(spacing: 8) {
-                        Chip.kind(draft.kind)
+                        if isTemplate { Chip.regenerates }
                         if isTemplate {
                             Text("Placeholders like {a} get fresh numbers each time; answers are engine expressions.")
                                 .font(ThubanFont.small)
@@ -48,6 +53,24 @@ struct QuestionEditSheet: View {
                     LabeledField("Source reference") {
                         TextField("Homework 4 · Q3", text: $sourceRef)
                             .textFieldStyle(.roundedBorder)
+                    }
+                    LabeledField("Type") {
+                        HStack(spacing: 6) {
+                            TextField("Initial value problems", text: $type)
+                                .textFieldStyle(.roundedBorder)
+                            if !knownTypes.isEmpty {
+                                Menu {
+                                    ForEach(knownTypes, id: \.self) { known in
+                                        Button(known) { type = known }
+                                    }
+                                } label: {
+                                    Glyph(.chevronDown, size: 13)
+                                }
+                                .menuStyle(.borderlessButton)
+                                .fixedSize()
+                                .help("Types already in this class")
+                            }
+                        }
                     }
                     ForEach($parts) { $part in
                         PartEditor(part: $part, isTemplate: isTemplate)
@@ -78,6 +101,7 @@ struct QuestionEditSheet: View {
         let trimmedStem = stem.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedStem.isEmpty else { validation = "The stem cannot be empty."; return }
         question.sourceRef = sourceRef.trimmingCharacters(in: .whitespaces).nilIfEmpty
+        question.type = Question.normalizedType(type)
         if isTemplate, var template = question.template {
             template.stem = trimmedStem
             for draftPart in parts {

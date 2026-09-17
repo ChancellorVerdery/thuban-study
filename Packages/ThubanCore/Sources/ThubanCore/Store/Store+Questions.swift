@@ -9,6 +9,17 @@ extension Store: QuestionRepository {
         }
     }
 
+    /// The class's agent-classified types, most used first (ties alphabetical); unclassified ("") is left out.
+    public func questionTypes(in classId: ClassID) async throws -> [(type: String, count: Int)] {
+        try await read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT type, COUNT(*) AS n FROM questions WHERE classId = ? AND type <> ''
+                GROUP BY type ORDER BY n DESC, type COLLATE NOCASE ASC
+                """, arguments: [classId])
+            return rows.map { (type: $0["type"] as String, count: $0["n"] as Int) }
+        }
+    }
+
     /// Number of questions in a class matching `filter`.
     public func questionCount(in classId: ClassID, filter: QuestionFilter? = nil) async throws -> Int {
         let filter = filter ?? .all
@@ -46,6 +57,9 @@ extension Store: QuestionRepository {
         if !filter.kinds.isEmpty {
             request = request.filter(filter.kinds.map(\.rawValue).sorted().contains(Col.kind))
         }
+        if !filter.types.isEmpty {
+            request = request.filter(filter.types.sorted().contains(Col.type))
+        }
         if !filter.documentIds.isEmpty {
             request = request.filter(filter.documentIds.map(\.raw).sorted().contains(Col.documentId))
         }
@@ -60,6 +74,7 @@ extension Store: QuestionRepository {
             request = request.filter(
                 Col.stem.like(pattern, escape: "\\")
                     || Col.sourceRef.like(pattern, escape: "\\")
+                    || Col.type.like(pattern, escape: "\\")
                     || Col.tags.like(pattern, escape: "\\")
             )
         }

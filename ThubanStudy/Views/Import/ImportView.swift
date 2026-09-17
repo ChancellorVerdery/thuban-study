@@ -498,8 +498,11 @@ struct ImportRail: View {
     }
 
     private var typesCard: some View {
-        let counts = session.importPipeline.kindCounts
+        let counts = session.importPipeline.typeCounts
         let total = counts.values.reduce(0, +)
+        let ordered = counts
+            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
+            .sorted { !$0.key.isEmpty && $1.key.isEmpty }
         return RailCard(title: "Question types") {
             VStack(alignment: .leading, spacing: 8) {
                 if total == 0 {
@@ -507,15 +510,17 @@ struct ImportRail: View {
                         .font(ThubanFont.small)
                         .foregroundStyle(theme.inkDimColor)
                 } else {
-                    ForEach(QuestionKind.allCases, id: \.self) { kind in
-                        if let count = counts[kind], count > 0 {
-                            HStack {
-                                Chip.kind(kind)
-                                Spacer()
-                                Text("\(count)")
-                                    .font(ThubanFont.mono(13))
-                                    .foregroundStyle(theme.inkColor)
-                            }
+                    ForEach(ordered, id: \.key) { entry in
+                        HStack {
+                            Text(entry.key.isEmpty ? Question.unclassifiedLabel : entry.key)
+                                .font(ThubanFont.small)
+                                .foregroundStyle(entry.key.isEmpty ? theme.inkDimColor : theme.inkColor)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            Spacer()
+                            Text("\(entry.value)")
+                                .font(ThubanFont.mono(13))
+                                .foregroundStyle(theme.inkColor)
                         }
                     }
                     Rectangle().fill(theme.lineColor).frame(height: ThubanMetrics.hairline)

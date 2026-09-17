@@ -25,9 +25,9 @@ final class QuestionBankModel {
     var searchText = "" {
         didSet { if searchText != oldValue { scheduleReload() } }
     }
-    /// `nil` = All types.
-    var kind: QuestionKind? {
-        didSet { if kind != oldValue { reload() } }
+    /// Selected agent-classified types (`Question.type`; "" = unclassified). Empty = All types.
+    var types: Set<String> = [] {
+        didSet { if types != oldValue { reload() } }
     }
     var statuses: Set<ProgressStatus> = [] {
         didSet { if statuses != oldValue { reload() } }
@@ -62,7 +62,7 @@ final class QuestionBankModel {
 
     var filter: QuestionFilter {
         QuestionFilter(
-            kinds: kind.map { [$0] } ?? [],
+            types: types,
             statuses: statuses,
             documentIds: documentIds,
             search: searchText
@@ -101,7 +101,7 @@ final class QuestionBankModel {
     var canGoBack: Bool { page > 0 }
     var canGoForward: Bool { page + 1 < pageCount }
 
-    func count(of kind: QuestionKind) -> Int { allQuestions.filter { $0.kind == kind }.count }
+    func count(ofType type: String) -> Int { allQuestions.filter { $0.type == type }.count }
     func count(of status: ProgressStatus) -> Int { allQuestions.filter { session.status(of: $0) == status }.count }
     func count(of documentId: DocumentID) -> Int { allQuestions.filter { $0.documentId == documentId }.count }
     var masteredCount: Int { count(of: .mastered) }
@@ -115,11 +115,16 @@ final class QuestionBankModel {
         }
     }
 
-    /// Kinds worth a chip: the four the brief names always, `numeric` only when present.
-    var kindChips: [QuestionKind] {
-        var kinds: [QuestionKind] = [.mathTemplate, .shortAnswer, .multipleChoice, .freeResponse]
-        if count(of: .numeric) > 0 { kinds.append(.numeric) }
-        return kinds
+    /// The class's types as the agent classified them, most used first; "" (unclassified) last when present.
+    var typeChips: [(type: String, label: String, count: Int)] {
+        var counts: [String: Int] = [:]
+        for question in allQuestions { counts[question.type, default: 0] += 1 }
+        let unclassified = counts.removeValue(forKey: "") ?? 0
+        var chips = counts
+            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
+            .map { (type: $0.key, label: $0.key, count: $0.value) }
+        if unclassified > 0 { chips.append((type: "", label: Question.unclassifiedLabel, count: unclassified)) }
+        return chips
     }
 
     var subtitle: String {
@@ -188,6 +193,10 @@ final class QuestionBankModel {
 
     // MARK: Filter actions
 
+    func toggle(type: String) {
+        if types.contains(type) { types.remove(type) } else { types.insert(type) }
+    }
+
     func toggle(status: ProgressStatus) {
         if statuses.contains(status) { statuses.remove(status) } else { statuses.insert(status) }
     }
@@ -204,7 +213,7 @@ final class QuestionBankModel {
 
     func clearFilters() {
         searchText = ""
-        kind = nil
+        types = []
         statuses = []
         documentIds = []
     }

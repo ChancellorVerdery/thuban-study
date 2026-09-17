@@ -28,9 +28,11 @@ struct QuestionTable: View {
             .width(min: 180, ideal: 200)
 
             TableColumn("Type") { row in
-                Chip.kind(row.question.kind)
+                Chip.type(row.question)
+                    .lineLimit(1)
+                    .help(row.question.typeLabel)
             }
-            .width(min: 112, ideal: 120, max: 140)
+            .width(min: 112, ideal: 150, max: 220)
 
             TableColumn("Source") { row in
                 Text(row.source)

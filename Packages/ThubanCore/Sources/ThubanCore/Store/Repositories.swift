@@ -73,17 +73,21 @@ public protocol SettingsRepository: Sendable {
 /// the stem, source reference and tags case-insensitively.
 public struct QuestionFilter: Sendable, Equatable {
     public var kinds: Set<QuestionKind>
+    /// Agent-classified types (`Question.type`); "" selects unclassified questions.
+    public var types: Set<String>
     public var statuses: Set<ProgressStatus>
     public var documentIds: Set<DocumentID>
     public var search: String?
 
     public init(
         kinds: Set<QuestionKind> = [],
+        types: Set<String> = [],
         statuses: Set<ProgressStatus> = [],
         documentIds: Set<DocumentID> = [],
         search: String? = nil
     ) {
         self.kinds = kinds
+        self.types = types
         self.statuses = statuses
         self.documentIds = documentIds
         self.search = search
@@ -101,7 +105,7 @@ public struct QuestionFilter: Sendable, Equatable {
 
     /// True when the filter imposes no restriction.
     public var isEmpty: Bool {
-        kinds.isEmpty && statuses.isEmpty && documentIds.isEmpty && normalizedSearch == nil
+        kinds.isEmpty && types.isEmpty && statuses.isEmpty && documentIds.isEmpty && normalizedSearch == nil
     }
 }
 

@@ -87,7 +87,7 @@ struct QuestionPane: View {
             }
             if let question = session.currentQuestion {
                 HStack(spacing: 6) {
-                    Chip.kind(question.kind)
+                    Chip.type(question)
                     if question.kind == .mathTemplate, let instance = session.currentInstance {
                         Chip("Regenerated · seed \(instance.seed.prefix(4))", kind: .neutral)
                             .monospacedDigit()

@@ -73,8 +73,8 @@ final class ImportPipeline {
     private var acknowledgedEscalations: Set<DocumentID> = []
     /// The policy for this run; "Use Sonnet anyway" pins Sonnet here for the remaining files.
     private(set) var runPolicy: ModelPolicy = .default
-    /// Question kinds produced so far in this run.
-    private(set) var kindCounts: [QuestionKind: Int] = [:]
+    /// Questions produced so far in this run, by agent-classified type ("" = unclassified).
+    private(set) var typeCounts: [String: Int] = [:]
     /// Set while a run is active and the progress sheet has not been dismissed to the background.
     var isSheetPresented = false
     /// A run-level error (nothing to import, not connected).
@@ -116,7 +116,7 @@ final class ImportPipeline {
         escalationNotice = nil
         acknowledgedEscalations = []
         runPolicy = policy
-        kindCounts = [:]
+        typeCounts = [:]
         activities = queued.map { FileActivity(id: $0.id, filename: $0.filename) }
         runTask = Task { [weak self] in
             guard let self else { return }
@@ -189,10 +189,12 @@ final class ImportPipeline {
             }
             let outcome: Result<ImportResult, Error>
             do {
+                let existingTypes = (try? await store.questionTypes(in: classId))?.map(\.type) ?? []
                 outcome = .success(try await agent.run(
                     document: document,
                     content: content,
                     classContext: app.classContext(for: classId),
+                    existingTypes: existingTypes,
                     policy: policy,
                     questionsPerChunk: app.questionBankSettings.defaults.questionsPerChunk
                 ) { progress in continuation.yield(progress) })
@@ -213,7 +215,7 @@ final class ImportPipeline {
                 questions[index].classId = classId
             }
             try await store.insert(questions)
-            for question in questions { kindCounts[question.kind, default: 0] += 1 }
+            for question in questions { typeCounts[question.type, default: 0] += 1 }
             update(document.id) { $0.questionCount = questions.count; $0.model = result.modelUsed }
             document.modelUsed = result.modelUsed.rawValue
             document.classification = result.classification

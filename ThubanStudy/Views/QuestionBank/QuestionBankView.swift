@@ -31,7 +31,7 @@ struct QuestionBankView: View {
         }
         .task(id: session.classId) { await model.load() }
         .sheet(item: $editing) { question in
-            QuestionEditSheet(question: question) { edited in
+            QuestionEditSheet(question: question, knownTypes: model.typeChips.map(\.type).filter { !$0.isEmpty }) { edited in
                 Task {
                     do {
                         try await session.save(question: edited)
@@ -223,10 +223,10 @@ private struct BankFilterRows: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             filterRow("Type") {
-                FilterChip(label: "All", count: model.allQuestions.count, isOn: model.kind == nil) { model.kind = nil }
-                ForEach(model.kindChips, id: \.self) { kind in
-                    FilterChip(label: Self.label(for: kind), count: model.count(of: kind), isOn: model.kind == kind) {
-                        model.kind = model.kind == kind ? nil : kind
+                FilterChip(label: "All", count: model.allQuestions.count, isOn: model.types.isEmpty) { model.types = [] }
+                ForEach(model.typeChips, id: \.type) { chip in
+                    FilterChip(label: chip.label, count: chip.count, isOn: model.types.contains(chip.type)) {
+                        model.toggle(type: chip.type)
                     }
                 }
             }
@@ -261,16 +261,6 @@ private struct BankFilterRows: View {
                 HStack(spacing: 6) { chips() }
             }
             .scrollClipDisabled()
-        }
-    }
-
-    static func label(for kind: QuestionKind) -> String {
-        switch kind {
-        case .mathTemplate: return "Math · engine"
-        case .numeric: return "Numeric"
-        case .shortAnswer: return "Short answer"
-        case .multipleChoice: return "Multiple choice"
-        case .freeResponse: return "Free response"
         }
     }
 

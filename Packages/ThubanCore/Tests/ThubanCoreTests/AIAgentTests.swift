@@ -400,6 +400,7 @@ final class AIAgentTests: XCTestCase {
 
         // Positional matching only when there is one re-emitted draft per failing question and no key matches.
         let a = QuestionDraft(sourceRef: "A", kind: .mathTemplate, stem: "Stem A", parts: [])
+        XCTAssertEqual(a.type, "", "a draft without a type is unclassified")
         let b = QuestionDraft(sourceRef: "B", kind: .mathTemplate, stem: "Stem B", parts: [])
         let renamed = QuestionDraft(sourceRef: nil, kind: .mathTemplate, stem: "Stem  b", parts: [])
         XCTAssertEqual(ImportAgent.matchRepair(for: b, in: [a, renamed], position: 1), 1, "stem match ignores case and spacing")
@@ -539,6 +540,27 @@ final class AIAgentTests: XCTestCase {
         XCTAssertEqual(minimal.difficulty, 3)
         XCTAssertTrue(minimal.isUsable)
         XCTAssertFalse(QuestionDraft(kind: .numeric, stem: "", parts: []).isUsable)
+    }
+
+    func testQuestionDraftCarriesAgentTypeAndChunkPromptListsKnownTypes() throws {
+        let typed = try JSONDecoder().decode(QuestionDraft.self, from: Data(
+            #"{"kind":"shortAnswer","type":" Initial  value problems ","stem":"Solve $y'=y$, $y(0)=2$.","parts":[{"id":"a","prompt":"Find $y$."}]}"#.utf8))
+        XCTAssertEqual(typed.type, "Initial value problems")
+        XCTAssertEqual(typed.toQuestion(classId: classId, documentId: nil).type, "Initial value problems")
+
+        let minimal = try JSONDecoder().decode(QuestionDraft.self, from: Data(#"{"stem":"s","parts":[{"id":"a","prompt":"p"}]}"#.utf8))
+        XCTAssertEqual(minimal.type, "")
+        XCTAssertEqual(minimal.toQuestion(classId: classId, documentId: nil).typeLabel, "Unclassified")
+
+        XCTAssertEqual(ImportTools.questionSchema["required"]?.arrayValue?.compactMap(\.stringValue).contains("type"), true)
+
+        let chunk = ImportChunk(index: 0, text: "Body", pages: nil, figureIndices: [])
+        let plain = ImportAgent.chunkPrompt(chunk)
+        XCTAssertFalse(plain.contains("already in this class"))
+        let primed = ImportAgent.chunkPrompt(chunk, knownTypes: ["Separation of variables", "Initial value problems"])
+        XCTAssertTrue(primed.hasPrefix("Question types already in this class"))
+        XCTAssertTrue(primed.contains("\"Separation of variables\", \"Initial value problems\""))
+        XCTAssertTrue(primed.hasSuffix("Excerpt 1:\n\nBody"))
     }
 
     // MARK: Figure

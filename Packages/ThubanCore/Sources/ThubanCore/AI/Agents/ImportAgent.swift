@@ -8,6 +8,8 @@ import os
 public struct QuestionDraft: Codable, Sendable, Equatable {
     public var sourceRef: String?
     public var kind: QuestionKind
+    /// The agent's problem-type classification ("Initial value problems"); see `Question.type`.
+    public var type: String
     public var stem: String
     public var parts: [QuestionPart]
     public var template: MathTemplate?
@@ -19,6 +21,7 @@ public struct QuestionDraft: Codable, Sendable, Equatable {
     public init(
         sourceRef: String? = nil,
         kind: QuestionKind,
+        type: String = "",
         stem: String,
         parts: [QuestionPart],
         template: MathTemplate? = nil,
@@ -28,6 +31,7 @@ public struct QuestionDraft: Codable, Sendable, Equatable {
     ) {
         self.sourceRef = sourceRef
         self.kind = kind
+        self.type = Question.normalizedType(type)
         self.stem = stem
         self.parts = parts
         self.template = template
@@ -36,13 +40,14 @@ public struct QuestionDraft: Codable, Sendable, Equatable {
         self.difficulty = min(5, max(1, difficulty))
     }
 
-    private enum CodingKeys: String, CodingKey { case sourceRef, kind, stem, parts, template, figureIndices, tags, difficulty }
+    private enum CodingKeys: String, CodingKey { case sourceRef, kind, type, stem, parts, template, figureIndices, tags, difficulty }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
             sourceRef: try c.decodeIfPresent(String.self, forKey: .sourceRef),
             kind: try c.decodeIfPresent(QuestionKind.self, forKey: .kind) ?? .shortAnswer,
+            type: try c.decodeIfPresent(String.self, forKey: .type) ?? "",
             stem: try c.decodeIfPresent(String.self, forKey: .stem) ?? "",
             parts: try c.decodeIfPresent([QuestionPart].self, forKey: .parts) ?? [],
             template: try c.decodeIfPresent(MathTemplate.self, forKey: .template),
@@ -81,6 +86,7 @@ public struct QuestionDraft: Codable, Sendable, Equatable {
             documentId: documentId,
             sourceRef: sourceRef,
             kind: kind,
+            type: type,
             stem: stem,
             parts: parts,
             template: template,
@@ -195,7 +201,7 @@ public enum ImportTools {
         Each question has: sourceRef (original label or location), kind (mathTemplate | shortAnswer | multipleChoice | \
         freeResponse | numeric), stem (shared setup, Markdown + $…$ LaTeX; may be empty when the part prompt is the whole \
         question), parts (ids "a","b",…; each with prompt, answerKind math|numeric|text|choice|freeResponse, answer \
-        {latex | text | rubric, alternatives}, optional choices, conditions), optional template, figureIndices, tags, \
+        {latex | text | rubric, alternatives}, optional choices, conditions), type, optional template, figureIndices, tags, \
         difficulty 1–5. \
         A template regenerates the question with new numbers: params with kinds {"type":"int","min","max"} / \
         {"type":"real","min","max","decimals"} / {"type":"choice","options":[…]}, constraints as LaTeX booleans over the \
@@ -203,7 +209,7 @@ public enum ImportTools {
         expression of the params that the engine evaluates ("2ax", "\\\\frac{a}{b}"). Always also fill parts with the \
         original numbers as a concrete instance.
         Example:
-        {"questions":[{"sourceRef":"Homework 4 · Q3","kind":"mathTemplate","stem":"Let $f(x) = 3x^2 + 1$.",\
+        {"questions":[{"sourceRef":"Homework 4 · Q3","kind":"mathTemplate","type":"Power rule","stem":"Let $f(x) = 3x^2 + 1$.",\
         "parts":[{"id":"a","prompt":"Find $f'(x)$.","answerKind":"math","answer":{"latex":"6x"},"conditions":{"simplified":true}},\
         {"id":"b","prompt":"Evaluate $f(1)$.","answerKind":"numeric","answer":{"latex":"4"}}],\
         "template":{"params":[{"name":"a","kind":{"type":"int","min":2,"max":9}},{"name":"b","kind":{"type":"int","min":1,"max":9}}],\
@@ -211,7 +217,7 @@ public enum ImportTools {
         "parts":[{"id":"a","prompt":"Find $f'(x)$.","answerExpr":"2ax","conditions":{"simplified":true}},\
         {"id":"b","prompt":"Evaluate $f(1)$.","answerExpr":"a+b","answerKind":"numeric"}],"seedNote":"Coefficient and constant vary."},\
         "tags":["derivatives","polynomials"],"difficulty":2},\
-        {"sourceRef":"§2.1","kind":"multipleChoice","stem":"","parts":[{"id":"a","prompt":"Which rule differentiates $f(g(x))$?",\
+        {"sourceRef":"§2.1","kind":"multipleChoice","type":"Chain rule","stem":"","parts":[{"id":"a","prompt":"Which rule differentiates $f(g(x))$?",\
         "answerKind":"choice","answer":{"text":"Chain rule"},"choices":["Chain rule","Product rule","Quotient rule","Power rule"]}],\
         "tags":["derivatives"],"difficulty":1}]}
         """,
@@ -318,6 +324,10 @@ public enum ImportTools {
         "properties": [
             "sourceRef": ["type": "string", "description": "Original label or location, e.g. \"Homework 4 · Q3\", \"§14.4 p. 912\"."],
             "kind": ["type": "string", "enum": ["mathTemplate", "shortAnswer", "multipleChoice", "freeResponse", "numeric"]],
+            "type": [
+                "type": "string",
+                "description": "The problem type as the course names it (the technique or problem class): \"Initial value problems\", \"Separation of variables\", \"Chain rule\". Reuse a type already in use when it fits; otherwise name a new one. 1–4 words, sentence case.",
+            ],
             "stem": ["type": "string", "description": "Shared setup in Markdown + LaTeX; may be empty."],
             "parts": ["type": "array", "items": partSchema, "minItems": 1],
             "template": templateSchema,
@@ -325,7 +335,7 @@ public enum ImportTools {
             "tags": ["type": "array", "items": ["type": "string"]],
             "difficulty": ["type": "integer", "minimum": 1, "maximum": 5],
         ],
-        "required": ["kind", "stem", "parts"],
+        "required": ["kind", "type", "stem", "parts"],
     ]
 }
 
@@ -470,18 +480,20 @@ public actor ImportAgent {
 
     /// Runs the whole pipeline for one document. Throws `ThubanError.cancelled` when the task is cancelled.
     /// `questionsPerChunk` is the Settings › Question bank hint for readings (how many questions an excerpt yields).
+    /// `existingTypes` are the class's problem types so far (most used first); the agent reuses them where they fit.
     public func run(
         document: ImportedDocument,
         content: DocumentContent,
         classContext: String,
+        existingTypes: [String] = [],
         policy: ModelPolicy,
         questionsPerChunk: Int = Prompts.defaultQuestionsPerChunk,
         progress: @Sendable (ImportProgress) -> Void
     ) async throws -> ImportResult {
         do {
             return try await pipeline(
-                document: document, content: content, classContext: classContext, policy: policy,
-                questionsPerChunk: questionsPerChunk, progress: progress
+                document: document, content: content, classContext: classContext, existingTypes: existingTypes,
+                policy: policy, questionsPerChunk: questionsPerChunk, progress: progress
             )
         } catch {
             throw ClaudeClient.normalize(error)
@@ -495,12 +507,22 @@ public actor ImportAgent {
         var usage = Usage()
         var warnings: [String]
         var drafts: [QuestionDraft] = []
+        /// Types the class already has, in prompt order, plus the ones this run has created so far.
+        var knownTypes: [String]
+
+        mutating func noteTypes(of drafts: [QuestionDraft]) {
+            for draft in drafts where !draft.type.isEmpty
+                && !knownTypes.contains(where: { $0.caseInsensitiveCompare(draft.type) == .orderedSame }) {
+                knownTypes.append(draft.type)
+            }
+        }
     }
 
     private func pipeline(
         document: ImportedDocument,
         content: DocumentContent,
         classContext: String,
+        existingTypes: [String],
         policy: ModelPolicy,
         questionsPerChunk: Int,
         progress: @Sendable (ImportProgress) -> Void
@@ -508,7 +530,8 @@ public actor ImportAgent {
         var state = RunState(
             model: policy.effectiveModel,
             canEscalate: policy.escalationModel != nil,
-            warnings: content.warnings
+            warnings: content.warnings,
+            knownTypes: existingTypes.map(Question.normalizedType).filter { !$0.isEmpty }
         )
         let chunks = ImportChunker.chunks(content, tokenBudget: chunkTokenBudget)
         guard let first = chunks.first else {
@@ -598,6 +621,7 @@ public actor ImportAgent {
             return
         }
         let checked = try await validateAndRepair(drafts, conversation: conversation, system: system, state: &state)
+        state.noteTypes(of: checked)
         state.drafts.append(contentsOf: checked.map { Self.attachFigures($0, chunk: chunk) })
     }
 
@@ -607,7 +631,7 @@ public actor ImportAgent {
     }
 
     private func generate(_ chunk: ImportChunk, system: String, state: inout RunState) async throws -> ChunkOutcome {
-        var messages: [ChatMessage] = [.user(Self.chunkPrompt(chunk))]
+        var messages: [ChatMessage] = [.user(Self.chunkPrompt(chunk, knownTypes: state.knownTypes))]
         var drafts: [QuestionDraft] = []
         var nudged = false
         for _ in 0..<maxToolRounds {
@@ -795,12 +819,18 @@ public actor ImportAgent {
 
     // MARK: Helpers
 
-    static func chunkPrompt(_ chunk: ImportChunk) -> String {
+    /// The excerpt, preceded by the class's problem types so far so the agent reuses them (up to 60 listed).
+    static func chunkPrompt(_ chunk: ImportChunk, knownTypes: [String] = []) -> String {
         var header = "Excerpt \(chunk.index + 1)"
         if let pages = chunk.pages {
             header += pages.count == 1 ? " (page \(pages.lowerBound))" : " (pages \(pages.lowerBound)–\(pages.upperBound))"
         }
-        return "\(header):\n\n\(chunk.text)"
+        var prompt = ""
+        if !knownTypes.isEmpty {
+            let listed = knownTypes.prefix(60).map { "\"\($0)\"" }.joined(separator: ", ")
+            prompt += "Question types already in this class (reuse when one fits, add a new type only when none does): \(listed)\n\n"
+        }
+        return prompt + "\(header):\n\n\(chunk.text)"
     }
 
     /// Keeps figure references that occur in the chunk (the agent sometimes cites indices from elsewhere).

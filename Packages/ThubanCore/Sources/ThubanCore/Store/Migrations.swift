@@ -21,11 +21,18 @@ extension Store {
                 t.add(column: "warnings", .text).notNull().defaults(to: "[]")
             }
         }
+        migrator.registerMigration("v3-question-type") { db in
+            // The agent-classified problem type ("Initial value problems"); "" = unclassified.
+            try db.alter(table: "questions") { t in
+                t.add(column: "type", .text).notNull().defaults(to: "")
+            }
+            try db.create(index: "questions_on_class_type", on: "questions", columns: ["classId", "type"])
+        }
         return migrator
     }
 
     /// Every migration identifier, in order.
-    public static let migrationIdentifiers = ["v1", "v2-document-warnings"]
+    public static let migrationIdentifiers = ["v1", "v2-document-warnings", "v3-question-type"]
 
     /// Every table "v1" creates, in dependency order.
     public static let tableNames = [

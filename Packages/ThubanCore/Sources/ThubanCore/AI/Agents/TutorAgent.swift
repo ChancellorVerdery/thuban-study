@@ -8,6 +8,8 @@ public struct TutorContext: Sendable {
     /// The question the student is looking at, if any.
     public var instance: QuestionInstance?
     public var sourceRef: String?
+    /// The question's problem type ("Separation of variables"), so the tutor can name the technique in play.
+    public var questionType: String?
     /// partId → the student's current input (LaTeX or text).
     public var inputs: [String: String]
     /// partId → latest verdict, if checked.
@@ -25,6 +27,7 @@ public struct TutorContext: Sendable {
         style: TutorStyle = .socratic,
         instance: QuestionInstance? = nil,
         sourceRef: String? = nil,
+        questionType: String? = nil,
         inputs: [String: String] = [:],
         verdicts: [String: Verdict] = [:],
         graphExpressions: [String] = [],
@@ -36,6 +39,7 @@ public struct TutorContext: Sendable {
         self.style = style
         self.instance = instance
         self.sourceRef = sourceRef
+        self.questionType = questionType
         self.inputs = inputs
         self.verdicts = verdicts
         self.graphExpressions = graphExpressions
@@ -49,6 +53,7 @@ public struct TutorContext: Sendable {
         guard let instance else { return "" }
         var lines: [String] = []
         if let sourceRef, !sourceRef.isEmpty { lines.append("Source: \(sourceRef)") }
+        if let questionType, !questionType.isEmpty { lines.append("Type: \(questionType)") }
         lines.append("Question: \(instance.stem)")
         for part in instance.parts {
             lines.append("")
