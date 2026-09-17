@@ -63,9 +63,10 @@ enum SmokeHarness {
             filename: "Homework 4 — Partial Derivatives.pdf", kind: .pdf, storedPath: storedPath,
             byteCount: placeholder.count, importedAt: Date().addingTimeInterval(-86_400 * 3),
             status: .done, statusDetail: "Done · 6 questions", modelUsed: ClaudeModel.sonnet.rawValue,
-            classification: .existingQuestions, questionCount: 6, figureCount: 0
+            classification: .existingQuestions, questionCount: 6, figureCount: 2
         )
         try await store.insert(document)
+        try await seedFigures(store: store, documentId: documentId)
 
         let base = Date().addingTimeInterval(-86_400 * 3)
         func at(_ minutes: Int) -> Date { base.addingTimeInterval(Double(minutes) * 60) }
@@ -208,6 +209,53 @@ enum SmokeHarness {
 
     // MARK: Walkthrough
 
+    /// Two charts under review: a direction field with its solution curve, and a cubic read off as points.
+    private static func seedFigures(store: Store, documentId: DocumentID) async throws {
+        let field = StandardChart(
+            chartType: "slopeField", xLabel: "x", yLabel: "y",
+            series: [ChartSeries(name: "Solution through (0, 1)", latex: "x-1+2e^{-x}")],
+            xRange: [-3, 3], yRange: [-3, 3], confidence: 0.8, slope: "x-y", arrows: true
+        )
+        let cubicPoints: [[Double]] = stride(from: -1.5, through: 4.0, by: 0.5).map { x in
+            [x, 0.5 * x * x * x - 2 * x * x + x + 1]
+        }
+        let cubic = StandardChart(
+            chartType: "line", xLabel: "x", yLabel: "y",
+            series: [ChartSeries(name: "f(x)", points: cubicPoints)],
+            xRange: [-2, 5], yRange: [-6, 6], confidence: 0.7
+        )
+        for (index, chart) in [field, cubic].enumerated() {
+            let relative = "\(documentId.raw)/\(index).png"
+            let url = AppPaths.figureURL(relative)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try placeholderPNG().write(to: url)
+            try await store.insert(Figure(
+                documentId: documentId, pageOrIndex: index, originalPath: relative, kind: .chart, chart: chart,
+                status: .reviewing,
+                caption: index == 0 ? "Direction field of dy/dx = x − y with the solution through (0, 1)." : "A cubic curve read off the figure."
+            ))
+        }
+    }
+
+    /// A 320×240 pale rectangle with a diagonal, standing in for a clipped figure.
+    private static func placeholderPNG() -> Data {
+        let size = NSSize(width: 320, height: 240)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        NSColor(calibratedWhite: 0.96, alpha: 1).setFill()
+        NSBezierPath(rect: NSRect(origin: .zero, size: size)).fill()
+        NSColor(calibratedRed: 0.35, green: 0.62, blue: 0.85, alpha: 1).setStroke()
+        let path = NSBezierPath()
+        path.lineWidth = 3
+        path.move(to: NSPoint(x: 20, y: 40))
+        path.curve(to: NSPoint(x: 300, y: 200), controlPoint1: NSPoint(x: 120, y: 240), controlPoint2: NSPoint(x: 200, y: 0))
+        path.stroke()
+        image.unlockFocus()
+        guard let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else { return Data() }
+        return png
+    }
+
     /// Starts the screenshot walkthrough once the model has loaded. Returns immediately.
     static func startIfEnabled(app: AppModel) {
         guard let directory = outputDirectory else { return }
@@ -282,6 +330,20 @@ enum SmokeHarness {
             session.section = .importDocs
             await sleep(2.5)
             written.append(try await capture(window: window, name: "05-import", in: directory))
+
+            // 05b/05c — Figure review: the direction field, then the point-sampled curve.
+            session.pendingFigureReview = session.importQueue.first?.id
+            await sleep(6)   // Desmos loads in the review pane
+            written.append(try await capture(window: window, name: "05b-figure-field", in: directory))
+            session.section = .questionBank
+            await sleep(0.5)
+            session.section = .importDocs
+            session.pendingFigureReviewIndex = 1
+            session.pendingFigureReview = session.importQueue.first?.id
+            await sleep(6)
+            written.append(try await capture(window: window, name: "05c-figure-curve", in: directory))
+            session.section = .questionBank
+            await sleep(0.5)
 
             // 06 — Settings window.
             app.perform(.openSettings)

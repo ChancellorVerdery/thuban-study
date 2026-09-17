@@ -22,6 +22,11 @@ struct ImportView: View {
             }
         }
         .task(id: session.classId) { await session.loadDocuments() }
+        .onChange(of: session.pendingFigureReview, initial: true) { _, pending in
+            guard let pending else { return }
+            session.pendingFigureReview = nil
+            if let document = session.importQueue.first(where: { $0.id == pending }) { reviewingDocument = document }
+        }
         .onChange(of: app.importPanelRequest, initial: true) { _, request in
             // ⌘I switches to this section and bumps the counter in the same turn, so the view may mount after
             // the change: compare against the last request this app run has handled instead.

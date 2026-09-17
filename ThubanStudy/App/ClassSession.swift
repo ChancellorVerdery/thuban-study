@@ -49,6 +49,10 @@ final class ClassSession {
     func setQueueScope(_ scope: Set<QuestionID>?) { queueScope = scope }
     /// A selection for the Question bank to adopt when it next shows (consumed once); used by the smoke harness.
     var pendingBankSelection: Set<QuestionID>?
+    /// A document whose figure review the Import screen should open when it next shows (consumed once), and the
+    /// figure to start on.
+    var pendingFigureReview: DocumentID?
+    var pendingFigureReviewIndex: Int?
     /// Mastery per question (missing ⇒ `.new`).
     private(set) var progress: [QuestionID: QuestionProgress] = [:]
     private(set) var isLoadingQuestions = false

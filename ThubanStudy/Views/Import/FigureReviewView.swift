@@ -65,8 +65,12 @@ final class FigureReviewModel {
             case .classWide:
                 figures = try await session.store.figures(in: session.classId)
             }
-            // Start at the first figure that still needs a decision.
+            // Start at the first figure that still needs a decision (or where the caller asked).
             index = figures.firstIndex { $0.status == .reviewing || $0.status == .pending } ?? 0
+            if let requested = session.pendingFigureReviewIndex {
+                session.pendingFigureReviewIndex = nil
+                if figures.indices.contains(requested) { index = requested }
+            }
         } catch {
             self.error = error.localizedDescription
             Self.logger.error("Figures failed to load: \(error.localizedDescription, privacy: .public)")
@@ -112,45 +116,17 @@ final class FigureReviewModel {
         }
     }
 
-    // MARK: Chart → Desmos
+    // MARK: Chart → Desmos (see ChartRenderer)
 
-    /// One expression per series: point lists for tabulated series, `y = …` for function series.
     nonisolated static func expressions(for chart: StandardChart, theme: ResolvedTheme) -> [GraphExpression] {
-        let palette = [theme.accent, theme.signal, theme.neg, theme.pos, theme.accentDeep]
-        return chart.series.enumerated().compactMap { offset, series in
-            let color = series.color?.nilIfEmpty ?? palette[offset % palette.count]
-            let id = "series-\(offset)"
-            if let latex = series.latex?.trimmingCharacters(in: .whitespacesAndNewlines), !latex.isEmpty {
-                let body = latex.contains("=") ? latex : "y=\(latex)"
-                return GraphExpression(id: id, latex: body, color: color, label: series.name.nilIfEmpty)
-            }
-            let points = (series.points ?? []).filter { $0.count >= 2 }
-            guard !points.isEmpty else { return nil }
-            let list = points.map { "(\(format($0[0])),\(format($0[1])))" }.joined(separator: ",")
-            return GraphExpression(id: id, latex: "\\left[\(list)\\right]", color: color, label: series.name.nilIfEmpty)
-        }
+        ChartRenderer.expressions(for: chart, theme: theme)
     }
 
-    /// The agent's ranges when present, otherwise the point extent with 10 % padding.
     nonisolated static func viewport(for chart: StandardChart) -> GraphViewport? {
-        if let x = chart.xRange, let y = chart.yRange, x.count == 2, y.count == 2, x[0] < x[1], y[0] < y[1] {
-            return GraphViewport(xmin: x[0], xmax: x[1], ymin: y[0], ymax: y[1])
-        }
-        let points = chart.series.flatMap { $0.points ?? [] }.filter { $0.count >= 2 }
-        guard let minX = points.map({ $0[0] }).min(), let maxX = points.map({ $0[0] }).max(),
-              let minY = points.map({ $0[1] }).min(), let maxY = points.map({ $0[1] }).max()
-        else { return nil }
-        let padX = max((maxX - minX) * 0.1, 1)
-        let padY = max((maxY - minY) * 0.1, 1)
-        return GraphViewport(xmin: minX - padX, xmax: maxX + padX, ymin: min(0, minY) - padY, ymax: maxY + padY)
+        ChartRenderer.viewport(for: chart)
     }
 
-    nonisolated static func format(_ value: Double) -> String {
-        if value == value.rounded(), abs(value) < 1e12 { return String(Int(value)) }
-        var text = String(format: "%.6g", value)
-        if text.contains("e") { text = String(format: "%.4f", value) }
-        return text
-    }
+    nonisolated static func format(_ value: Double) -> String { ChartGeometry.number(value) }
 }
 
 // MARK: - View
@@ -166,7 +142,7 @@ struct FigureReviewView: View {
 
     @State private var model: FigureReviewModel
     /// One grapher for the pane's lifetime; the Desmos key is applied from the environment on appear.
-    @State private var graph = GraphWebView.Controller(desmosKey: "", mode: .twoD)
+    @State private var graph = GraphWebView.Controller(desmosKey: "", mode: .twoD, showsExpressions: false)
 
     init(session: ClassSession, scope: FigureReviewModel.Scope, breadcrumbRoot: String = "Import", onClose: @escaping () -> Void) {
         self.session = session
@@ -382,7 +358,10 @@ private struct FigureReviewPane: View {
 
     private func detectionChips(_ chart: StandardChart) -> some View {
         HStack(spacing: 8) {
-            Chip(chart.chartType.capitalized, kind: .accent)
+            Chip(chart.isSlopeField ? (chart.arrows ? "Direction field" : "Slope field") : chart.chartType.capitalized, kind: .accent)
+            if chart.isSlopeField, let slope = chart.slope?.nilIfEmpty {
+                Chip("dy/dx = \(slope)", kind: .neutral)
+            }
             Chip("Axes: \(chart.xLabel?.nilIfEmpty ?? "x") / \(chart.yLabel?.nilIfEmpty ?? "y")", kind: .neutral)
             Chip("\(chart.series.count) series", kind: .neutral)
             Chip("Confidence \(Int((StandardChart.clampedConfidence(chart.confidence) * 100).rounded()))%", kind: chart.confidence >= 0.7 ? .pos : .warn)

@@ -1,5 +1,6 @@
 import SwiftUI
 import ThubanCore
+import os
 
 /// Graph mode of the Desmos page.
 enum GraphMode: String, Codable, CaseIterable, Identifiable, Sendable {
@@ -24,6 +25,19 @@ struct GraphExpression: Codable, Identifiable, Hashable, Sendable {
     var sliderBounds: SliderBounds?
     /// The calculator this row lives in; Desmos keeps a separate list per mode.
     var mode: GraphMode = .twoD
+    /// Polygons: fill opacity (nil = Desmos default).
+    var fillOpacity: Double?
+    /// Parametric rows: the range of t.
+    var parametricDomain: Domain?
+    /// Point lists: draw the dots (true) or only lines/curves (false). nil = Desmos default.
+    var showsPoints: Bool?
+    /// Stroke width in px; nil = Desmos default.
+    var lineWidth: Double?
+
+    struct Domain: Codable, Hashable, Sendable {
+        var min: Double
+        var max: Double
+    }
 
     struct SliderBounds: Codable, Hashable, Sendable {
         var min: Double?
@@ -58,6 +72,12 @@ struct GraphExpression: Codable, Identifiable, Hashable, Sendable {
             object["showLabel"] = .bool(false)
         }
         object["hidden"] = .bool(hidden)
+        if let fillOpacity { object["fillOpacity"] = .number(fillOpacity) }
+        if let parametricDomain {
+            object["parametricDomain"] = .object(["min": .number(parametricDomain.min), "max": .number(parametricDomain.max)])
+        }
+        if let showsPoints { object["points"] = .bool(showsPoints) }
+        if let lineWidth { object["lineWidth"] = .number(lineWidth) }
         if let sliderBounds {
             var bounds: [String: JSONValue] = [:]
             if let min = sliderBounds.min { bounds["min"] = .number(min) }
@@ -89,6 +109,7 @@ struct GraphWebView: View {
     @MainActor
     @Observable
     final class Controller {
+        private static let logger = Logger(subsystem: "com.thuban.study", category: "graph")
         let bridge: WebBridge
         /// Theme used to resolve default expression colors; kept current by the view.
         var theme: ResolvedTheme = ThemeResolver.resolve(.default, systemIsDark: false)
@@ -107,10 +128,14 @@ struct GraphWebView: View {
         var onState: ((JSONValue, GraphMode) -> Void)?
         var onReady: (() -> Void)?
 
-        init(desmosKey: String, mode: GraphMode = .twoD) {
+        /// False for figure panes: the paper only, no expression list or settings menu.
+        private(set) var showsExpressions = true
+
+        init(desmosKey: String, mode: GraphMode = .twoD, showsExpressions: Bool = true) {
             self.bridge = WebBridge(name: "graph")
             self.desmosKey = desmosKey
             self.mode = mode
+            self.showsExpressions = showsExpressions
             bridge.on("ready") { [weak self] _ in
                 self?.onReady?()
             }
@@ -128,6 +153,15 @@ struct GraphWebView: View {
                 self?.lastError = message
                 self?.onError?(message)
             }
+            bridge.on("rowAnalysis") { payload in
+                if ProcessInfo.processInfo.environment["THUBAN_SMOKE"] != nil { print("graph: analysis: \(payload["summary"]?.stringValue ?? "")") }
+            }
+            bridge.on("rowErrors") { payload in
+                // Rows Desmos could not graph; a developer diagnostic (the page draws whatever else it can).
+                let rows = payload["rows"]?.arrayValue?.compactMap(\.stringValue) ?? []
+                Self.logger.error("Desmos rejected \(rows.count) row(s): \(rows.joined(separator: " | "), privacy: .public)")
+                if ProcessInfo.processInfo.environment["THUBAN_SMOKE"] != nil { print("graph: rejected rows: \(rows.joined(separator: " | "))") }
+            }
             bridge.on("state") { [weak self] payload in
                 let mode = GraphMode(rawValue: payload["mode"]?.stringValue ?? "2d") ?? .twoD
                 self?.onState?(payload["state"] ?? .null, mode)
@@ -143,6 +177,7 @@ struct GraphWebView: View {
             if let mode { self.mode = mode }
             var payload: [String: JSONValue] = ["desmosKey": .string(desmosKey)]
             payload["mode"] = .string(self.mode.rawValue)
+            payload["expressions"] = .bool(showsExpressions)
             // Sticky: the page is reloaded whenever its hosting view is re-created and needs the key again.
             bridge.sendSticky("config", .object(payload))
         }

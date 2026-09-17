@@ -30,6 +30,7 @@
   // ---- state ----------------------------------------------------------------------------------------------
 
   var desmosKey = null;          // API key from 'config'
+  var showExpressions = true;    // false for figure panes: paper only, no expression list
   var mode = '2d';               // '2d' | '3d'
   var calculator = null;         // the live Desmos instance
   var scriptEl = null;           // the injected <script>
@@ -68,6 +69,24 @@
 
   function reportError(message, detail) {
     send('error', { message: message + (detail ? ' (' + detail + ')' : '') });
+  }
+
+  /** After the calculator has parsed a batch, report every row Desmos could not graph (once, per batch). */
+  function reportAnalysis(ids) {
+    if (!calculator || !ids.length) return;
+    setTimeout(function () {
+      var analysis;
+      try { analysis = calculator.expressionAnalysis || {}; } catch (e) { return; }
+      var problems = [];
+      var summary = [];
+      ids.forEach(function (id) {
+        var a = analysis[id];
+        if (a && a.isError) problems.push(id + ': ' + (a.errorMessage || 'error'));
+        summary.push(id + '=' + (a ? (a.isError ? 'err' : (a.isGraphable ? 'ok' : 'nograph')) : 'none'));
+      });
+      send('rowAnalysis', { summary: summary.join(' ') });
+      if (problems.length) send('rowErrors', { rows: problems });
+    }, 400);
   }
 
   function showStatus(text) {
@@ -121,6 +140,12 @@
       out.showLabel = e.showLabel;
     }
     if (typeof e.hidden === 'boolean') out.hidden = e.hidden;
+    if (typeof e.fillOpacity === 'number') { out.fill = true; out.fillOpacity = String(e.fillOpacity); }
+    if (e.parametricDomain && typeof e.parametricDomain === 'object') {
+      out.parametricDomain = { min: String(e.parametricDomain.min), max: String(e.parametricDomain.max) };
+    }
+    if (typeof e.points === 'boolean') out.points = e.points;
+    if (typeof e.lineWidth === 'number') out.lineWidth = String(e.lineWidth);
     if (e.sliderBounds && typeof e.sliderBounds === 'object') {
       var b = {};
       if (e.sliderBounds.min !== undefined) b.min = String(e.sliderBounds.min);
@@ -228,9 +253,9 @@
       Object.keys(Desmos.Colors).forEach(function (k) { colors[k] = Desmos.Colors[k]; });
     }
     var options = {
-      expressions: true,
+      expressions: showExpressions,
       keypad: false,
-      settingsMenu: true,
+      settingsMenu: showExpressions,
       zoomButtons: true,
       border: false,
       expressionsCollapsed: false,
@@ -342,6 +367,7 @@
 
     config: function (p) {
       if (p.mode) mode = normalizeMode(p.mode);
+      if (typeof p.expressions === 'boolean') showExpressions = p.expressions;
       var key = p.desmosKey || p.apiKey || '';
       if (window.Desmos) {
         // Script already present (e.g. the key was re-sent): just (re)build the calculator.
@@ -382,6 +408,7 @@
           try { calculator.setExpression(toDesmosExpression(e)); } catch (err) { console.warn('setExpression failed', e, err); }
         });
         snapshot();
+        reportAnalysis(list.map(function (e) { return String(e.id); }));
       });
     },
 

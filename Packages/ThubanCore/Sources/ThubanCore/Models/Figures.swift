@@ -29,15 +29,22 @@ public struct ChartSeries: Codable, Sendable, Equatable {
 /// Standardized chart: everything needed to redraw the figure in the app's own graph style (Desmos expressions or
 /// a table of series). This is the "one graph style across the app" representation.
 public struct StandardChart: Codable, Sendable, Equatable {
-    /// "line" | "scatter" | "bar" | "function" | "histogram"
+    /// "line" | "scatter" | "bar" | "function" | "histogram" | "slopeField"
     public var chartType: String
     public var xLabel: String?
     public var yLabel: String?
+    /// Curves, dots or bars; for a slope field, the solution curves drawn over it.
     public var series: [ChartSeries]
     public var xRange: [Double]?
     public var yRange: [Double]?
     /// 0–1 from the agent.
     public var confidence: Double
+    /// Slope fields only: the right-hand side of `dy/dx = f(x, y)` in LaTeX ("x-y", "\\sin(x)y").
+    public var slope: String?
+    /// Slope fields only: arrowheads (a direction field) rather than plain ticks. Default true.
+    public var arrows: Bool
+
+    public var isSlopeField: Bool { chartType == "slopeField" }
 
     public init(
         chartType: String,
@@ -46,7 +53,9 @@ public struct StandardChart: Codable, Sendable, Equatable {
         series: [ChartSeries] = [],
         xRange: [Double]? = nil,
         yRange: [Double]? = nil,
-        confidence: Double = 0
+        confidence: Double = 0,
+        slope: String? = nil,
+        arrows: Bool = true
     ) {
         self.chartType = chartType
         self.xLabel = xLabel
@@ -55,6 +64,8 @@ public struct StandardChart: Codable, Sendable, Equatable {
         self.xRange = xRange
         self.yRange = yRange
         self.confidence = Self.clampedConfidence(confidence)
+        self.slope = slope
+        self.arrows = arrows
     }
 
     /// Confidence is 0–1; anything else the model (or a stored row) reports is clamped so it can be shown safely.
@@ -63,7 +74,7 @@ public struct StandardChart: Codable, Sendable, Equatable {
         return Swift.min(1, Swift.max(0, value))
     }
 
-    private enum CodingKeys: String, CodingKey { case chartType, xLabel, yLabel, series, xRange, yRange, confidence }
+    private enum CodingKeys: String, CodingKey { case chartType, xLabel, yLabel, series, xRange, yRange, confidence, slope, arrows }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -74,6 +85,8 @@ public struct StandardChart: Codable, Sendable, Equatable {
         xRange = try c.decodeIfPresent([Double].self, forKey: .xRange)
         yRange = try c.decodeIfPresent([Double].self, forKey: .yRange)
         confidence = Self.clampedConfidence(try c.decodeIfPresent(Double.self, forKey: .confidence) ?? 0)
+        slope = try c.decodeIfPresent(String.self, forKey: .slope)
+        arrows = try c.decodeIfPresent(Bool.self, forKey: .arrows) ?? true
     }
 }
 

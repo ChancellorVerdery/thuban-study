@@ -37,7 +37,9 @@ public actor FigureAgent {
                 "chart": [
                     "type": "object",
                     "properties": [
-                        "chartType": ["type": "string", "enum": ["line", "scatter", "bar", "function", "histogram"]],
+                        "chartType": ["type": "string", "enum": ["line", "scatter", "bar", "function", "histogram", "slopeField"]],
+                        "slope": ["type": "string", "description": "slopeField only: the right-hand side of dy/dx = f(x, y) in LaTeX, e.g. \"x-y\" or \"\\\\sin(x)+y^{2}\"."],
+                        "arrows": ["type": "boolean", "description": "slopeField only: true when the field is drawn with arrowheads (a direction field), false for plain ticks."],
                         "xLabel": ["type": "string"],
                         "yLabel": ["type": "string"],
                         "series": [
@@ -49,9 +51,9 @@ public actor FigureAgent {
                                     "points": [
                                         "type": "array",
                                         "items": ["type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2],
-                                        "description": "[[x, y], …] read off the axes.",
+                                        "description": "[[x, y], …] read off the axes along the curve, 12–40 of them, in order; the app draws a smooth curve through them (dots only for scatter charts). Never one point per arrow of a field.",
                                     ],
-                                    "latex": ["type": "string", "description": "A function of x when the curve is a known function."],
+                                    "latex": ["type": "string", "description": "A function of x when the curve is a known function (preferred over points)."],
                                     "color": ["type": "string", "description": "Optional hex color."],
                                 ],
                                 "required": ["name"],

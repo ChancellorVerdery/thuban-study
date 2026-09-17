@@ -353,7 +353,7 @@ struct FigureCard: View {
     }
 }
 
-/// A `StandardChart` drawn by a small Desmos grapher: point series as point lists, LaTeX series as functions.
+/// A `StandardChart` drawn by a small Desmos grapher through `ChartRenderer` (curves, bars, slope fields).
 struct StandardChartView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.thubanTheme) private var theme
@@ -370,42 +370,14 @@ struct StandardChartView: View {
         }
         .onAppear {
             guard controller == nil else { return }
-            let controller = GraphWebView.Controller(desmosKey: app.desmosKey, mode: .twoD)
+            let controller = GraphWebView.Controller(desmosKey: app.desmosKey, mode: .twoD, showsExpressions: false)
             controller.onReady = { [weak controller] in
                 guard let controller else { return }
-                controller.setExpressions(Self.expressions(for: chart))
-                if let viewport = Self.viewport(for: chart) { controller.setViewport(viewport) }
+                controller.setExpressions(ChartRenderer.expressions(for: chart, theme: theme))
+                if let viewport = ChartRenderer.viewport(for: chart) { controller.setViewport(viewport) }
             }
             self.controller = controller
         }
     }
 
-    static func expressions(for chart: StandardChart) -> [GraphExpression] {
-        chart.series.enumerated().compactMap { index, series in
-            let id = "series\(index)"
-            if let latex = series.latex?.trimmingCharacters(in: .whitespaces), !latex.isEmpty {
-                let expression = latex.contains("=") ? latex : "y=\(latex)"
-                return GraphExpression(id: id, latex: expression, color: series.color, label: series.name.nilIfEmpty)
-            }
-            if let points = series.points, !points.isEmpty {
-                let list = points.compactMap { point -> String? in
-                    guard point.count >= 2 else { return nil }
-                    return "(\(Self.number(point[0])),\(Self.number(point[1])))"
-                }
-                guard !list.isEmpty else { return nil }
-                return GraphExpression(id: id, latex: "[" + list.joined(separator: ",") + "]", color: series.color, label: series.name.nilIfEmpty)
-            }
-            return nil
-        }
-    }
-
-    static func viewport(for chart: StandardChart) -> GraphViewport? {
-        guard let x = chart.xRange, x.count == 2, let y = chart.yRange, y.count == 2, x[0] < x[1], y[0] < y[1] else { return nil }
-        return GraphViewport(xmin: x[0], xmax: x[1], ymin: y[0], ymax: y[1])
-    }
-
-    private static func number(_ value: Double) -> String {
-        if value == value.rounded(), abs(value) < 1e15 { return String(Int(value)) }
-        return String(format: "%.6g", value)
-    }
 }

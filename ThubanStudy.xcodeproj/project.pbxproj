@@ -53,6 +53,7 @@
 		C205839B56E041CD0CE3B4C6 /* DataSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC21B934895FF778EEB1EFC /* DataSettings.swift */; };
 		C235CA97EED7B40B239A2DB2 /* web in Resources */ = {isa = PBXBuildFile; fileRef = 9676B93BD738E096D9763F0A /* web */; };
 		D27E19C594D5A91022B18FFC /* AppModel+QuestionBankandImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0A38543D1D943A77A1F22E /* AppModel+QuestionBankandImport.swift */; };
+		D38A840346A26E61E91FE503 /* ChartRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7900075AD4A03B3228B2EF7D /* ChartRenderer.swift */; };
 		D50835DDBE78AEA8CB2F6102 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2FF00823B59C2E35C3920F72 /* Assets.xcassets */; };
 		D603C8EC0D33212CDDB4786C /* GrapherSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BCA71970A36B0D2FF429D95 /* GrapherSettings.swift */; };
 		D8121396F229C3621712CAD5 /* ThubanSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57D930C066D04D1B08182F2 /* ThubanSchemeHandler.swift */; };
@@ -98,6 +99,7 @@
 		6EBC0D7EFE8A5CF32B4168F4 /* BatchEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchEditSheet.swift; sourceTree = "<group>"; };
 		778E2B04690D737EF33E3A47 /* ChatWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatWebView.swift; sourceTree = "<group>"; };
 		7894F9FB81802ADA1BED0437 /* ConnectClaudeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectClaudeSheet.swift; sourceTree = "<group>"; };
+		7900075AD4A03B3228B2EF7D /* ChartRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartRenderer.swift; sourceTree = "<group>"; };
 		792DD5DF1A29C472185321F8 /* CalculatorWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorWebView.swift; sourceTree = "<group>"; };
 		79B2C18B5C7D4AF8FA65BAB0 /* ThubanCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ThubanCore; path = Packages/ThubanCore; sourceTree = SOURCE_ROOT; };
 		7BF203952EBA1DDEF711F3B9 /* AppIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconRenderer.swift; sourceTree = "<group>"; };
@@ -211,6 +213,7 @@
 			children = (
 				FF742A5BBBD3EE9A6AA601FC /* BridgeWebView.swift */,
 				792DD5DF1A29C472185321F8 /* CalculatorWebView.swift */,
+				7900075AD4A03B3228B2EF7D /* ChartRenderer.swift */,
 				778E2B04690D737EF33E3A47 /* ChatWebView.swift */,
 				F119C01B449C902DF167CD7A /* GraphWebView.swift */,
 				2BC5BBCEB0C00BC5DD7BF2A4 /* QuestionFormWebView.swift */,
@@ -424,6 +427,7 @@
 				372D7354E20E09DF5D20D8C0 /* Buttons.swift in Sources */,
 				33EBF0DC0EDC2D787F94C831 /* CalculatorPanel.swift in Sources */,
 				3DC7A321F7AFF374AB74AA96 /* CalculatorWebView.swift in Sources */,
+				D38A840346A26E61E91FE503 /* ChartRenderer.swift in Sources */,
 				E1AE33EB7B734FAF3F8A4CDD /* ChatWebView.swift in Sources */,
 				A198BBFA60FBA8552B5CA174 /* Chip.swift in Sources */,
 				D9E52116495A98ACC0E1B261 /* ClassSession+QuestionBankandImport.swift in Sources */,
