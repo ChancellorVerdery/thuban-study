@@ -114,7 +114,7 @@ private struct DocxBuilder {
             content.warnings.append("Image \(relationship.target) could not be decoded.")
             return
         }
-        let index = content.appendFigure(pngData: png, nearbyText: String(lastParagraphText.suffix(600)))
+        guard let index = content.appendFigure(pngData: png, nearbyText: String(lastParagraphText.suffix(600))) else { return }
         content.blocks.append(.image(index: index))
     }
 

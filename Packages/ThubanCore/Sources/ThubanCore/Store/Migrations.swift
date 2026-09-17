@@ -28,11 +28,32 @@ extension Store {
             }
             try db.create(index: "questions_on_class_type", on: "questions", columns: ["classId", "type"])
         }
+        migrator.registerMigration("v4-figures-outlive-documents") { db in
+            // A figure may outlive its document (the file removed, its questions kept): documentId becomes
+            // nullable, which SQLite only allows by rebuilding the table.
+            try db.create(table: "figures_v4") { t in
+                t.primaryKey("id", .text)
+                t.column("documentId", .text).references("documents", onDelete: .cascade)
+                t.column("pageOrIndex", .integer).notNull().defaults(to: 0)
+                t.column("originalPath", .text).notNull()
+                t.column("kind", .text).notNull()
+                t.column("chart", .text)
+                t.column("status", .text).notNull()
+                t.column("caption", .text)
+            }
+            try db.execute(sql: """
+                INSERT INTO figures_v4 (id, documentId, pageOrIndex, originalPath, kind, chart, status, caption)
+                SELECT id, documentId, pageOrIndex, originalPath, kind, chart, status, caption FROM figures
+                """)
+            try db.drop(table: "figures")
+            try db.rename(table: "figures_v4", to: "figures")
+            try db.create(index: "figures_on_documentId", on: "figures", columns: ["documentId"])
+        }
         return migrator
     }
 
     /// Every migration identifier, in order.
-    public static let migrationIdentifiers = ["v1", "v2-document-warnings", "v3-question-type"]
+    public static let migrationIdentifiers = ["v1", "v2-document-warnings", "v3-question-type", "v4-figures-outlive-documents"]
 
     /// Every table "v1" creates, in dependency order.
     public static let tableNames = [

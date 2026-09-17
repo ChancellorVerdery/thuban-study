@@ -6,11 +6,15 @@ public struct FigureAnalysis: Codable, Sendable, Equatable {
     /// Present when `kind == .chart` and the model could read the data.
     public var chart: StandardChart?
     public var caption: String?
+    /// False when the image is not a figure at all (an equation fragment, a lone symbol, an icon or logo, page
+    /// chrome, a blank); the import drops such images instead of listing them under Figures.
+    public var isFigure: Bool
 
-    public init(kind: FigureKind, chart: StandardChart? = nil, caption: String? = nil) {
+    public init(kind: FigureKind, chart: StandardChart? = nil, caption: String? = nil, isFigure: Bool = true) {
         self.kind = kind
         self.chart = chart
         self.caption = caption
+        self.isFigure = isFigure
     }
 }
 
@@ -24,6 +28,10 @@ public actor FigureAgent {
         inputSchema: [
             "type": "object",
             "properties": [
+                "isFigure": [
+                    "type": "boolean",
+                    "description": "true only for a real figure a student would refer to (chart, diagram, table, photo). false for a rendered equation or a fragment of one, a lone symbol or bracket, an icon, logo, button, rule, spacer, or a blank/illegible image.",
+                ],
                 "kind": ["type": "string", "enum": ["chart", "diagram", "photo", "table", "unknown"]],
                 "caption": ["type": "string", "description": "One useful sentence for a student."],
                 "chart": [
@@ -56,7 +64,7 @@ public actor FigureAgent {
                     "required": ["chartType", "series", "confidence"],
                 ],
             ],
-            "required": ["kind", "caption"],
+            "required": ["isFigure", "kind", "caption"],
         ]
     )
 
@@ -96,12 +104,13 @@ public actor FigureAgent {
     /// Lenient decoding of the tool input.
     static func analysis(from input: JSONValue) -> FigureAnalysis {
         let kind = input["kind"]?.stringValue.flatMap(FigureKind.init(rawValue:)) ?? .unknown
+        let isFigure = input["isFigure"]?.boolValue ?? true
         let caption = input["caption"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines)
         var chart: StandardChart?
         if kind == .chart, let raw = input["chart"], let data = try? raw.data() {
             chart = try? JSONDecoder().decode(StandardChart.self, from: data)
             if let c = chart, c.series.isEmpty { chart = nil }
         }
-        return FigureAnalysis(kind: kind, chart: chart, caption: caption.flatMap { $0.isEmpty ? nil : $0 })
+        return FigureAnalysis(kind: kind, chart: chart, caption: caption.flatMap { $0.isEmpty ? nil : $0 }, isFigure: isFigure)
     }
 }

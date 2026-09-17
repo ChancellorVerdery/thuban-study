@@ -57,6 +57,36 @@ extension Store: DocumentRepository {
         try await delete(id, deleteFiles: false)
     }
 
+    /// What `delete` would remove along with the document.
+    public func footprint(of id: DocumentID) async throws -> DocumentFootprint {
+        try await read { db in
+            let questions = try Question.filter(Col.documentId == id).fetchAll(db)
+            let figures = try Figure.filter(Col.documentId == id).fetchCount(db)
+            let referenced = Set(questions.flatMap(\.figureIds))
+            let kept = referenced.isEmpty ? 0 : try Figure.filter(Col.documentId == id && referenced.contains(Col.id)).fetchCount(db)
+            return DocumentFootprint(questionCount: questions.count, figureCount: figures, referencedFigureCount: kept)
+        }
+    }
+
+    public func deleteKeepingQuestions(_ id: DocumentID) async throws {
+        let files = try await write { db -> ClassFiles in
+            let questions = try Question.filter(Col.documentId == id).fetchAll(db)
+            let referenced = Set(questions.flatMap(\.figureIds))
+            // Detach first so the cascade cannot reach the questions or the figures they use.
+            try db.execute(sql: "UPDATE questions SET documentId = NULL WHERE documentId = ?", arguments: [id])
+            if !referenced.isEmpty {
+                try db.execute(
+                    sql: "UPDATE figures SET documentId = NULL WHERE documentId = ? AND id IN (\(databaseQuestionMarks(count: referenced.count)))",
+                    arguments: StatementArguments([id.databaseValue] + referenced.map(\.databaseValue))
+                )
+            }
+            let files = try ClassFiles.collect(db, documentId: id)
+            _ = try ImportedDocument.deleteOne(db, id: id)
+            return files
+        }
+        removeFiles(files)
+    }
+
     /// Removes the document row (cascading to figures and questions) and, with `deleteFiles`, its stored file
     /// and figure PNGs.
     public func delete(_ id: DocumentID, deleteFiles: Bool) async throws {

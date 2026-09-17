@@ -62,12 +62,27 @@ public struct DocumentContent: Sendable, Equatable {
     public var pageCount: Int?
     /// Non-fatal problems met while parsing, e.g. an image that could not be decoded.
     public var warnings: [String]
+    /// Images the `FigureGate` turned away (glyphs, icons, equation renders), by reason.
+    public var rejectedImages: [FigureGate.Rejection: Int] = [:]
 
     public init(blocks: [ContentBlock] = [], figures: [ExtractedFigure] = [], pageCount: Int? = nil, warnings: [String] = []) {
         self.blocks = blocks
         self.figures = figures
         self.pageCount = pageCount
         self.warnings = warnings
+    }
+
+    public var rejectedImageCount: Int { rejectedImages.values.reduce(0, +) }
+
+    /// One line for the import log, e.g. "93 images were not figures (glyphs or icons) and were left out."
+    public var rejectedImagesNote: String? {
+        let count = rejectedImageCount
+        guard count > 0 else { return nil }
+        return "\(count) image\(count == 1 ? " was" : "s were") not a figure (symbols, equation renders or page icons) and \(count == 1 ? "was" : "were") left out."
+    }
+
+    public mutating func noteRejected(_ reason: FigureGate.Rejection) {
+        rejectedImages[reason, default: 0] += 1
     }
 
     /// All textual blocks joined by blank lines, in order. Page breaks and images are omitted.
@@ -84,9 +99,15 @@ public struct DocumentContent: Sendable, Equatable {
     /// True when no block carries text and no figure was extracted.
     public var isEmpty: Bool { figures.isEmpty && !blocks.contains { $0.isTextual } }
 
-    /// Appends a figure and returns its index so the caller can emit the matching `image` block.
+    /// Appends a figure and returns its index so the caller can emit the matching `image` block, or nil when the
+    /// `FigureGate` rejects the image on size (counted in `rejectedImages`). `force` bypasses the gate for images
+    /// the student imported as a document in their own right.
     @discardableResult
-    public mutating func appendFigure(page: Int? = nil, pngData: Data, nearbyText: String) -> Int {
+    public mutating func appendFigure(page: Int? = nil, pngData: Data, nearbyText: String, force: Bool = false) -> Int? {
+        if !force, let rejection = FigureGate.verdict(imageData: pngData) {
+            noteRejected(rejection)
+            return nil
+        }
         let index = figures.count
         figures.append(ExtractedFigure(index: index, page: page, pngData: pngData, nearbyText: nearbyText))
         return index

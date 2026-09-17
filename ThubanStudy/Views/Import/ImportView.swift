@@ -168,8 +168,16 @@ struct ImportBatchCard: View {
     var session: ClassSession
     var onReviewFigures: (ImportedDocument) -> Void
     @State private var confirmingCancel = false
+    /// The finished document the student asked to remove, with what would go with it.
+    @State private var pendingRemoval: PendingRemoval?
 
     private var pipeline: ImportPipeline { session.importPipeline }
+
+    struct PendingRemoval: Identifiable {
+        var document: ImportedDocument
+        var footprint: DocumentFootprint
+        var id: DocumentID { document.id }
+    }
 
     private var batch: [ImportedDocument] {
         let ids = pipeline.batchIds
@@ -188,6 +196,43 @@ struct ImportBatchCard: View {
             if !earlier.isEmpty {
                 section(title: "Imported earlier", count: earlier.count, documents: earlier, empty: nil)
             }
+        }
+        .confirmationDialog(
+            pendingRemoval.map { "Remove “\($0.document.filename)”?" } ?? "Remove file?",
+            isPresented: Binding(get: { pendingRemoval != nil }, set: { if !$0 { pendingRemoval = nil } }),
+            presenting: pendingRemoval
+        ) { removal in
+            let f = removal.footprint
+            if f.questionCount > 0 || f.figureCount > 0 {
+                Button("Remove file, \(Self.count(f.questionCount, "question")) and \(Self.count(f.figureCount, "figure"))", role: .destructive) {
+                    Task { await session.removeDocument(removal.document.id) }
+                }
+                Button(f.questionCount > 0 ? "Remove file only, keep the \(Self.count(f.questionCount, "question"))" : "Remove file only") {
+                    Task { await session.removeDocument(removal.document.id, keepQuestions: true) }
+                }
+            } else {
+                Button("Remove file", role: .destructive) {
+                    Task { await session.removeDocument(removal.document.id) }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { removal in
+            let f = removal.footprint
+            if f.questionCount > 0 {
+                Text("This file produced \(Self.count(f.questionCount, "question")) and \(Self.count(f.figureCount, "figure")). "
+                     + "Keeping the questions also keeps the \(Self.count(f.referencedFigureCount, "figure")) they use; the stored copy of the file is deleted either way.")
+            } else {
+                Text("The stored copy of the file\(f.figureCount > 0 ? " and its \(Self.count(f.figureCount, "figure"))" : "") will be deleted.")
+            }
+        }
+    }
+
+    private static func count(_ n: Int, _ noun: String) -> String { "\(n) \(noun)\(n == 1 ? "" : "s")" }
+
+    private func askToRemove(_ document: ImportedDocument) {
+        Task {
+            let footprint = await session.footprint(of: document.id)
+            pendingRemoval = PendingRemoval(document: document, footprint: footprint)
         }
     }
 
@@ -212,7 +257,11 @@ struct ImportBatchCard: View {
                 VStack(spacing: 0) {
                     ForEach(Array(documents.enumerated()), id: \.element.id) { index, document in
                         ImportDocumentRow(document: document, activity: pipeline.activity(for: document.id), onRemove: {
-                            Task { await session.removeDocument(document.id) }
+                            if document.status == .done {
+                                askToRemove(document)
+                            } else {
+                                Task { await session.removeDocument(document.id) }
+                            }
                         }, onRetry: {
                             Task { await session.retryDocument(document.id) }
                         }, onReviewFigures: { onReviewFigures(document) })
@@ -376,6 +425,8 @@ struct ImportDocumentRow: View {
                         .buttonStyle(GhostButtonStyle(height: 28, tinted: true))
                 }
                 Chip("Done · \(document.questionCount) question\(document.questionCount == 1 ? "" : "s")", kind: .pos)
+                IconButton(glyph: .close, label: "Remove \(document.filename)", size: 28, iconSize: 14, action: onRemove)
+                    .help("Remove this file; you choose whether its questions and figures go too")
             }
         case .failed:
             HStack(spacing: 8) {

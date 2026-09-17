@@ -166,7 +166,8 @@ final class ImportPipeline {
 
             // 2. Figures
             try Task.checkCancellation()
-            let figureLabel = "Extracting figures (\(content.figures.count))"
+            let rejected = content.rejectedImageCount
+            let figureLabel = "Extracting figures (\(content.figures.count)" + (rejected > 0 ? ", \(rejected) non-figure image\(rejected == 1 ? "" : "s") left out)" : ")")
             document = await setStatus(document, .extractingFigures, detail: figureLabel, model: nil)
             update(document.id) { $0.phase = .figures; $0.detail = figureLabel; $0.figureCount = content.figures.count }
             let figureIds = try await storeFigures(content.figures, documentId: document.id)
@@ -208,6 +209,8 @@ final class ImportPipeline {
             // 4. Store questions
             try Task.checkCancellation()
             var questions = result.questions
+            var warnings = result.warnings
+            if let note = content.rejectedImagesNote { warnings.append(note) }
             for index in questions.indices {
                 let indices = result.figureIndicesByQuestion[questions[index].id] ?? []
                 questions[index].figureIds = indices.compactMap { figureIds[$0] }
@@ -221,23 +224,32 @@ final class ImportPipeline {
             document.classification = result.classification
             document.questionCount = questions.count
             document.figureCount = content.figures.count
-            document.warnings = result.warnings
+            document.warnings = warnings
             try await store.update(classification: result.classification, questionCount: questions.count,
-                                   figureCount: content.figures.count, warnings: result.warnings, for: document.id)
-            update(document.id) { $0.warnings = result.warnings }
+                                   figureCount: content.figures.count, warnings: warnings, for: document.id)
+            update(document.id) { $0.warnings = warnings }
             await session.loadQuestions()
 
-            // 5. Figure agent
-            let charts = await analyseFigures(content.figures, figureIds: figureIds, document: &document)
+            // 5. Figure agent (may reject images the size gate let through; those leave the bank again)
+            let (charts, dropped) = await analyseFigures(content.figures, figureIds: figureIds, document: &document)
+            if dropped > 0 {
+                let remaining = max(0, content.figures.count - dropped)
+                document.figureCount = remaining
+                try await store.update(classification: result.classification, questionCount: questions.count,
+                                       figureCount: remaining, warnings: warnings, for: document.id)
+                update(document.id) { $0.figureCount = remaining }
+                session.updateDocument(document)
+                await session.loadQuestions()
+            }
 
             // 6. Done
             let doneDetail = "Done · \(questions.count) question\(questions.count == 1 ? "" : "s")"
                 + (charts > 0 ? " · \(charts) chart\(charts == 1 ? "" : "s")" : "")
-                + (result.warnings.isEmpty ? "" : " · \(result.warnings.count) warning\(result.warnings.count == 1 ? "" : "s")")
+                + (warnings.isEmpty ? "" : " · \(warnings.count) warning\(warnings.count == 1 ? "" : "s")")
             update(document.id) { $0.phase = .done; $0.detail = doneDetail; $0.chartCount = charts }
             document = await setStatus(document, .done, detail: doneDetail, model: document.modelUsed)
-            if !result.warnings.isEmpty {
-                Self.logger.notice("Import warnings for \(document.filename, privacy: .public): \(result.warnings.joined(separator: " | "), privacy: .public)")
+            if !warnings.isEmpty {
+                Self.logger.notice("Import warnings for \(document.filename, privacy: .public): \(warnings.joined(separator: " | "), privacy: .public)")
             }
         } catch is CancellationError {
             await resetToQueued(document)
@@ -333,12 +345,16 @@ final class ImportPipeline {
     }
 
     /// Runs the FigureAgent over the extracted figures; charts become `.reviewing`, everything else keeps its
-    /// original (`.keptOriginal`). Returns the number of charts found. Failures leave figures pending.
-    private func analyseFigures(_ figures: [ExtractedFigure], figureIds: [Int: FigureID], document: inout ImportedDocument) async -> Int {
-        guard !figures.isEmpty, session.app.isConnected else { return 0 }
+    /// original (`.keptOriginal`), and images the agent says are not figures at all (equation fragments, symbols,
+    /// icons) are deleted again, including from the questions that cited them. Returns the number of charts found
+    /// and the number of images dropped. Failures leave figures pending.
+    private func analyseFigures(_ figures: [ExtractedFigure], figureIds: [Int: FigureID], document: inout ImportedDocument) async -> (charts: Int, dropped: Int) {
+        guard !figures.isEmpty, session.app.isConnected else { return (0, 0) }
         let agent = FigureAgent(client: session.app.claudeClient, model: runPolicy.pinned ?? .sonnet)
         let batch = figures.prefix(Self.maxAnalysedFigures)
         var charts = 0
+        var rejected: [FigureID] = []
+        let filename = document.filename
         document = await setStatus(document, .extractingFigures, detail: "Analysing figures (0 of \(batch.count))", model: document.modelUsed)
         update(document.id) { $0.phase = .analysingFigures; $0.detail = "Analysing figures" }
         for (offset, extracted) in batch.enumerated() {
@@ -349,6 +365,12 @@ final class ImportPipeline {
             setDetail(document.id, label)
             do {
                 let analysis = try await agent.analyze(png: extracted.pngData, nearbyText: extracted.nearbyText)
+                if !analysis.isFigure {
+                    Self.logger.notice("Dropping non-figure image \(extracted.index) of \(filename, privacy: .public): \(analysis.caption ?? "", privacy: .public)")
+                    try await session.store.delete(figure.id, deleteFile: true)
+                    rejected.append(figure.id)
+                    continue
+                }
                 figure.kind = analysis.kind
                 figure.chart = analysis.chart
                 if let caption = analysis.caption, !caption.isEmpty { figure.caption = caption }
@@ -365,7 +387,22 @@ final class ImportPipeline {
                 Self.logger.error("Figure analysis failed: \(error.localizedDescription, privacy: .public)")
             }
         }
-        return charts
+        if !rejected.isEmpty { await stripFigures(rejected, from: document.id) }
+        return (charts, rejected.count)
+    }
+
+    /// Removes deleted figure ids from the document's questions so nothing points at a missing image.
+    private func stripFigures(_ ids: [FigureID], from documentId: DocumentID) async {
+        let gone = Set(ids)
+        do {
+            let questions = try await session.store.questions(in: session.classId, filter: QuestionFilter(documentIds: [documentId]))
+            for var question in questions where question.figureIds.contains(where: gone.contains) {
+                question.figureIds.removeAll(where: gone.contains)
+                try await session.store.update(question)
+            }
+        } catch {
+            Self.logger.error("Could not detach dropped figures: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: Status plumbing

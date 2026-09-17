@@ -203,9 +203,7 @@ extension AppModel {
         let documents = try await store.documents(in: classId)
         counts.documents = documents.count
         counts.documentBytes = documents.reduce(0) { $0 + $1.byteCount }
-        for document in documents {
-            counts.figures += try await store.figures(for: document.id).count
-        }
+        counts.figures = try await store.figures(in: classId).count
         return counts
     }
 }

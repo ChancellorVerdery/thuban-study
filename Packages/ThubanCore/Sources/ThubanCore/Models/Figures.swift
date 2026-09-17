@@ -80,7 +80,9 @@ public struct StandardChart: Codable, Sendable, Equatable {
 /// An image extracted from a document. The original PNG lives under `AppPaths.figures/<originalPath>`.
 public struct Figure: Codable, Identifiable, Sendable, Equatable {
     public var id: FigureID
-    public var documentId: DocumentID
+    /// The document it was clipped from; nil once that document was removed while the questions using the
+    /// figure were kept.
+    public var documentId: DocumentID?
     public var pageOrIndex: Int
     /// PNG under `AppPaths.figures`.
     public var originalPath: String
@@ -92,7 +94,7 @@ public struct Figure: Codable, Identifiable, Sendable, Equatable {
 
     public init(
         id: FigureID = .new(),
-        documentId: DocumentID,
+        documentId: DocumentID?,
         pageOrIndex: Int,
         originalPath: String,
         kind: FigureKind = .unknown,

@@ -44,7 +44,7 @@ final class FigureReviewModel {
         }
     }
 
-    func document(for figure: Figure) -> ImportedDocument? { documentsById[figure.documentId] }
+    func document(for figure: Figure) -> ImportedDocument? { figure.documentId.flatMap { documentsById[$0] } }
 
     /// Original PNG of a figure (nil when the file is missing).
     func image(for figure: Figure) -> NSImage? {
@@ -63,11 +63,7 @@ final class FigureReviewModel {
             case .document(let document):
                 figures = try await session.store.figures(for: document.id)
             case .classWide:
-                var all: [Figure] = []
-                for document in session.importQueue {
-                    all += try await session.store.figures(for: document.id)
-                }
-                figures = all
+                figures = try await session.store.figures(in: session.classId)
             }
             // Start at the first figure that still needs a decision.
             index = figures.firstIndex { $0.status == .reviewing || $0.status == .pending } ?? 0

@@ -384,6 +384,60 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(remaining.map(\.id), [first.id])
     }
 
+    func testDeleteKeepingQuestionsDetachesQuestionsAndTheirFigures() async throws {
+        let store = try makeMemoryStore()
+        let studyClass = sampleClass()
+        try await store.insert(studyClass)
+        let doc = sampleDocument(classId: studyClass.id)
+        try await store.insert(doc)
+
+        let used = Figure(documentId: doc.id, pageOrIndex: 1, originalPath: "\(doc.id.raw)/1.png")
+        let unused = Figure(documentId: doc.id, pageOrIndex: 2, originalPath: "\(doc.id.raw)/2.png")
+        try await store.insert(used)
+        try await store.insert(unused)
+        for figure in [used, unused] {
+            let url = store.locations.figures.appendingPathComponent(figure.originalPath)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data([0x89]).write(to: url)
+        }
+        var question = sampleQuestion(classId: studyClass.id, documentId: doc.id)
+        question.figureIds = [used.id]
+        try await store.insert([question])
+
+        let footprint = try await store.footprint(of: doc.id)
+        XCTAssertEqual(footprint, DocumentFootprint(questionCount: 1, figureCount: 2, referencedFigureCount: 1))
+
+        try await store.deleteKeepingQuestions(doc.id)
+
+        let documents = try await store.documents(in: studyClass.id)
+        XCTAssertTrue(documents.isEmpty)
+        let kept = try await store.question(id: question.id)
+        XCTAssertNotNil(kept)
+        XCTAssertNil(kept?.documentId, "the question is detached, not deleted")
+        XCTAssertEqual(kept?.figureIds, [used.id])
+        let survivor = try await store.figure(id: used.id)
+        XCTAssertNotNil(survivor)
+        XCTAssertNil(survivor?.documentId)
+        let gone = try await store.figure(id: unused.id)
+        XCTAssertNil(gone, "figures no question uses go with the document")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: store.locations.figures.appendingPathComponent(used.originalPath).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: store.locations.figures.appendingPathComponent(unused.originalPath).path))
+
+        // The class-wide listing still reaches the orphaned figure through the question.
+        let classFigures = try await store.figures(in: studyClass.id)
+        XCTAssertEqual(classFigures.map(\.id), [used.id])
+
+        // Plain delete still cascades.
+        let doc2 = sampleDocument(classId: studyClass.id, filename: "b.pdf")
+        try await store.insert(doc2)
+        var q2 = sampleQuestion(classId: studyClass.id, documentId: doc2.id)
+        q2.figureIds = []
+        try await store.insert([q2])
+        try await store.delete(doc2.id, deleteFiles: true)
+        let cascaded = try await store.question(id: q2.id)
+        XCTAssertNil(cascaded)
+    }
+
     func testDeleteFiguresForDocumentRemovesRowsAndFilesOfThatDocumentOnly() async throws {
         let store = try makeMemoryStore()
         let studyClass = sampleClass()

@@ -235,6 +235,12 @@ public enum Prompts {
         You are the Thuban figure agent. You look at one image extracted from a student's course document and describe \
         it by calling `describe_figure` exactly once; do not reply with prose.
 
+        First decide `isFigure`. Course pages render equations, single symbols, brackets, answer-status marks, editor \
+        toolbars and logos as images; none of those is a figure. Set `isFigure` false for a rendered equation or a \
+        fragment of one, a lone bracket or symbol, an icon, button, logo or rule, or a blank or illegible image — \
+        then still give a short `caption` saying what it is and set `kind` to "unknown". Only a chart, diagram, \
+        table or photo a student would refer to is a figure.
+
         Decide the kind: "chart" for anything with axes or plotted data (line/scatter/bar/histogram/function plots), \
         "diagram" for geometric figures, circuits, flowcharts and labelled sketches, "table" for tabular data rendered \
         as an image, "photo" for photographs and screenshots without data, "unknown" if you cannot tell.

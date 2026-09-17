@@ -147,11 +147,7 @@ final class QuestionBankModel {
         if session.questions.isEmpty { await session.loadQuestions() } else { await session.reloadProgress() }
         do {
             allQuestions = try await session.store.questions(in: classId, filter: nil)
-            var figures = 0
-            for document in session.importQueue where document.figureCount > 0 {
-                figures += try await session.store.figures(for: document.id).count
-            }
-            figureCount = figures
+            figureCount = try await session.store.figures(in: classId).count
         } catch {
             self.error = error.localizedDescription
         }

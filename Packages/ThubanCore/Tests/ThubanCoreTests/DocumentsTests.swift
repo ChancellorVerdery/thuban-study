@@ -279,6 +279,45 @@ final class DocumentsTests: XCTestCase {
         XCTAssertFalse(content.fullText.contains("color:red"))
     }
 
+    func testFigureGateRejectsGlyphsIconsAndEquationRenders() async throws {
+        // Pixel gate.
+        XCTAssertEqual(FigureGate.verdict(width: 12, height: 40), .tooSmall, "a brace glyph")
+        XCTAssertEqual(FigureGate.verdict(width: 60, height: 60), .tooSmall, "a 60×60 icon is under the area floor")
+        XCTAssertEqual(FigureGate.verdict(width: 900, height: 60), .extremeAspect, "a rule")
+        XCTAssertNil(FigureGate.verdict(width: 160, height: 120))
+        XCTAssertEqual(FigureGate.verdict(imageData: DocumentsFixtures.pngData(width: 20, height: 44)), .tooSmall)
+        XCTAssertNil(FigureGate.verdict(imageData: DocumentsFixtures.pngData(width: 160, height: 120)))
+
+        // Attribute gate (WebAssign / MathType markup seen in the wild).
+        XCTAssertEqual(FigureGate.verdict(source: "https://x/watex/img/leftparen1.gif", cssClass: "", alt: "", style: "width: 0.58em; height: 2.27em"), .mathRenderer)
+        XCTAssertEqual(FigureGate.verdict(source: "https://x/mathtype/editor/resources/icons/icons.png", cssClass: "wrs_image", alt: "", style: ""), .mathRenderer)
+        XCTAssertEqual(FigureGate.verdict(source: "https://x/img/questions/mCorrect.svg", cssClass: "", alt: "Correct: Your answer is correct.", style: ""), .chrome)
+        XCTAssertEqual(FigureGate.verdict(source: "https://x/images/xdbldot.svg", cssClass: "", alt: "x double dot", style: "width: 1.2em; height: 1.4em"), .inlineGlyph)
+        XCTAssertNil(FigureGate.verdict(source: "https://x/figures/fig3.png", cssClass: "figure", alt: "Figure 3", style: "width: 30em"))
+
+        // The HTML parser drops them, keeps the alt of equation renders as text, and counts what it dropped.
+        let big = DocumentsFixtures.pngData().base64EncodedString()
+        let tiny = DocumentsFixtures.pngData(width: 16, height: 40).base64EncodedString()
+        let html = """
+        <html><body>
+        <p>Solve <img class="wrs_image" src="data:image/png;base64,\(tiny)" alt="y' = 2y"> for y.</p>
+        <p>A brace <img src="data:image/png;base64,\(tiny)" alt=""> then a real one:</p>
+        <img src="https://www.webassign.net/static/img/questions/mCorrect.svg" alt="Correct: Your answer is correct.">
+        <img src="data:image/png;base64,\(big)" alt="Direction field">
+        </body></html>
+        """
+        try Data(html.utf8).write(to: file("wa.html"))
+        let content = try await HtmlParser().parse(url: file("wa.html"))
+        XCTAssertEqual(content.figures.count, 1)
+        XCTAssertTrue(content.figures[0].nearbyText.contains("Direction field"))
+        XCTAssertEqual(content.rejectedImageCount, 3)
+        XCTAssertEqual(content.rejectedImages[.mathRenderer], 1)
+        XCTAssertEqual(content.rejectedImages[.tooSmall], 1)
+        XCTAssertEqual(content.rejectedImages[.chrome], 1)
+        XCTAssertTrue(content.fullText.contains("Solve y' = 2y for y."), "the equation's alt text stays in the sentence: \(content.fullText)")
+        XCTAssertNotNil(content.rejectedImagesNote)
+    }
+
     func testMhtmlDecodesHtmlPartAndImagePart() async throws {
         let html = "<html><body><h1>Quiz</h1><p>What is 2 + 2?</p><img src=\"https://example.com/quiz/fig.png\" alt=\"figure\"></body></html>"
         let text = DocumentsFixtures.mhtml(html: html, imageLocation: "https://example.com/quiz/fig.png", png: DocumentsFixtures.pngData())
@@ -343,7 +382,7 @@ final class DocumentsTests: XCTestCase {
             content.blocks.append(.heading("Section \(page)", level: 2))
             for _ in 0..<3 { content.blocks.append(.paragraph(sentence + "Page \(page) marker.")) }
             if page % 4 == 0 {
-                let index = content.appendFigure(page: page, pngData: Data([0x89, 0x50]), nearbyText: "fig")
+                let index = content.appendFigure(page: page, pngData: Data([0x89, 0x50]), nearbyText: "fig", force: true) ?? 0
                 content.blocks.append(.image(index: index))
             }
         }

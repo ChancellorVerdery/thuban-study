@@ -80,6 +80,13 @@ private struct HtmlWalker {
             try walkInline(element)
             return
         }
+        // Images decide for themselves whether to break the paragraph: a real figure does, an inline equation
+        // render or glyph stays part of the sentence.
+        if tag == "img" { try walkImage(element); return }
+        if tag == "picture" {
+            if let img = try element.select("img").first() { try walkImage(img) }
+            return
+        }
         flushInline()
         switch tag {
         case "h1", "h2", "h3", "h4", "h5", "h6":
@@ -95,10 +102,6 @@ private struct HtmlWalker {
         case "pre":
             let code = try element.text(trimAndNormaliseWhitespace: false)
             if !code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { content.blocks.append(.code(code)) }
-        case "img":
-            try walkImage(element)
-        case "picture":
-            if let img = try element.select("img").first() { try walkImage(img) }
         case "hr":
             break
         default:
@@ -112,7 +115,6 @@ private struct HtmlWalker {
         case "br":
             inline.append("\n")
         case "img":
-            flushInline()
             try walkImage(element)
         default:
             for node in element.getChildNodes() {
@@ -155,6 +157,15 @@ private struct HtmlWalker {
         let source = try img.attr("src").trimmingCharacters(in: .whitespacesAndNewlines)
         let alt = ParserSupport.normalizeWhitespace((try? img.attr("alt")) ?? "")
         guard !source.isEmpty else { return }
+        // Equation renders, editor sprites and status marks are never figures; their alt text (if any) still
+        // reads as part of the sentence.
+        if let rejection = FigureGate.verdict(
+            source: source, cssClass: (try? img.attr("class")) ?? "", alt: alt, style: (try? img.attr("style")) ?? ""
+        ) {
+            content.noteRejected(rejection)
+            if !alt.isEmpty, rejection == .mathRenderer || rejection == .inlineGlyph { appendInline(alt) }
+            return
+        }
         guard let data = loadImage(source) else {
             content.warnings.append("Image \"\(source.prefix(80))\" could not be loaded.")
             return
@@ -163,8 +174,14 @@ private struct HtmlWalker {
             content.warnings.append("Image \"\(source.prefix(80))\" could not be decoded.")
             return
         }
+        if let rejection = FigureGate.verdict(imageData: png) {
+            content.noteRejected(rejection)
+            if !alt.isEmpty { appendInline(alt) }
+            return
+        }
+        flushInline()
         let nearby = [alt, ParserSupport.nearbyText(before: content.blocks)].filter { !$0.isEmpty }.joined(separator: "\n")
-        let index = content.appendFigure(pngData: png, nearbyText: nearby)
+        guard let index = content.appendFigure(pngData: png, nearbyText: nearby) else { return }
         content.blocks.append(.image(index: index))
     }
 

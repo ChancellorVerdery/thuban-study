@@ -11,6 +11,25 @@ extension Store: FigureRepository {
         }
     }
 
+    /// Every figure of a class: those of its documents (document order, then page) followed by figures whose
+    /// document was removed but which the class's questions still use.
+    public func figures(in classId: ClassID) async throws -> [Figure] {
+        try await read { db in
+            let documentIds = try DocumentID.fetchAll(
+                db, sql: "SELECT id FROM documents WHERE classId = ? ORDER BY importedAt DESC", arguments: [classId]
+            )
+            var out: [Figure] = []
+            for documentId in documentIds {
+                out += try Figure.filter(Col.documentId == documentId).order(Col.pageOrIndex, Col.id).fetchAll(db)
+            }
+            let referenced = Set(try Question.filter(Col.classId == classId).fetchAll(db).flatMap(\.figureIds))
+            if !referenced.isEmpty {
+                out += try Figure.filter(Col.documentId == nil && referenced.contains(Col.id)).order(Col.pageOrIndex, Col.id).fetchAll(db)
+            }
+            return out
+        }
+    }
+
     /// The figures with the given ids (e.g. `Question.figureIds`), in the order requested; missing ids are skipped.
     public func figures(ids: [FigureID]) async throws -> [Figure] {
         guard !ids.isEmpty else { return [] }

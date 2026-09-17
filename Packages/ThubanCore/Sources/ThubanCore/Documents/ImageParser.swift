@@ -18,7 +18,8 @@ public struct ImageParser: DocumentParser {
             throw ThubanError.parse("\"\(url.lastPathComponent)\" could not be re-encoded as PNG.")
         }
         var content = DocumentContent()
-        let index = content.appendFigure(pngData: png, nearbyText: String(text.prefix(600)))
+        // The student imported this image on purpose, so the size gate does not apply.
+        let index = content.appendFigure(pngData: png, nearbyText: String(text.prefix(600)), force: true) ?? 0
         content.blocks.append(.image(index: index))
         let paragraphs = ParserSupport.paragraphs(from: text)
         content.blocks.append(contentsOf: paragraphs.map { ContentBlock.paragraph($0) })

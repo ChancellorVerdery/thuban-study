@@ -70,7 +70,7 @@ public struct PDFParser: DocumentParser {
                 return
             }
             guard let png = ImageCodec.png(from: image) else { continue }
-            let index = content.appendFigure(page: number, pngData: png, nearbyText: nearbyText)
+            guard let index = content.appendFigure(page: number, pngData: png, nearbyText: nearbyText, force: isScanned) else { continue }
             content.blocks.append(.image(index: index))
         }
     }

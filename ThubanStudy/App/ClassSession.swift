@@ -392,12 +392,24 @@ final class ClassSession {
         }
     }
 
-    func removeDocument(_ id: DocumentID, deleteFiles: Bool = true) async {
+    /// Removes a document and, unless `keepQuestions`, everything it produced. With `keepQuestions` the questions
+    /// stay in the bank (detached from the file) together with the figures they use.
+    func removeDocument(_ id: DocumentID, deleteFiles: Bool = true, keepQuestions: Bool = false) async {
         do {
-            try await store.delete(id, deleteFiles: deleteFiles)
+            if keepQuestions {
+                try await store.deleteKeepingQuestions(id)
+            } else {
+                try await store.delete(id, deleteFiles: deleteFiles)
+            }
             importQueue.removeAll { $0.id == id }
+            await loadQuestions()
         } catch {
             lastError = error.localizedDescription
         }
+    }
+
+    /// What removing a document would take with it (for the confirmation).
+    func footprint(of id: DocumentID) async -> DocumentFootprint {
+        (try? await store.footprint(of: id)) ?? DocumentFootprint()
     }
 }

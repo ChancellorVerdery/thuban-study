@@ -23,6 +23,23 @@ public protocol DocumentRepository: Sendable {
     func update(status: ImportStatus, detail: String?, model: String?, for id: DocumentID) async throws
     /// Removes the document row and, through cascading foreign keys, its figures and generated questions.
     func delete(_ id: DocumentID) async throws
+    /// Removes the document (and its stored file) but keeps its questions, which are detached from it, together
+    /// with the figures those questions use; the document's other figures go.
+    func deleteKeepingQuestions(_ id: DocumentID) async throws
+}
+
+/// What removing a document would take with it.
+public struct DocumentFootprint: Sendable, Equatable {
+    public var questionCount: Int
+    public var figureCount: Int
+    /// Figures at least one of the questions refers to (kept by `deleteKeepingQuestions`).
+    public var referencedFigureCount: Int
+
+    public init(questionCount: Int = 0, figureCount: Int = 0, referencedFigureCount: Int = 0) {
+        self.questionCount = questionCount
+        self.figureCount = figureCount
+        self.referencedFigureCount = referencedFigureCount
+    }
 }
 
 /// The question bank.

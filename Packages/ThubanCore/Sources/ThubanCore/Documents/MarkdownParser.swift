@@ -104,7 +104,7 @@ private struct MarkdownScanner {
             return nil
         }
         let nearby = [alt, ParserSupport.nearbyText(before: content.blocks)].filter { !$0.isEmpty }.joined(separator: "\n")
-        let index = content.appendFigure(pngData: png, nearbyText: nearby)
+        guard let index = content.appendFigure(pngData: png, nearbyText: nearby) else { return nil }
         content.blocks.append(.image(index: index))
         return index
     }

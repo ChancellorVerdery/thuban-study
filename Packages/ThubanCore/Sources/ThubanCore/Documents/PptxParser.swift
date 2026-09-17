@@ -135,7 +135,7 @@ private struct SlideBuilder {
             content.warnings.append("Slide \(slideNumber): image \(relationship.target) could not be decoded.")
             return
         }
-        let index = content.appendFigure(page: slideNumber, pngData: png, nearbyText: String(lastText.suffix(600)))
+        guard let index = content.appendFigure(page: slideNumber, pngData: png, nearbyText: String(lastText.suffix(600))) else { return }
         content.blocks.append(.image(index: index))
     }
 
