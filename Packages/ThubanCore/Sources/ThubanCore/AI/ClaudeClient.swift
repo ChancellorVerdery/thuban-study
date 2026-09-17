@@ -38,6 +38,10 @@ public struct RetryPolicy: Sendable, Equatable {
 public actor ClaudeClient {
     public static let apiVersion = "2023-06-01"
     public static let oauthBeta = "oauth-2025-04-20"
+    /// Claude account (OAuth) tokens are Claude Code credentials: the API only serves them when the system prompt
+    /// opens with this sentence and answers every other request with `429 rate_limit_error`. It is prepended to
+    /// the agents' own prompts on OAuth requests; API-key requests are sent as-is.
+    public static let oauthSystemPrefix = "You are Claude Code, Anthropic's official CLI for Claude."
     public static let endpointString = "https://api.anthropic.com/v1/messages"
     /// Budget passed as `thinking.budget_tokens` when thinking is enabled.
     public static let thinkingBudget = 4000
@@ -163,17 +167,25 @@ public actor ClaudeClient {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             request.setValue(Self.oauthBeta, forHTTPHeaderField: "anthropic-beta")
         }
-        request.httpBody = try encodeBody(spec)
+        request.httpBody = try encodeBody(spec, auth: auth)
         return request
     }
 
-    private nonisolated func encodeBody(_ spec: RequestSpec) throws -> Data {
+    /// The system prompt actually sent: the agent's prompt, behind the Claude Code sentinel for OAuth tokens.
+    nonisolated static func systemPrompt(_ system: String, auth: ClaudeAuth) -> String? {
+        switch auth {
+        case .apiKey: return system.isEmpty ? nil : system
+        case .oauth: return system.isEmpty ? oauthSystemPrefix : oauthSystemPrefix + "\n\n" + system
+        }
+    }
+
+    private nonisolated func encodeBody(_ spec: RequestSpec, auth: ClaudeAuth) throws -> Data {
         // The API requires max_tokens to exceed the thinking budget.
         let maxTokens = spec.thinking ? max(spec.maxTokens, Self.thinkingBudget + 1024) : spec.maxTokens
         let body = Body(
             model: spec.model.rawValue,
             maxTokens: maxTokens,
-            system: spec.system.isEmpty ? nil : spec.system,
+            system: Self.systemPrompt(spec.system, auth: auth),
             messages: spec.messages,
             tools: spec.tools.isEmpty ? nil : spec.tools,
             toolChoice: spec.thinking ? nil : spec.toolChoice?.jsonValue,
