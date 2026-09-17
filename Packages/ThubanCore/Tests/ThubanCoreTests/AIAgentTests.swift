@@ -565,6 +565,15 @@ final class AIAgentTests: XCTestCase {
 
     // MARK: Figure
 
+    func testFigureAnalysisKeepsAFieldWithoutSolutionCurves() throws {
+        let field: JSONValue = try JSONValue(jsonString: #"{"isFigure":true,"kind":"chart","caption":"Field","chart":{"chartType":"slopeField","slope":"x^2-y^2","series":[],"confidence":0.8}}"#)
+        XCTAssertEqual(FigureAgent.analysis(from: field).chart?.slope, "x^2-y^2", "a field with no curve on it is still a chart")
+        let emptyField: JSONValue = try JSONValue(jsonString: #"{"isFigure":true,"kind":"chart","caption":"?","chart":{"chartType":"slopeField","series":[],"confidence":0.2}}"#)
+        XCTAssertNil(FigureAgent.analysis(from: emptyField).chart, "a field without an equation has nothing to draw")
+        let emptyLine: JSONValue = try JSONValue(jsonString: #"{"isFigure":true,"kind":"chart","caption":"?","chart":{"chartType":"line","series":[],"confidence":0.2}}"#)
+        XCTAssertNil(FigureAgent.analysis(from: emptyLine).chart)
+    }
+
     func testFigureAgentDecodesChart() async throws {
         let transport = MockTransport([.sse(SSE.toolUse(id: "f1", name: "describe_figure", input: [
             "kind": "chart",

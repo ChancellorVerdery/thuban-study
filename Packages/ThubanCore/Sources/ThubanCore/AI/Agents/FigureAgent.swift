@@ -153,7 +153,8 @@ public actor FigureAgent {
         var chart: StandardChart?
         if kind == .chart, let raw = input["chart"], let data = try? raw.data() {
             chart = try? JSONDecoder().decode(StandardChart.self, from: data)
-            if let c = chart, c.series.isEmpty { chart = nil }
+            // A chart needs something to draw: series, or a slope field's equation (a field alone is a chart).
+            if let c = chart, c.series.isEmpty, !(c.isSlopeField && !(c.slope ?? "").isEmpty) { chart = nil }
         }
         return FigureAnalysis(kind: kind, chart: chart, caption: caption.flatMap { $0.isEmpty ? nil : $0 }, isFigure: isFigure)
     }
