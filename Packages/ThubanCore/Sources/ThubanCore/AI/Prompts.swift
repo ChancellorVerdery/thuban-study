@@ -246,21 +246,34 @@ public enum Prompts {
         "diagram" for geometric figures, circuits, flowcharts and labelled sketches, "table" for tabular data rendered \
         as an image, "photo" for photographs and screenshots without data, "unknown" if you cannot tell.
 
+        # Find the equation before you read the picture
+        A figure in course material is almost always the graph of something stated in the problem. Read the question \
+        text and the surrounding text first and look for the equation the picture shows: a function y = f(x), a \
+        differential equation dy/dx = f(x, y) (a slope field, or a solution of it), a relation F(x, y) = c, a curve \
+        given parametrically, or a family of solutions. When you find it, use that equation exactly — as `latex` for a \
+        curve (an equation with "=" is fine; the app plots relations too) or as `slope` for a field — and judge the \
+        picture only to confirm the match (which branch, which window, which initial condition). Do not estimate \
+        coordinates from the pixels when the text gives you the formula.
+
+        Only when the curve is arbitrary — a sketch that no equation in the text describes (a hand-drawn f whose \
+        formula is never given, a data plot, a "the graph of f is shown" problem) — read 12–40 `points` along it in \
+        order and the app connects them smoothly. Say in the caption which case it is.
+
         For a chart, fill `chart` so the app can redraw it in its own style: `chartType` (line | scatter | bar | \
-        function | histogram), axis labels, every series either as `latex` (a function of x, e.g. "2x+1" or "\\\\sin(x)", \
-        when the curve is clearly a known function) or as `points` ([[x, y], …], 6–30 representative points read off \
-        the axes; for bars, x is the category index starting at 0), `xRange`/`yRange` as [min, max], and `confidence` \
-        0–1 for how faithfully the redraw would match. Use the nearby text to name axes and series.
+        function | histogram | slopeField), axis labels, every series as `latex` (the equation from the text) or, for \
+        an arbitrary curve, as `points` ([[x, y], …]; for bars, x is the category index starting at 0), \
+        `xRange`/`yRange` as [min, max] matching the picture's window, and `confidence` 0–1 for how faithfully the \
+        redraw would match. Use the text to name axes and series.
 
         A slope or direction field (a grid of short ticks or arrows showing dy/dx) is `chartType` "slopeField": put the \
-        right-hand side of dy/dx = f(x, y) in `slope` as LaTeX (take it from the surrounding text when the question \
-        states the equation; otherwise infer the simplest formula consistent with the arrows and say so in the \
-        caption), set `arrows` true when the ticks have heads, and give each solution curve drawn on top as a series \
+        right-hand side of dy/dx = f(x, y) in `slope` as LaTeX — the differential equation the question states, which \
+        may be written y' = …, dy/dx = …, or as an equation to be solved; only if the text truly gives none, infer the \
+        simplest formula consistent with the arrows and say so in the caption. Set `arrows` true when the ticks have \
+        heads, and give each solution curve drawn on top as a series \
         with `through` = a point it passes through (its initial condition, e.g. where it crosses the y-axis) — the app \
         integrates the curve from that point, so do not trace it as points. Never turn the arrows themselves into points.
 
-        For a smooth curve give `latex` when you can name the function; otherwise 12–40 `points` along it, in order — \
-        the app draws a smooth curve through them. Keep series names short; they are shown once, not on every point.
+        Keep series names short; they are shown once, not on every point.
 
         Always give a one-sentence `caption` a student would find useful.
         """

@@ -78,6 +78,40 @@ public actor FigureAgent {
     private let model: ClaudeModel
     private let maxTokens: Int
 
+    /// What the figure agent is told besides the image.
+    public struct FigureContext: Sendable, Equatable {
+        /// Document text around the figure (before and after).
+        public var nearbyText: String
+        /// The questions that cite the figure, in full (stem and parts), as Markdown + LaTeX.
+        public var questionTexts: [String]
+        /// An earlier caption or analysis note, if any.
+        public var previousCaption: String?
+
+        public init(nearbyText: String = "", questionTexts: [String] = [], previousCaption: String? = nil) {
+            self.nearbyText = nearbyText
+            self.questionTexts = questionTexts
+            self.previousCaption = previousCaption
+        }
+
+        /// The text block sent with the image.
+        public var rendered: String {
+            var parts: [String] = []
+            let questions = questionTexts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            if !questions.isEmpty {
+                parts.append("The question(s) this figure belongs to — look here first for the equation the figure is a graph of:\n\n"
+                    + questions.enumerated().map { "Question \($0.offset + 1):\n\($0.element.prefix(3000))" }.joined(separator: "\n\n"))
+            }
+            let nearby = nearbyText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !nearby.isEmpty {
+                parts.append("Text around the figure in the document ([figure here] marks its place):\n\n\(nearby.prefix(4000))")
+            }
+            if let previousCaption = previousCaption?.trimmingCharacters(in: .whitespacesAndNewlines), !previousCaption.isEmpty {
+                parts.append("An earlier description of this image: \(previousCaption.prefix(400))")
+            }
+            return parts.isEmpty ? "There is no surrounding text." : parts.joined(separator: "\n\n")
+        }
+    }
+
     public init(client: ClaudeClient, model: ClaudeModel = .sonnet, maxTokens: Int = 4096) {
         self.client = client
         self.model = model
@@ -86,12 +120,16 @@ public actor FigureAgent {
 
     /// Sends the PNG plus the surrounding text and decodes the `describe_figure` call.
     public func analyze(png: Data, nearbyText: String) async throws -> FigureAnalysis {
+        try await analyze(png: png, context: FigureContext(nearbyText: nearbyText))
+    }
+
+    /// Sends the PNG with everything known about where it came from — the problem text around it and the
+    /// questions that refer to it — so the agent can find the equation the picture is a graph of.
+    public func analyze(png: Data, context: FigureContext) async throws -> FigureAnalysis {
         guard !png.isEmpty else { throw ThubanError.parse("The figure image is empty.") }
-        let context = nearbyText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let note = context.isEmpty ? "There is no surrounding text." : "Text near the figure in the document:\n\n\(context.prefix(2000))"
         let message = ChatMessage.user([
             .image(mediaType: "image/png", base64: png.base64EncodedString()),
-            .text(note),
+            .text(context.rendered),
         ])
         let response = try await client.complete(
             model: model,

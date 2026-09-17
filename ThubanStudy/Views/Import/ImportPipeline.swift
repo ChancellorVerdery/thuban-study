@@ -246,7 +246,7 @@ final class ImportPipeline {
             await session.loadQuestions()
 
             // 5. Figure agent (may reject images the size gate let through; those leave the bank again)
-            let (charts, dropped) = await analyseFigures(content.figures, figureIds: figureIds, document: &document)
+            let (charts, dropped) = await analyseFigures(content.figures, figureIds: figureIds, content: content, questions: questions, document: &document)
             if dropped > 0 {
                 let remaining = max(0, content.figures.count - dropped)
                 document.figureCount = remaining
@@ -363,7 +363,10 @@ final class ImportPipeline {
     /// original (`.keptOriginal`), and images the agent says are not figures at all (equation fragments, symbols,
     /// icons) are deleted again, including from the questions that cited them. Returns the number of charts found
     /// and the number of images dropped. Failures leave figures pending.
-    private func analyseFigures(_ figures: [ExtractedFigure], figureIds: [Int: FigureID], document: inout ImportedDocument) async -> (charts: Int, dropped: Int) {
+    private func analyseFigures(
+        _ figures: [ExtractedFigure], figureIds: [Int: FigureID], content: DocumentContent, questions: [Question],
+        document: inout ImportedDocument
+    ) async -> (charts: Int, dropped: Int) {
         guard !figures.isEmpty, session.app.isConnected else { return (0, 0) }
         let agent = FigureAgent(client: session.app.claudeClient, model: runPolicy.pinned ?? .sonnet)
         let batch = figures.prefix(Self.maxAnalysedFigures)
@@ -379,7 +382,13 @@ final class ImportPipeline {
             update(document.id) { $0.detail = label }
             setDetail(document.id, label)
             do {
-                let analysis = try await agent.analyze(png: extracted.pngData, nearbyText: extracted.nearbyText)
+                // The agent gets the problem, not just the pixels: the questions citing this figure and the text around it.
+                let citing = questions.filter { $0.figureIds.contains(id) }.map(Self.questionText)
+                let around = content.text(aroundFigure: extracted.index)
+                let context = FigureAgent.FigureContext(
+                    nearbyText: around.isEmpty ? extracted.nearbyText : around, questionTexts: citing
+                )
+                let analysis = try await agent.analyze(png: extracted.pngData, context: context)
                 if !analysis.isFigure {
                     Self.logger.notice("Dropping non-figure image \(extracted.index) of \(filename, privacy: .public): \(analysis.caption ?? "", privacy: .public)")
                     try await session.store.delete(figure.id, deleteFile: true)
@@ -404,6 +413,14 @@ final class ImportPipeline {
         }
         if !rejected.isEmpty { await stripFigures(rejected, from: document.id) }
         return (charts, rejected.count)
+    }
+
+    /// A question as text for the figure agent: stem, then each part's prompt.
+    static func questionText(_ question: Question) -> String {
+        var lines = [question.stem]
+        if let ref = question.sourceRef, !ref.isEmpty { lines.insert("[\(ref)]", at: 0) }
+        for part in question.parts { lines.append("(\(part.id)) \(part.prompt)") }
+        return lines.joined(separator: "\n")
     }
 
     /// Removes deleted figure ids from the document's questions so nothing points at a missing image.

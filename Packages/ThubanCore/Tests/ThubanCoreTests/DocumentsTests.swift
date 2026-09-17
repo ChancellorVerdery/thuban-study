@@ -318,6 +318,17 @@ final class DocumentsTests: XCTestCase {
         XCTAssertNotNil(content.rejectedImagesNote)
     }
 
+    func testTextAroundFigureTakesBothSidesAndMarksThePlace() {
+        var content = DocumentContent()
+        content.blocks = [.heading("Problem 3", level: 2), .paragraph("Consider $y' = x - y$."), .image(index: 0), .paragraph("(a) Sketch the solution through (0, 1)."), .paragraph("(b) Find the limit.")]
+        _ = content.appendFigure(pngData: Data([0x89]), nearbyText: "", force: true)
+        let around = content.text(aroundFigure: 0)
+        XCTAssertEqual(around, "Problem 3\n\nConsider $y' = x - y$.\n\n[figure here]\n\n(a) Sketch the solution through (0, 1).\n\n(b) Find the limit.")
+        XCTAssertEqual(content.text(aroundFigure: 7), "", "no image block for that index")
+        let clipped = content.text(aroundFigure: 0, radius: 12)
+        XCTAssertEqual(clipped, "y' = x - y$.\n\n[figure here]\n\n(a) Sketch t", "12 characters each side")
+    }
+
     func testMhtmlDecodesHtmlPartAndImagePart() async throws {
         let html = "<html><body><h1>Quiz</h1><p>What is 2 + 2?</p><img src=\"https://example.com/quiz/fig.png\" alt=\"figure\"></body></html>"
         let text = DocumentsFixtures.mhtml(html: html, imageLocation: "https://example.com/quiz/fig.png", png: DocumentsFixtures.pngData())

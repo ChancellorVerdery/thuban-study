@@ -590,5 +590,17 @@ final class AIAgentTests: XCTestCase {
 
         XCTAssertEqual(FigureAgent.analysis(from: ["kind": "photo", "caption": "", "chart": ["chartType": "bar"]]), FigureAnalysis(kind: .photo))
         await XCTAssertThrowsErrorAsync(try await agent.analyze(png: Data(), nearbyText: ""))
+
+        // The richer context puts the citing questions first, then the surrounding text, then any earlier caption.
+        let context = FigureAgent.FigureContext(
+            nearbyText: "Before [figure here] after", questionTexts: ["Solve $y' = x - y$, $y(0) = 1$.", ""], previousCaption: "A field."
+        )
+        let rendered = context.rendered
+        XCTAssertTrue(rendered.hasPrefix("The question(s) this figure belongs to"))
+        XCTAssertTrue(rendered.contains("Question 1:\nSolve $y' = x - y$"))
+        XCTAssertFalse(rendered.contains("Question 2:"), "blank question texts are dropped")
+        XCTAssertTrue(rendered.contains("Text around the figure"))
+        XCTAssertTrue(rendered.hasSuffix("An earlier description of this image: A field."))
+        XCTAssertEqual(FigureAgent.FigureContext().rendered, "There is no surrounding text.")
     }
 }

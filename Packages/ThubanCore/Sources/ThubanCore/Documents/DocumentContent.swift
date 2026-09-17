@@ -74,6 +74,34 @@ public struct DocumentContent: Sendable, Equatable {
 
     public var rejectedImageCount: Int { rejectedImages.values.reduce(0, +) }
 
+    /// The document text around figure `index`: up to `radius` characters of the blocks before it and after it
+    /// (the problem statement usually sits on one side, its parts on the other). Empty when the figure has no
+    /// image block.
+    public func text(aroundFigure index: Int, radius: Int = 1500) -> String {
+        guard let position = blocks.firstIndex(where: { if case .image(let i) = $0 { return i == index } else { return false } }) else { return "" }
+        var before: [String] = []
+        var count = 0
+        for block in blocks[..<position].reversed() {
+            let text = block.plainText
+            guard !text.isEmpty else { continue }
+            before.insert(text, at: 0)
+            count += text.count
+            if count >= radius { break }
+        }
+        var after: [String] = []
+        count = 0
+        for block in blocks[(position + 1)...] {
+            let text = block.plainText
+            guard !text.isEmpty else { continue }
+            after.append(text)
+            count += text.count
+            if count >= radius { break }
+        }
+        let head = String(before.joined(separator: "\n\n").suffix(radius))
+        let tail = String(after.joined(separator: "\n\n").prefix(radius))
+        return [head, tail].filter { !$0.isEmpty }.joined(separator: "\n\n[figure here]\n\n")
+    }
+
     /// One line for the import log, e.g. "93 images were not figures (glyphs or icons) and were left out."
     public var rejectedImagesNote: String? {
         let count = rejectedImageCount

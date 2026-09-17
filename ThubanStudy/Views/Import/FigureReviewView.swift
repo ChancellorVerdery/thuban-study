@@ -106,7 +106,12 @@ final class FigureReviewModel {
         defer { isReanalysing = false }
         let agent = FigureAgent(client: session.app.claudeClient, model: session.app.modelPolicy.pinned ?? .sonnet)
         do {
-            let analysis = try await agent.analyze(png: png, nearbyText: figure.caption ?? "")
+            // Same context as the import gives: the questions that cite this figure, plus the earlier caption.
+            let citing = ((try? await session.store.questions(in: session.classId, filter: nil)) ?? [])
+                .filter { $0.figureIds.contains(figure.id) }
+                .map(ImportPipeline.questionText)
+            let context = FigureAgent.FigureContext(questionTexts: citing, previousCaption: figure.caption)
+            let analysis = try await agent.analyze(png: png, context: context)
             figure.kind = analysis.isFigure ? analysis.kind : .unknown
             figure.chart = analysis.isFigure ? analysis.chart : nil
             if let caption = analysis.caption, !caption.isEmpty { figure.caption = caption }
