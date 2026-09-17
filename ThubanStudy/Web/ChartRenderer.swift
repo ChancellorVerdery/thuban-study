@@ -8,12 +8,15 @@ enum ChartRenderer {
     static let fieldColumns = 20
     static let fieldRows = 16
 
-    static func expressions(for chart: StandardChart, theme: ResolvedTheme) -> [GraphExpression] {
+    /// The rows for a chart. Solution curves given as an initial condition are integrated through `engine`
+    /// (RK4 over the chart's x-range); without an engine they are left out.
+    static func expressions(for chart: StandardChart, theme: ResolvedTheme, engine: MathEngine? = nil) async -> [GraphExpression] {
         let palette = [theme.accent, theme.signal, theme.neg, theme.pos, theme.accentDeep]
         var out: [GraphExpression] = []
+        let viewport = viewport(for: chart) ?? GraphViewport(xmin: -5, xmax: 5, ymin: -5, ymax: 5)
+        let slope = chart.isSlopeField ? chart.slope?.nilIfEmpty : nil
 
-        if chart.isSlopeField, let slope = chart.slope?.nilIfEmpty {
-            let viewport = viewport(for: chart) ?? GraphViewport(xmin: -5, xmax: 5, ymin: -5, ymax: 5)
+        if let slope {
             let rows = ChartGeometry.slopeFieldRows(
                 idPrefix: "f", slope: slope,
                 xRange: viewport.xmin...viewport.xmax, yRange: viewport.ymin...viewport.ymax,
@@ -25,10 +28,23 @@ enum ChartRenderer {
         for (offset, series) in chart.series.enumerated() {
             let color = series.color?.nilIfEmpty ?? palette[offset % palette.count]
             let id = "series-\(offset)"
-            guard let row = row(id: id, series: series, chart: chart) else { continue }
+            var row = row(id: id, series: series, chart: chart)
+            if row == nil, let slope, let engine, let start = series.throughPoint {
+                let points = (try? await engine.integrateSlope(slope, through: start, xRange: viewport.xmin...viewport.xmax)) ?? []
+                let clipped = clip(points, ymin: viewport.ymin, ymax: viewport.ymax)
+                row = ChartGeometry.polylineRow(id: id, points: clipped)
+            }
+            guard let row else { continue }
             out.append(expression(from: row, color: color))
         }
         return out
+    }
+
+    /// Keeps the run of points around the initial condition that stays within a generous margin of the y-range,
+    /// so a blow-up does not drag the curve (and Desmos) off to ±10⁶.
+    private static func clip(_ points: [[Double]], ymin: Double, ymax: Double) -> [[Double]] {
+        let margin = (ymax - ymin) * 1.5
+        return points.filter { $0.count >= 2 && $0[1] >= ymin - margin && $0[1] <= ymax + margin }
     }
 
     /// One row per series: `latex` wins; otherwise the points, drawn by the chart's type.

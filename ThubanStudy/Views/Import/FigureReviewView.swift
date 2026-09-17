@@ -95,6 +95,28 @@ final class FigureReviewModel {
         next()
     }
 
+    /// Runs the figure agent again on the stored image (e.g. after the chart schema improved, or a bad read).
+    private(set) var isReanalysing = false
+
+    func reanalyse() async {
+        guard var figure = current, !isReanalysing else { return }
+        guard session.app.isConnected else { error = "Connect your Claude account in Settings to re-analyse figures."; return }
+        guard let png = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)) else { error = "The clipped image is missing."; return }
+        isReanalysing = true
+        defer { isReanalysing = false }
+        let agent = FigureAgent(client: session.app.claudeClient, model: session.app.modelPolicy.pinned ?? .sonnet)
+        do {
+            let analysis = try await agent.analyze(png: png, nearbyText: figure.caption ?? "")
+            figure.kind = analysis.isFigure ? analysis.kind : .unknown
+            figure.chart = analysis.isFigure ? analysis.chart : nil
+            if let caption = analysis.caption, !caption.isEmpty { figure.caption = caption }
+            figure.status = !analysis.isFigure ? .skipped : (analysis.chart != nil ? .reviewing : .keptOriginal)
+            await persist(figure)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     /// Replaces the chart's series (from the values editor) and keeps the figure in review.
     func saveChart(_ chart: StandardChart) async {
         guard var figure = current else { return }
@@ -118,9 +140,7 @@ final class FigureReviewModel {
 
     // MARK: Chart → Desmos (see ChartRenderer)
 
-    nonisolated static func expressions(for chart: StandardChart, theme: ResolvedTheme) -> [GraphExpression] {
-        ChartRenderer.expressions(for: chart, theme: theme)
-    }
+    var engine: MathEngine { session.engine }
 
     nonisolated static func viewport(for chart: StandardChart) -> GraphViewport? {
         ChartRenderer.viewport(for: chart)
@@ -215,9 +235,14 @@ struct FigureReviewView: View {
             graph.clear()
             return
         }
-        graph.setExpressions(FigureReviewModel.expressions(for: chart, theme: graph.theme))
-        if let viewport = FigureReviewModel.viewport(for: chart) {
-            graph.setViewport(viewport)
+        Task { @MainActor in
+            let expressions = await ChartRenderer.expressions(for: chart, theme: graph.theme, engine: model.engine)
+            // The student may have moved on while a curve was being integrated.
+            guard model.current?.chart == chart else { return }
+            graph.setExpressions(expressions)
+            if let viewport = FigureReviewModel.viewport(for: chart) {
+                graph.setViewport(viewport)
+            }
         }
     }
 
@@ -381,7 +406,25 @@ private struct FigureReviewPane: View {
             Button("Skip figure") { Task { await model.decide(.skipped) } }
                 .buttonStyle(.thubanGhost)
             Spacer()
+            if looksStale {
+                Text("Analysed before fields were supported")
+                    .font(ThubanFont.small)
+                    .foregroundStyle(theme.inkDimColor)
+            }
+            Button(model.isReanalysing ? "Re-analysing…" : "Re-analyse") { Task { await model.reanalyse() } }
+                .buttonStyle(GhostButtonStyle(height: 28, tinted: true))
+                .disabled(model.isReanalysing)
+                .help("Run the figure agent on this image again")
         }
+    }
+
+    /// A chart the agent read before slope fields existed: its caption says "field" but it is not one, or it
+    /// holds a point per arrow.
+    private var looksStale: Bool {
+        guard let chart = figure.chart, !chart.isSlopeField else { return false }
+        let caption = (figure.caption ?? "").lowercased()
+        let manyPoints = chart.series.contains { ($0.points?.count ?? 0) > 60 }
+        return caption.contains("direction field") || caption.contains("slope field") || manyPoints
     }
 }
 
@@ -451,6 +494,9 @@ private struct SeriesTable: View {
 
     private func preview(_ series: ChartSeries) -> String {
         if let latex = series.latex, !latex.isEmpty { return "y = \(latex)" }
+        if let start = series.throughPoint, series.points?.isEmpty ?? true {
+            return "solution through (\(FigureReviewModel.format(start.x)), \(FigureReviewModel.format(start.y))), integrated from the field"
+        }
         let points = (series.points ?? []).filter { $0.count >= 2 }
         let shown = points.prefix(8).map { "(\(FigureReviewModel.format($0[0])), \(FigureReviewModel.format($0[1])))" }
         let more = points.count > 8 ? " … \(points.count) points" : ""

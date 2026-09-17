@@ -213,7 +213,7 @@ enum SmokeHarness {
     private static func seedFigures(store: Store, documentId: DocumentID) async throws {
         let field = StandardChart(
             chartType: "slopeField", xLabel: "x", yLabel: "y",
-            series: [ChartSeries(name: "Solution through (0, 1)", latex: "x-1+2e^{-x}")],
+            series: [ChartSeries(name: "Solution through (0, 1)", through: [0, 1])],
             xRange: [-3, 3], yRange: [-3, 3], confidence: 0.8, slope: "x-y", arrows: true
         )
         let cubicPoints: [[Double]] = stride(from: -1.5, through: 4.0, by: 0.5).map { x in

@@ -17,12 +17,22 @@ public struct ChartSeries: Codable, Sendable, Equatable {
     public var latex: String?
     /// Optional hex color; `nil` = theme accent.
     public var color: String?
+    /// Slope fields: a point `[x0, y0]` the solution curve passes through (the initial condition). The app
+    /// integrates `dy/dx = slope` through it, so the curve follows the field exactly.
+    public var through: [Double]?
 
-    public init(name: String, points: [[Double]]? = nil, latex: String? = nil, color: String? = nil) {
+    public init(name: String, points: [[Double]]? = nil, latex: String? = nil, color: String? = nil, through: [Double]? = nil) {
         self.name = name
         self.points = points
         self.latex = latex
         self.color = color
+        self.through = through
+    }
+
+    /// The initial condition as a pair, when well-formed.
+    public var throughPoint: (x: Double, y: Double)? {
+        guard let through, through.count == 2, through[0].isFinite, through[1].isFinite else { return nil }
+        return (through[0], through[1])
     }
 }
 

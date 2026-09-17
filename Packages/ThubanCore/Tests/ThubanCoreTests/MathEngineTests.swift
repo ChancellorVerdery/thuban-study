@@ -340,6 +340,35 @@ final class MathEngineTests: XCTestCase {
         XCTAssertEqual(symbolic, "x+1")
     }
 
+    func testIntegrateSlopeFollowsTheFieldBothWaysAndStopsAtBlowUps() async throws {
+        // dy/dx = y through (0, 1) is e^x.
+        let expCurve = try await Self.engine.integrateSlope("y", through: (0, 1), xRange: -2...2, steps: 400)
+        XCTAssertEqual(expCurve.first?[0] ?? 0, -2, accuracy: 1e-9)
+        XCTAssertEqual(expCurve.last?[0] ?? 0, 2, accuracy: 1e-9)
+        XCTAssertTrue(expCurve.contains { $0 == [0, 1] }, "the initial condition is on the curve")
+        let atOne = try XCTUnwrap(expCurve.min { abs($0[0] - 1) < abs($1[0] - 1) })
+        XCTAssertEqual(atOne[1], M_E, accuracy: 1e-5)
+        let atMinusOne = try XCTUnwrap(expCurve.min { abs($0[0] + 1) < abs($1[0] + 1) })
+        XCTAssertEqual(atMinusOne[1], 1 / M_E, accuracy: 1e-5)
+
+        // dy/dx = x − y through (0, 1) is x − 1 + 2e^{−x}.
+        let linear = try await Self.engine.integrateSlope("x-y", through: (0, 1), xRange: -3...3)
+        let atTwo = try XCTUnwrap(linear.min { abs($0[0] - 2) < abs($1[0] - 2) })
+        XCTAssertEqual(atTwo[1], atTwo[0] - 1 + 2 * exp(-atTwo[0]), accuracy: 1e-5)
+
+        // dy/dx = y² through (0, 1) is 1/(1 − x): the forward march stops before x = 1 instead of going infinite.
+        let blowUp = try await Self.engine.integrateSlope("y^{2}", through: (0, 1), xRange: -2...2)
+        XCTAssertLessThan(blowUp.last?[0] ?? 2, 1.05, "stops at the singularity instead of marching to x = 2")
+        XCTAssertTrue(blowUp.allSatisfy { $0[1].isFinite })
+
+        do {
+            _ = try await Self.engine.integrateSlope("\\frac{", through: (0, 0), xRange: 0...1)
+            XCTFail("expected a parse error")
+        } catch let error as ThubanError {
+            guard case .parse = error else { return XCTFail("unexpected error \(error)") }
+        }
+    }
+
     func testEvaluateRejectsInvalidLatex() async {
         do {
             _ = try await Self.engine.evaluate("\\frac{")

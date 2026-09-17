@@ -255,8 +255,9 @@ public enum Prompts {
         A slope or direction field (a grid of short ticks or arrows showing dy/dx) is `chartType` "slopeField": put the \
         right-hand side of dy/dx = f(x, y) in `slope` as LaTeX (take it from the surrounding text when the question \
         states the equation; otherwise infer the simplest formula consistent with the arrows and say so in the \
-        caption), set `arrows` true when the ticks have heads, and give any solution curves drawn on top as `series` \
-        (`latex` when recognisable, else points along the curve). Never turn the arrows themselves into points.
+        caption), set `arrows` true when the ticks have heads, and give each solution curve drawn on top as a series \
+        with `through` = a point it passes through (its initial condition, e.g. where it crosses the y-axis) — the app \
+        integrates the curve from that point, so do not trace it as points. Never turn the arrows themselves into points.
 
         For a smooth curve give `latex` when you can name the function; otherwise 12–40 `points` along it, in order — \
         the app draws a smooth curve through them. Keep series names short; they are shown once, not on every point.

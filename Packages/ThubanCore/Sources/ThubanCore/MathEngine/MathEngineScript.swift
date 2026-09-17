@@ -1135,6 +1135,43 @@ var thubanMath = (function () {
     return reS + (im < 0 ? '-' : '+') + imS + 'i';
   }
 
+  // Integrates dy/dx = f(x, y) through (x0, y0) with classical RK4, forward to xmax and backward to xmin.
+  // Stops a direction early when the value leaves [-yLimit, yLimit] or stops being finite (a blow-up).
+  function integrateSlope(r) {
+    var expr = ce.parse(String(r.latex));
+    if (!expr.isValid) return { error: 'unparseable' };
+    var x0 = Number(r.x0), y0 = Number(r.y0), xmin = Number(r.xmin), xmax = Number(r.xmax);
+    var steps = Math.max(20, Math.min(2000, Number(r.steps) || 400));
+    var yLimit = Number(r.yLimit) || 1e6;
+    if (!isFinite(x0) || !isFinite(y0) || !(xmin < xmax)) return { error: 'bad range' };
+    function f(x, y) {
+      var v = numericValue(expr, { x: x, y: y });
+      return v && Math.abs(v.im) < 1e-9 ? v.re : NaN;
+    }
+    function march(direction) {
+      var end = direction > 0 ? xmax : xmin;
+      var n = Math.max(1, Math.round(steps * Math.abs(end - x0) / (xmax - xmin)));
+      var h = (end - x0) / n;
+      var pts = [];
+      var x = x0, y = y0;
+      for (var i = 0; i < n; i++) {
+        var k1 = f(x, y);
+        var k2 = f(x + h / 2, y + h * k1 / 2);
+        var k3 = f(x + h / 2, y + h * k2 / 2);
+        var k4 = f(x + h, y + h * k3);
+        var next = y + h * (k1 + 2 * k2 + 2 * k3 + k4) / 6;
+        if (!isFinite(next) || Math.abs(next) > yLimit) break;
+        x += h; y = next;
+        pts.push([x, y]);
+      }
+      return pts;
+    }
+    if (isNaN(f(x0, y0))) return { error: 'slope is not numeric at the starting point' };
+    var back = march(-1).reverse();
+    var fwd = march(1);
+    return { points: back.concat([[x0, y0]], fwd) };
+  }
+
   function evaluate(latex) {
     var expr = ce.parse(String(latex));
     if (!expr.isValid) return { error: 'unparseable' };
@@ -1241,6 +1278,7 @@ var thubanMath = (function () {
     setEngine: setEngine,
     grade: wrap(grade),
     evaluate: wrap(function (r) { return evaluate(r.latex); }),
+    integrateSlope: wrap(integrateSlope),
     simplify: wrap(function (r) { return simplify(r.latex); }),
     checkConstraints: wrap(checkConstraints),
     instantiateAnswer: wrap(instantiateAnswer),

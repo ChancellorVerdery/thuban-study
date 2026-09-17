@@ -54,6 +54,10 @@ public actor FigureAgent {
                                         "description": "[[x, y], …] read off the axes along the curve, 12–40 of them, in order; the app draws a smooth curve through them (dots only for scatter charts). Never one point per arrow of a field.",
                                     ],
                                     "latex": ["type": "string", "description": "A function of x when the curve is a known function (preferred over points)."],
+                                    "through": [
+                                        "type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2,
+                                        "description": "slopeField only: [x0, y0] the solution curve passes through (its initial condition). Preferred over points for solution curves; the app integrates the curve from it.",
+                                    ],
                                     "color": ["type": "string", "description": "Optional hex color."],
                                 ],
                                 "required": ["name"],

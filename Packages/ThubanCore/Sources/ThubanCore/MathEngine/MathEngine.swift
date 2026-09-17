@@ -96,6 +96,19 @@ public actor MathEngine {
         try latexCall("simplify", latex)
     }
 
+    /// The solution curve of `dy/dx = slope(x, y)` through `(x0, y0)` over `xRange`, as `[[x, y], …]` sampled by
+    /// RK4 (about `steps` points across the range). Either direction stops early where the solution blows up.
+    public func integrateSlope(_ slope: String, through point: (x: Double, y: Double), xRange: ClosedRange<Double>, steps: Int = 400) async throws -> [[Double]] {
+        struct Request: Encodable { var latex: String; var x0: Double; var y0: Double; var xmin: Double; var xmax: Double; var steps: Int }
+        struct Result: Decodable { var points: [[Double]] }
+        do {
+            let request = Request(latex: slope, x0: point.x, y0: point.y, xmin: xRange.lowerBound, xmax: xRange.upperBound, steps: steps)
+            return try loadedRuntime().call("integrateSlope", request, as: Result.self).points
+        } catch ThubanError.engine(let detail) where detail == "unparseable" {
+            throw ThubanError.parse("'\(slope)' is not a valid expression.")
+        }
+    }
+
     private func latexCall(_ function: String, _ latex: String) throws -> String {
         do {
             return try loadedRuntime().call(function, LatexRequest(latex: latex), as: LatexResult.self).latex

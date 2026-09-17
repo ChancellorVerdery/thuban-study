@@ -373,8 +373,10 @@ struct StandardChartView: View {
             let controller = GraphWebView.Controller(desmosKey: app.desmosKey, mode: .twoD, showsExpressions: false)
             controller.onReady = { [weak controller] in
                 guard let controller else { return }
-                controller.setExpressions(ChartRenderer.expressions(for: chart, theme: theme))
-                if let viewport = ChartRenderer.viewport(for: chart) { controller.setViewport(viewport) }
+                Task { @MainActor in
+                    controller.setExpressions(await ChartRenderer.expressions(for: chart, theme: theme, engine: app.engine))
+                    if let viewport = ChartRenderer.viewport(for: chart) { controller.setViewport(viewport) }
+                }
             }
             self.controller = controller
         }
