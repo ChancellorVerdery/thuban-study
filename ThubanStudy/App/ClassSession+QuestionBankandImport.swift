@@ -98,7 +98,7 @@ extension ClassSession {
 
     /// Starts the import of every queued document with the app's current model policy.
     func startImport() {
-        importPipeline.start(documents: importQueue, policy: app.modelPolicy)
+        importPipeline.start(documents: importQueue, policy: app.modelPolicy, concurrency: app.questionBankSettings.defaults.parallelImports)
     }
 
     /// Queued documents waiting for "Add to class".

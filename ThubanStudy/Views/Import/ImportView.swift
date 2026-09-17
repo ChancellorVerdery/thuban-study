@@ -339,11 +339,7 @@ struct ImportDocumentRow: View {
                         .font(ThubanFont.small)
                         .foregroundStyle(document.status == .failed ? theme.negTextColor : theme.inkDimColor)
                         .lineLimit(1)
-                    if !warnings.isEmpty {
-                        Chip("\(warnings.count) warning\(warnings.count == 1 ? "" : "s")", kind: .warn)
-                            .help(warnings.joined(separator: "\n"))
-                            .accessibilityLabel("\(warnings.count) import warnings: \(warnings.joined(separator: ". "))")
-                    }
+                    WarningsChip(warnings: warnings, filename: document.filename)
                     if let model = document.modelUsed.flatMap(ClaudeModel.init(modelId:)), document.status != .queued {
                         Chip(model.shortName, kind: model == .opus ? .warn : .neutral)
                     }

@@ -62,6 +62,7 @@
 		DEB76CDE8C55648A6B92EB01 /* QuestionBankView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10D54CDF78E7A6F2E150EAB6 /* QuestionBankView.swift */; };
 		E19CA64ADBB21FDAC007E741 /* QuestionBankSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 602C1A81214764A12216C714 /* QuestionBankSettings.swift */; };
 		E1AE33EB7B734FAF3F8A4CDD /* ChatWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 778E2B04690D737EF33E3A47 /* ChatWebView.swift */; };
+		E1E5E49D35EA24A7E860DB83 /* WarningsChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFB35FF975B3F7F72E961BF1 /* WarningsChip.swift */; };
 		E87E99E9DCA289CD7BE24475 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF47D19073731C2724D19052 /* SettingsView.swift */; };
 		EA3622FC5EC48AF3ED58F529 /* ThubanStudyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 600754474895BA108F79E955 /* ThubanStudyApp.swift */; };
 		EAD15F7EFB6E8147FD3C2C58 /* ClaudeAccountSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89F27B8A832C0FC7E38E208F /* ClaudeAccountSettings.swift */; };
@@ -112,6 +113,7 @@
 		B95708AF55B38145A7A43AE8 /* QuestionBankModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionBankModel.swift; sourceTree = "<group>"; };
 		BDC77D0C277A82BB684D9ADE /* ShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellView.swift; sourceTree = "<group>"; };
 		BF47D19073731C2724D19052 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		BFB35FF975B3F7F72E961BF1 /* WarningsChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarningsChip.swift; sourceTree = "<group>"; };
 		C463C7A24FD856196E75CCB0 /* ClassSession+Study.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ClassSession+Study.swift"; sourceTree = "<group>"; };
 		C57D930C066D04D1B08182F2 /* ThubanSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThubanSchemeHandler.swift; sourceTree = "<group>"; };
 		C6018324F1F6BF47F9E04CC8 /* Chip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chip.swift; sourceTree = "<group>"; };
@@ -191,6 +193,7 @@
 				A391222166318AE58BCB0724 /* ImportPipeline.swift */,
 				0CDCE0B308500A55764F35AB /* ImportProgressSheet.swift */,
 				CC57D74813573353742F38B9 /* ImportView.swift */,
+				BFB35FF975B3F7F72E961BF1 /* WarningsChip.swift */,
 			);
 			path = Import;
 			sourceTree = "<group>";
@@ -461,6 +464,7 @@
 				EA3622FC5EC48AF3ED58F529 /* ThubanStudyApp.swift in Sources */,
 				022274114360E72EEB83852F /* ToggleChip.swift in Sources */,
 				A765D795013368223E598B36 /* TutorPane.swift in Sources */,
+				E1E5E49D35EA24A7E860DB83 /* WarningsChip.swift in Sources */,
 				DBC3689599DC3AE8F2FC9EFC /* WebBridge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

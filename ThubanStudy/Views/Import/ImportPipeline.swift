@@ -3,7 +3,8 @@ import Observation
 import ThubanCore
 import os
 
-/// Runs the import for one class: parse → figures → import agent → questions → figure agent, one file at a time.
+/// Runs the import for one class: parse → figures → import agent → questions → figure agent, for up to
+/// `concurrency` files at a time (Settings › Question bank › Files imported at once).
 /// One pipeline exists per class (`ImportPipeline.pipeline(for:)`); it survives view rebuilds so a run can continue
 /// in the background while the student moves to another section.
 @MainActor
@@ -102,8 +103,8 @@ final class ImportPipeline {
 
     // MARK: Control
 
-    /// Starts a run over the given queued documents. No-op while a run is active.
-    func start(documents: [ImportedDocument], policy: ModelPolicy) {
+    /// Starts a run over the given queued documents, `concurrency` at a time. No-op while a run is active.
+    func start(documents: [ImportedDocument], policy: ModelPolicy, concurrency: Int = 1) {
         guard !isRunning else { return }
         let queued = documents.filter { $0.status == .queued }
         guard !queued.isEmpty else {
@@ -118,11 +119,25 @@ final class ImportPipeline {
         runPolicy = policy
         typeCounts = [:]
         activities = queued.map { FileActivity(id: $0.id, filename: $0.filename) }
+        let width = max(1, concurrency)
         runTask = Task { [weak self] in
             guard let self else { return }
-            for document in queued {
-                if Task.isCancelled { self.markCancelled(document.id); continue }
-                await self.process(document)
+            // A sliding window: `width` files in flight; each finished file starts the next one. Cancelling stops
+            // new files from starting (they are marked cancelled) while the in-flight ones reset to queued.
+            var next = 0
+            await withTaskGroup(of: Void.self) { group in
+                func startNext() {
+                    guard next < queued.count, !Task.isCancelled else { return }
+                    let document = queued[next]
+                    next += 1
+                    group.addTask { await self.process(document) }
+                }
+                for _ in 0..<min(width, queued.count) { startNext() }
+                while await group.next() != nil { startNext() }
+            }
+            while next < queued.count {
+                self.markCancelled(queued[next].id)
+                next += 1
             }
             self.isRunning = false
             self.runTask = nil

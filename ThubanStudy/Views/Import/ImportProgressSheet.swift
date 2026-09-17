@@ -98,10 +98,7 @@ private struct ActivityRow: View {
             if let model = activity.model {
                 Chip(model.shortName, kind: model == .opus ? .warn : .neutral)
             }
-            if !activity.warnings.isEmpty {
-                Chip("\(activity.warnings.count) warning\(activity.warnings.count == 1 ? "" : "s")", kind: .warn)
-                    .help(activity.warnings.joined(separator: "\n"))
-            }
+            WarningsChip(warnings: activity.warnings, filename: activity.filename)
             if activity.phase == .done {
                 Chip("\(activity.questionCount) question\(activity.questionCount == 1 ? "" : "s")", kind: .pos)
             }

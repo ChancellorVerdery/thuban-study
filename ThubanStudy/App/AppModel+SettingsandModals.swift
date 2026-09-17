@@ -14,6 +14,8 @@ extension SettingsKey {
     static let autoRegenerateAfterCorrect: SettingsKey = "questionBank.autoRegenerateAfterCorrect"
     /// Int: consecutive first-try correct answers that mark a question mastered.
     static let masteryThreshold: SettingsKey = "questionBank.masteryThreshold"
+    /// Int: how many files one import run works on at the same time.
+    static let parallelImports: SettingsKey = "questionBank.parallelImports"
 }
 
 /// The "Question bank" defaults (persisted per key under `SettingsKey`).
@@ -21,15 +23,19 @@ struct QuestionBankDefaults: Codable, Equatable, Sendable {
     var questionsPerChunk: Int = 8
     var autoRegenerateAfterCorrect: Bool = true
     var masteryThreshold: Int = 2
+    /// Files imported at once; each runs its own parse → agent → figures chain.
+    var parallelImports: Int = 2
 
     static let chunkRange = 4...16
     static let masteryRange = 1...5
+    static let parallelRange = 1...6
 
     /// Values clamped to their allowed ranges.
     var clamped: QuestionBankDefaults {
         var copy = self
         copy.questionsPerChunk = min(max(questionsPerChunk, Self.chunkRange.lowerBound), Self.chunkRange.upperBound)
         copy.masteryThreshold = min(max(masteryThreshold, Self.masteryRange.lowerBound), Self.masteryRange.upperBound)
+        copy.parallelImports = min(max(parallelImports, Self.parallelRange.lowerBound), Self.parallelRange.upperBound)
         return copy
     }
 }
@@ -54,6 +60,7 @@ final class QuestionBankSettingsModel {
             if let chunk = try await store.get(.questionsPerChunk, as: Int.self) { loaded.questionsPerChunk = chunk }
             if let auto = try await store.get(.autoRegenerateAfterCorrect, as: Bool.self) { loaded.autoRegenerateAfterCorrect = auto }
             if let mastery = try await store.get(.masteryThreshold, as: Int.self) { loaded.masteryThreshold = mastery }
+            if let parallel = try await store.get(.parallelImports, as: Int.self) { loaded.parallelImports = parallel }
             defaults = loaded.clamped
         } catch {
             self.error = error.localizedDescription
@@ -76,6 +83,12 @@ final class QuestionBankSettingsModel {
         defaults.masteryThreshold = value
         defaults = defaults.clamped
         persist(.masteryThreshold, defaults.masteryThreshold)
+    }
+
+    func setParallelImports(_ value: Int) {
+        defaults.parallelImports = value
+        defaults = defaults.clamped
+        persist(.parallelImports, defaults.parallelImports)
     }
 
     /// Back to the built-in defaults (after "Delete all data").

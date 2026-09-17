@@ -19,6 +19,15 @@ struct QuestionBankSettings: View {
                             label: "Questions per import chunk"
                         )
                     }
+                    Rectangle().fill(theme.lineColor).frame(height: ThubanMetrics.hairline)
+                    SettingsRow("Files imported at once", detail: "How many files one import run works on in parallel. Each file has its own agent conversation; more at once finishes a big drop sooner but uses more of your account's rate limit.") {
+                        StepperControl(
+                            value: Binding(get: { model.defaults.parallelImports }, set: { model.setParallelImports($0) }),
+                            range: QuestionBankDefaults.parallelRange,
+                            label: "Files imported at once",
+                            unit: model.defaults.parallelImports == 1 ? "file" : "files"
+                        )
+                    }
                 }
                 .thubanPanel(padding: 16)
                 .padding(.top, 2)
