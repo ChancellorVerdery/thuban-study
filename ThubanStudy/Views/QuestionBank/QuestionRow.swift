@@ -2,15 +2,19 @@ import SwiftUI
 import ThubanCore
 
 /// The bank table: # | Question | Type | Source | Status | Last result. Double-click (or the "Study" context
-/// action) opens the row in Study; the context menu also offers Edit…, Reset progress and Delete….
+/// action) opens the row in Study; the context menu also offers Edit…, Reset progress and Delete…. With several
+/// rows selected the same four actions apply to the whole selection (Study queues just those questions, Edit
+/// opens the batch editor).
 struct QuestionTable: View {
     @Environment(\.thubanTheme) private var theme
     var rows: [QuestionBankModel.Row]
     @Binding var selection: Set<QuestionID>
-    var onStudy: (Question) -> Void
-    var onEdit: (Question) -> Void
-    var onReset: (Question) -> Void
-    var onDelete: (Question) -> Void
+    /// Resolves selected ids to questions (the selection may span pages).
+    var resolve: (Set<QuestionID>) -> [Question]
+    var onStudy: ([Question]) -> Void
+    var onEdit: ([Question]) -> Void
+    var onReset: ([Question]) -> Void
+    var onDelete: ([Question]) -> Void
 
     var body: some View {
         Table(rows, selection: $selection) {
@@ -63,24 +67,27 @@ struct QuestionTable: View {
         .scrollContentBackground(.hidden)
         .background(theme.panelColor)
         .contextMenu(forSelectionType: QuestionID.self) { ids in
-            if let question = single(ids) {
-                Button("Study") { onStudy(question) }
-                Button("Edit…") { onEdit(question) }
+            let questions = resolve(ids)
+            if questions.count == 1 {
+                Button("Study") { onStudy(questions) }
+                Button("Edit…") { onEdit(questions) }
                 Divider()
-                Button("Reset progress") { onReset(question) }
-                Button("Delete…", role: .destructive) { onDelete(question) }
-            } else if !ids.isEmpty {
-                Text("\(ids.count) questions selected")
+                Button("Reset progress") { onReset(questions) }
+                Button("Delete…", role: .destructive) { onDelete(questions) }
+            } else if questions.count > 1 {
+                Text("\(questions.count) questions selected")
+                Divider()
+                Button("Study these \(questions.count)") { onStudy(questions) }
+                Button("Edit \(questions.count)…") { onEdit(questions) }
+                Divider()
+                Button("Reset progress of \(questions.count)") { onReset(questions) }
+                Button("Delete \(questions.count)…", role: .destructive) { onDelete(questions) }
             }
         } primaryAction: { ids in
-            if let question = single(ids) { onStudy(question) }
+            let questions = resolve(ids)
+            if !questions.isEmpty { onStudy(questions) }
         }
         .accessibilityLabel("Question bank table")
-    }
-
-    private func single(_ ids: Set<QuestionID>) -> Question? {
-        guard ids.count == 1, let id = ids.first else { return nil }
-        return rows.first { $0.id == id }?.question
     }
 }
 

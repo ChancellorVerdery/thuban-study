@@ -41,6 +41,7 @@
 		7F5B98D2F7E8519964BE5AF9 /* ProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20DF246D546C4759E93C243 /* ProgressBar.swift */; };
 		8A579E26738F001B6B42A37D /* EmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1CEB9ACB1D91668E88A25DC /* EmptyState.swift */; };
 		9ACF11AEFE1A4D0A1D72EB1B /* CommandBus.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECB3AFA5D45551F433544E15 /* CommandBus.swift */; };
+		9DD8415A338B960ACD151ECA /* BatchEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EBC0D7EFE8A5CF32B4168F4 /* BatchEditSheet.swift */; };
 		A083F0121ADB9912B36197A8 /* ImportProgressSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CDCE0B308500A55764F35AB /* ImportProgressSheet.swift */; };
 		A198BBFA60FBA8552B5CA174 /* Chip.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6018324F1F6BF47F9E04CC8 /* Chip.swift */; };
 		A765D795013368223E598B36 /* TutorPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2C0EEBAC23E4206B4D86048 /* TutorPane.swift */; };
@@ -93,6 +94,7 @@
 		60C9B921445F87FD56D4E7B8 /* ThubanMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThubanMark.swift; sourceTree = "<group>"; };
 		629F19F6ECDB6EF2A1B4BD1C /* WebBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebBridge.swift; sourceTree = "<group>"; };
 		6E03B635E9538573BCC73AD9 /* SmokeHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeHarness.swift; sourceTree = "<group>"; };
+		6EBC0D7EFE8A5CF32B4168F4 /* BatchEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchEditSheet.swift; sourceTree = "<group>"; };
 		778E2B04690D737EF33E3A47 /* ChatWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatWebView.swift; sourceTree = "<group>"; };
 		7894F9FB81802ADA1BED0437 /* ConnectClaudeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectClaudeSheet.swift; sourceTree = "<group>"; };
 		792DD5DF1A29C472185321F8 /* CalculatorWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorWebView.swift; sourceTree = "<group>"; };
@@ -164,6 +166,7 @@
 		2F37A75E9BE601EB1E64A574 /* QuestionBank */ = {
 			isa = PBXGroup;
 			children = (
+				6EBC0D7EFE8A5CF32B4168F4 /* BatchEditSheet.swift */,
 				B95708AF55B38145A7A43AE8 /* QuestionBankModel.swift */,
 				10D54CDF78E7A6F2E150EAB6 /* QuestionBankView.swift */,
 				E0CF911E2DBCB6A859A6EAB4 /* QuestionEditSheet.swift */,
@@ -413,6 +416,7 @@
 				056324BB9650D43E7DD9E14C /* AppModel+Study.swift in Sources */,
 				AE75FBD8540B0F8D14B895D8 /* AppModel.swift in Sources */,
 				06BBABBBBB90680BE89AAE37 /* AppearanceSettings.swift in Sources */,
+				9DD8415A338B960ACD151ECA /* BatchEditSheet.swift in Sources */,
 				4E9A8D4FDA7D6CE5C5665833 /* BridgeWebView.swift in Sources */,
 				372D7354E20E09DF5D20D8C0 /* Buttons.swift in Sources */,
 				33EBF0DC0EDC2D787F94C831 /* CalculatorPanel.swift in Sources */,

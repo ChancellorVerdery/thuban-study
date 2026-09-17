@@ -102,6 +102,11 @@ final class QuestionBankModel {
     var canGoForward: Bool { page + 1 < pageCount }
 
     func count(ofType type: String) -> Int { allQuestions.filter { $0.type == type }.count }
+
+    /// The selected questions in table order (the selection may span pages of the filtered list).
+    func questions(for ids: Set<QuestionID>) -> [Question] {
+        filtered.filter { ids.contains($0.id) }
+    }
     func count(of status: ProgressStatus) -> Int { allQuestions.filter { session.status(of: $0) == status }.count }
     func count(of documentId: DocumentID) -> Int { allQuestions.filter { $0.documentId == documentId }.count }
     var masteredCount: Int { count(of: .mastered) }

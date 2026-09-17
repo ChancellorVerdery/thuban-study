@@ -9,7 +9,9 @@ struct QuestionBankView: View {
     @Bindable var session: ClassSession
     @State private var model: QuestionBankModel
     @State private var editing: Question?
+    @State private var batchEditing: QuestionBatch?
     @State private var pendingDelete: Question?
+    @State private var pendingBatchDelete: [Question]?
     @FocusState private var searchFocused: Bool
 
     init(session: ClassSession) {
@@ -30,6 +32,11 @@ struct QuestionBankView: View {
             }
         }
         .task(id: session.classId) { await model.load() }
+        .onChange(of: session.pendingBankSelection, initial: true) { _, pending in
+            guard let pending else { return }
+            model.selection = pending
+            session.pendingBankSelection = nil
+        }
         .sheet(item: $editing) { question in
             QuestionEditSheet(question: question, knownTypes: model.typeChips.map(\.type).filter { !$0.isEmpty }) { edited in
                 Task {
@@ -42,6 +49,39 @@ struct QuestionBankView: View {
                 }
             }
             .environment(\.thubanTheme, theme)
+        }
+        .sheet(item: $batchEditing) { batch in
+            BatchEditSheet(questions: batch.questions, knownTypes: model.typeChips.map(\.type).filter { !$0.isEmpty }) { edited in
+                Task {
+                    do {
+                        try await session.save(questions: edited)
+                        await model.refreshAfterChange()
+                    } catch {
+                        model.error = error.localizedDescription
+                    }
+                }
+            }
+            .environment(\.thubanTheme, theme)
+        }
+        .confirmationDialog(
+            "Delete \(pendingBatchDelete?.count ?? 0) questions?",
+            isPresented: Binding(get: { pendingBatchDelete != nil }, set: { if !$0 { pendingBatchDelete = nil } }),
+            presenting: pendingBatchDelete
+        ) { questions in
+            Button("Delete \(questions.count) questions", role: .destructive) {
+                Task {
+                    do {
+                        try await session.delete(questions: questions)
+                        model.selection = []
+                        await model.refreshAfterChange()
+                    } catch {
+                        model.error = error.localizedDescription
+                    }
+                }
+            }
+            Button("Keep", role: .cancel) {}
+        } message: { questions in
+            Text("The \(questions.count) selected questions and their attempts will be removed. This cannot be undone.")
         }
         .confirmationDialog(
             "Delete this question?",
@@ -87,13 +127,14 @@ struct QuestionBankView: View {
                         QuestionTable(
                             rows: model.pageRows,
                             selection: $model.selection,
+                            resolve: model.questions(for:),
                             onStudy: study(_:),
-                            onEdit: { editing = $0 },
+                            onEdit: edit(_:),
                             onReset: reset(_:),
-                            onDelete: { pendingDelete = $0 }
+                            onDelete: confirmDelete(_:)
                         )
                     }
-                    BankFooter(model: model)
+                    BankFooter(model: model, onStudy: study(_:), onEdit: edit(_:), onReset: reset(_:), onDelete: confirmDelete(_:))
                 }
                 .thubanPanel(padding: 0)
             }
@@ -133,22 +174,44 @@ struct QuestionBankView: View {
         }
     }
 
-    // MARK: Actions
+    // MARK: Actions (one question or the whole selection)
 
-    private func study(_ question: Question) {
-        Task { await session.study(question: question) }
+    private func study(_ questions: [Question]) {
+        Task { await session.study(selection: questions) }
     }
 
-    private func reset(_ question: Question) {
+    private func edit(_ questions: [Question]) {
+        if questions.count == 1 {
+            editing = questions[0]
+        } else if questions.count > 1 {
+            batchEditing = QuestionBatch(questions: questions)
+        }
+    }
+
+    private func reset(_ questions: [Question]) {
         Task {
             do {
-                try await session.resetProgress(of: question)
+                try await session.resetProgress(of: questions)
                 await model.refreshAfterChange()
             } catch {
                 model.error = error.localizedDescription
             }
         }
     }
+
+    private func confirmDelete(_ questions: [Question]) {
+        if questions.count == 1 {
+            pendingDelete = questions[0]
+        } else if questions.count > 1 {
+            pendingBatchDelete = questions
+        }
+    }
+}
+
+/// A selection handed to the batch editor as a sheet item.
+private struct QuestionBatch: Identifiable {
+    var questions: [Question]
+    var id: String { questions.map(\.id.raw).joined(separator: ",") }
 }
 
 // MARK: - Header
@@ -403,6 +466,12 @@ private struct RailRow: View {
 private struct BankFooter: View {
     @Environment(\.thubanTheme) private var theme
     @Bindable var model: QuestionBankModel
+    var onStudy: ([Question]) -> Void
+    var onEdit: ([Question]) -> Void
+    var onReset: ([Question]) -> Void
+    var onDelete: ([Question]) -> Void
+
+    private var selected: [Question] { model.questions(for: model.selection) }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -413,6 +482,9 @@ private struct BankFooter: View {
             if model.hasActiveFilter {
                 Button("Clear filters") { model.clearFilters() }
                     .buttonStyle(GhostButtonStyle(height: 26, tinted: true, horizontalPadding: 6))
+            }
+            if !selected.isEmpty {
+                selectionBar
             }
             Spacer()
             if model.pageCount > 1 {
@@ -431,5 +503,31 @@ private struct BankFooter: View {
         .padding(.horizontal, 12)
         .frame(height: 40)
         .thubanHairline(.top, color: theme.lineColor)
+    }
+
+    /// "N selected · Study · Edit… · Reset · Delete…" — the row actions, for the whole selection.
+    private var selectionBar: some View {
+        HStack(spacing: 4) {
+            Rectangle().fill(theme.lineColor).frame(width: ThubanMetrics.hairline, height: 18)
+            Text("\(selected.count) selected")
+                .font(ThubanFont.small)
+                .foregroundStyle(theme.inkColor)
+                .monospacedDigit()
+                .padding(.horizontal, 4)
+            Button("Study") { onStudy(selected) }
+                .buttonStyle(GhostButtonStyle(height: 26, tinted: true, horizontalPadding: 6))
+                .help(selected.count == 1 ? "Open in Study" : "Study just these questions")
+            Button("Edit…") { onEdit(selected) }
+                .buttonStyle(GhostButtonStyle(height: 26, tinted: true, horizontalPadding: 6))
+                .help(selected.count == 1 ? "Edit this question" : "Set the type or difficulty of all selected")
+            Button("Reset") { onReset(selected) }
+                .buttonStyle(GhostButtonStyle(height: 26, tinted: true, horizontalPadding: 6))
+                .help("Forget attempts and progress")
+            Button("Delete…") { onDelete(selected) }
+                .buttonStyle(GhostButtonStyle(height: 26, tinted: true, horizontalPadding: 6))
+                .foregroundStyle(theme.negTextColor)
+            Button("Clear") { model.selection = [] }
+                .buttonStyle(GhostButtonStyle(height: 26, tinted: false, horizontalPadding: 6))
+        }
     }
 }

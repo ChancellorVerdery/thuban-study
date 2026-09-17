@@ -133,7 +133,9 @@ extension ClassSession {
         } else if let tag = currentQuestion?.tags.first, !tag.isEmpty {
             pieces.append(tag)
         }
-        if questionCount > 0 { pieces.append("Question \(questionNumber) of \(questionCount)") }
+        if questionCount > 0 {
+            pieces.append("Question \(questionNumber) of \(questionCount)" + (isStudyingSelection ? " selected" : ""))
+        }
         return pieces.joined(separator: " · ")
     }
 

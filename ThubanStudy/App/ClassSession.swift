@@ -41,6 +41,14 @@ final class ClassSession {
 
     /// The study queue: needsReview → new → learning → mastered (stable within a group).
     private(set) var questions: [Question] = []
+    /// When set, the queue holds only these questions (a bank selection sent to Study); nil = the whole bank.
+    private(set) var queueScope: Set<QuestionID>?
+    var isStudyingSelection: Bool { queueScope != nil }
+
+    /// Limits (or, with nil, un-limits) the queue; takes effect on the next `loadQuestions()`.
+    func setQueueScope(_ scope: Set<QuestionID>?) { queueScope = scope }
+    /// A selection for the Question bank to adopt when it next shows (consumed once); used by the smoke harness.
+    var pendingBankSelection: Set<QuestionID>?
     /// Mastery per question (missing ⇒ `.new`).
     private(set) var progress: [QuestionID: QuestionProgress] = [:]
     private(set) var isLoadingQuestions = false
@@ -114,7 +122,13 @@ final class ClassSession {
             let rows = try await store.progress(in: classId)
             progress = Dictionary(rows.map { ($0.questionId, $0) }, uniquingKeysWith: { _, last in last })
             let previousId = currentQuestion?.id
-            questions = Self.ordered(all, progress: progress)
+            var scoped = all
+            if let scope = queueScope {
+                scoped = all.filter { scope.contains($0.id) }
+                // A selection that no longer exists (all deleted) falls back to the whole bank.
+                if scoped.isEmpty { queueScope = nil; scoped = all }
+            }
+            questions = Self.ordered(scoped, progress: progress)
             if let previousId, let index = questions.firstIndex(where: { $0.id == previousId }) {
                 currentIndex = index
             } else {

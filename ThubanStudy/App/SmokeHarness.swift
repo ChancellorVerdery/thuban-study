@@ -271,6 +271,13 @@ enum SmokeHarness {
             await sleep(2.5)
             written.append(try await capture(window: window, name: "04-bank", in: directory))
 
+            // 04b — Question bank with several rows selected (selection bar in the footer).
+            session.pendingBankSelection = Set(session.questions.prefix(3).map(\.id))
+            await sleep(1.5)
+            written.append(try await capture(window: window, name: "04b-bank-selection", in: directory))
+            session.pendingBankSelection = []
+            await sleep(0.5)
+
             // 05 — Import.
             session.section = .importDocs
             await sleep(2.5)

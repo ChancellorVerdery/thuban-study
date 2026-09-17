@@ -93,6 +93,15 @@ struct QuestionPane: View {
                             .monospacedDigit()
                     }
                     Chip.status(session.status(of: question))
+                    if session.isStudyingSelection {
+                        Button {
+                            Task { await session.clearStudySelection() }
+                        } label: {
+                            Chip("\(session.questionCount) selected · Study all", kind: .signal)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Return to the whole question bank")
+                    }
                     if question.difficulty > 0 {
                         Text(String(repeating: "●", count: min(5, max(1, question.difficulty))))
                             .font(.system(size: 7))
