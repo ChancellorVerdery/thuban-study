@@ -106,11 +106,18 @@ final class FigureReviewModel {
         defer { isReanalysing = false }
         let agent = FigureAgent(client: session.app.claudeClient, model: session.app.modelPolicy.pinned ?? .sonnet)
         do {
-            // Same context as the import gives: the questions that cite this figure, plus the earlier caption.
-            let citing = ((try? await session.store.questions(in: session.classId, filter: nil)) ?? [])
-                .filter { $0.figureIds.contains(figure.id) }
-                .map(ImportPipeline.questionText)
-            let context = FigureAgent.FigureContext(questionTexts: citing, previousCaption: figure.caption)
+            // The same context the import gives: the questions citing this figure (or, failing that, the document's
+            // other problems), the document text around the figure, and the earlier caption.
+            let all = (try? await session.store.questions(in: session.classId, filter: nil)) ?? []
+            let citingQuestions = all.filter { $0.figureIds.contains(figure.id) }
+            let sameDocument = figure.documentId.map { id in all.filter { $0.documentId == id } } ?? []
+            let context = FigureAgent.FigureContext(
+                nearbyText: await Self.textAround(figure, png: png, in: document(for: figure)),
+                questionTexts: citingQuestions.map(ImportPipeline.questionText),
+                previousCaption: figure.caption,
+                otherQuestionTexts: citingQuestions.isEmpty ? sameDocument.map(\.stem) : [],
+                positionNote: ImportPipeline.positionNote(of: figure.id, in: citingQuestions)
+            )
             let analysis = try await agent.analyze(png: png, context: context)
             figure.kind = analysis.isFigure ? analysis.kind : .unknown
             figure.chart = analysis.isFigure ? analysis.chart : nil
@@ -120,6 +127,17 @@ final class FigureReviewModel {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    /// Re-parses the stored document and returns the text around this figure, found by its PNG bytes (the stored
+    /// file is the extracted image, byte for byte). Empty when the document is gone or the image is not found.
+    nonisolated static func textAround(_ figure: Figure, png: Data, in document: ImportedDocument?) async -> String {
+        guard let document else { return "" }
+        let url = AppPaths.documentURL(document.storedPath)
+        guard FileManager.default.fileExists(atPath: url.path),
+              let content = try? await DocumentParserRegistry.parse(url: url) else { return "" }
+        guard let match = content.figures.first(where: { $0.pngData == png }) else { return "" }
+        return content.text(aroundFigure: match.index)
     }
 
     /// Replaces the chart's series (from the values editor) and keeps the figure in review.

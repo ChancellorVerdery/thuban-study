@@ -611,5 +611,9 @@ final class AIAgentTests: XCTestCase {
         XCTAssertTrue(rendered.contains("Text around the figure"))
         XCTAssertTrue(rendered.hasSuffix("An earlier description of this image: A field."))
         XCTAssertEqual(FigureAgent.FigureContext().rendered, "There is no surrounding text.")
+        let uncited = FigureAgent.FigureContext(otherQuestionTexts: ["Consider $y' = x^2 - y^2$.", " "], positionNote: "This is image 2 of 8 the question refers to, in document order.")
+        XCTAssertTrue(uncited.rendered.hasPrefix("This is image 2 of 8"))
+        XCTAssertTrue(uncited.rendered.contains("Other problems in the same document"))
+        XCTAssertTrue(uncited.rendered.contains("• Consider $y' = x^2 - y^2$."))
     }
 }

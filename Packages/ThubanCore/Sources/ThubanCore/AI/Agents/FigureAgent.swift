@@ -86,11 +86,18 @@ public actor FigureAgent {
         public var questionTexts: [String]
         /// An earlier caption or analysis note, if any.
         public var previousCaption: String?
+        /// Stems of the document's other questions (for a figure no question cites, the equation is usually in one).
+        public var otherQuestionTexts: [String]
+        /// "Image 3 of 8 the question refers to, in document order" — helps pair sketches with parts/choices.
+        public var positionNote: String?
 
-        public init(nearbyText: String = "", questionTexts: [String] = [], previousCaption: String? = nil) {
+        public init(nearbyText: String = "", questionTexts: [String] = [], previousCaption: String? = nil,
+                    otherQuestionTexts: [String] = [], positionNote: String? = nil) {
             self.nearbyText = nearbyText
             self.questionTexts = questionTexts
             self.previousCaption = previousCaption
+            self.otherQuestionTexts = otherQuestionTexts
+            self.positionNote = positionNote
         }
 
         /// The text block sent with the image.
@@ -101,9 +108,17 @@ public actor FigureAgent {
                 parts.append("The question(s) this figure belongs to — look here first for the equation the figure is a graph of:\n\n"
                     + questions.enumerated().map { "Question \($0.offset + 1):\n\($0.element.prefix(3000))" }.joined(separator: "\n\n"))
             }
+            if let positionNote = positionNote?.trimmingCharacters(in: .whitespacesAndNewlines), !positionNote.isEmpty {
+                parts.append(positionNote)
+            }
             let nearby = nearbyText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !nearby.isEmpty {
                 parts.append("Text around the figure in the document ([figure here] marks its place):\n\n\(nearby.prefix(4000))")
+            }
+            let others = otherQuestionTexts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            if !others.isEmpty {
+                parts.append("Other problems in the same document (the figure may belong to one of these):\n\n"
+                    + others.prefix(12).map { "• " + $0.prefix(500) }.joined(separator: "\n"))
             }
             if let previousCaption = previousCaption?.trimmingCharacters(in: .whitespacesAndNewlines), !previousCaption.isEmpty {
                 parts.append("An earlier description of this image: \(previousCaption.prefix(400))")

@@ -255,6 +255,13 @@ public enum Prompts {
         picture only to confirm the match (which branch, which window, which initial condition). Do not estimate \
         coordinates from the pixels when the text gives you the formula.
 
+        When the text offers several candidates — parts (a)–(d) each with its own initial condition, or answer choices \
+        that describe different sketches — this image shows exactly one of them. Test each candidate against the \
+        picture: read the curve's value at the candidate's x (does it pass through (−2, 1)? through (0, 2)?), compare \
+        the described turning points and axis crossings, and pick the one that fits. Never default to the first \
+        candidate or to the origin; if none fits, say so in the caption and give the point you can read most reliably \
+        (usually the y-intercept). State the chosen condition in the caption.
+
         Only when the curve is arbitrary — a sketch that no equation in the text describes (a hand-drawn f whose \
         formula is never given, a data plot, a "the graph of f is shown" problem) — read 12–40 `points` along it in \
         order and the app connects them smoothly. Say in the caption which case it is.

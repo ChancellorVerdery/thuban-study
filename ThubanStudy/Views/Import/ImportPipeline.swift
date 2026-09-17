@@ -383,10 +383,13 @@ final class ImportPipeline {
             setDetail(document.id, label)
             do {
                 // The agent gets the problem, not just the pixels: the questions citing this figure and the text around it.
-                let citing = questions.filter { $0.figureIds.contains(id) }.map(Self.questionText)
+                let citingQuestions = questions.filter { $0.figureIds.contains(id) }
+                let citing = citingQuestions.map(Self.questionText)
+                let others = citingQuestions.isEmpty ? questions.map(\.stem) : []
                 let around = content.text(aroundFigure: extracted.index)
                 let context = FigureAgent.FigureContext(
-                    nearbyText: around.isEmpty ? extracted.nearbyText : around, questionTexts: citing
+                    nearbyText: around.isEmpty ? extracted.nearbyText : around, questionTexts: citing,
+                    otherQuestionTexts: others, positionNote: Self.positionNote(of: id, in: citingQuestions)
                 )
                 let analysis = try await agent.analyze(png: extracted.pngData, context: context)
                 if !analysis.isFigure {
@@ -419,8 +422,32 @@ final class ImportPipeline {
     static func questionText(_ question: Question) -> String {
         var lines = [question.stem]
         if let ref = question.sourceRef, !ref.isEmpty { lines.insert("[\(ref)]", at: 0) }
-        for part in question.parts { lines.append("(\(part.id)) \(part.prompt)") }
+        var listedChoices = false
+        for part in question.parts {
+            var line = "(\(part.id)) \(part.prompt)"
+            // Choice parts of "pick the sketch" problems describe each candidate curve; list them once, and say
+            // which one answers each part so a sketch can be paired with its initial condition.
+            if let choices = part.choices, !choices.isEmpty, !listedChoices {
+                listedChoices = true
+                line += "\n  Choices:\n" + choices.enumerated().map { "    \($0.offset + 1). \($0.element)" }.joined(separator: "\n")
+            }
+            if part.answerKind == .choice, let answer = part.answer.text, !answer.isEmpty {
+                if let index = part.choices?.firstIndex(of: answer) { line += "\n  Answer: choice \(index + 1)" }
+                else { line += "\n  Answer: \(answer)" }
+            }
+            lines.append(line)
+        }
         return lines.joined(separator: "\n")
+    }
+
+    /// "Image k of n the question refers to, in document order."
+    static func positionNote(of id: FigureID, in questions: [Question]) -> String? {
+        for question in questions {
+            if let index = question.figureIds.firstIndex(of: id), question.figureIds.count > 1 {
+                return "This is image \(index + 1) of \(question.figureIds.count) the question refers to, in document order."
+            }
+        }
+        return nil
     }
 
     /// Removes deleted figure ids from the document's questions so nothing points at a missing image.
