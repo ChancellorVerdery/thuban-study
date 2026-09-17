@@ -38,9 +38,10 @@ public struct RetryPolicy: Sendable, Equatable {
 public actor ClaudeClient {
     public static let apiVersion = "2023-06-01"
     public static let oauthBeta = "oauth-2025-04-20"
-    /// Claude account (OAuth) tokens are Claude Code credentials: the API only serves them when the system prompt
-    /// opens with this sentence and answers every other request with `429 rate_limit_error`. It is prepended to
-    /// the agents' own prompts on OAuth requests; API-key requests are sent as-is.
+    /// Claude account (OAuth) tokens are Claude Code credentials: the API only serves them when the first system
+    /// block is exactly this sentence and answers every other request with `429 rate_limit_error` (a string prefix
+    /// is not enough). OAuth requests send `system` as [sentinel block, agent prompt block]; API-key requests send
+    /// the agent prompt as a plain string.
     public static let oauthSystemPrefix = "You are Claude Code, Anthropic's official CLI for Claude."
     public static let endpointString = "https://api.anthropic.com/v1/messages"
     /// Budget passed as `thinking.budget_tokens` when thinking is enabled.
@@ -137,7 +138,7 @@ public actor ClaudeClient {
 
         var model: String
         var maxTokens: Int
-        var system: String?
+        var system: JSONValue?
         var messages: [ChatMessage]
         var tools: [ToolSpec]?
         var toolChoice: JSONValue?
@@ -171,11 +172,16 @@ public actor ClaudeClient {
         return request
     }
 
-    /// The system prompt actually sent: the agent's prompt, behind the Claude Code sentinel for OAuth tokens.
-    nonisolated static func systemPrompt(_ system: String, auth: ClaudeAuth) -> String? {
+    /// The `system` field actually sent: the agent's prompt as a string for API keys; for OAuth, text blocks with
+    /// the Claude Code sentinel first and the agent's prompt second.
+    nonisolated static func systemPrompt(_ system: String, auth: ClaudeAuth) -> JSONValue? {
         switch auth {
-        case .apiKey: return system.isEmpty ? nil : system
-        case .oauth: return system.isEmpty ? oauthSystemPrefix : oauthSystemPrefix + "\n\n" + system
+        case .apiKey:
+            return system.isEmpty ? nil : .string(system)
+        case .oauth:
+            var blocks: [JSONValue] = [.object(["type": "text", "text": .string(oauthSystemPrefix)])]
+            if !system.isEmpty { blocks.append(.object(["type": "text", "text": .string(system)])) }
+            return .array(blocks)
         }
     }
 

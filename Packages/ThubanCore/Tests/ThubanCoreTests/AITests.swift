@@ -158,8 +158,9 @@ final class AITests: XCTestCase {
         let body = try transport.body(0)
         XCTAssertEqual(body["thinking"], ["type": "enabled", "budget_tokens": 4000])
         XCTAssertGreaterThan(body["max_tokens"]?.intValue ?? 0, 4000, "max_tokens must exceed the thinking budget")
-        XCTAssertEqual(body["system"]?.stringValue, ClaudeClient.oauthSystemPrefix,
-                       "OAuth requests always carry the Claude Code sentinel, even with an empty prompt")
+        XCTAssertEqual(body["system"]?[0]?["text"]?.stringValue, ClaudeClient.oauthSystemPrefix,
+                       "OAuth requests always carry the Claude Code sentinel block, even with an empty prompt")
+        XCTAssertNil(body["system"]?[1], "no second block for an empty prompt")
         XCTAssertNil(body["tools"], "empty tools are omitted")
     }
 
@@ -167,9 +168,12 @@ final class AITests: XCTestCase {
         let oauthTransport = MockTransport([.sse(SSE.text("hi"))])
         let oauthClient = ClaudeClient.mock(oauthTransport, auth: .oauth(accessToken: "tok-1"))
         _ = try await oauthClient.complete(model: .sonnet, system: "Tutor rules", messages: [.user("q")])
-        let oauthSystem = try oauthTransport.body(0)["system"]?.stringValue ?? ""
-        XCTAssertTrue(oauthSystem.hasPrefix(ClaudeClient.oauthSystemPrefix + "\n\n"))
-        XCTAssertTrue(oauthSystem.hasSuffix("Tutor rules"))
+        let oauthSystem = try oauthTransport.body(0)["system"]
+        XCTAssertEqual(oauthSystem?[0]?["type"]?.stringValue, "text")
+        XCTAssertEqual(oauthSystem?[0]?["text"]?.stringValue, ClaudeClient.oauthSystemPrefix,
+                       "the sentinel must be its own first block; a string prefix is refused by the API")
+        XCTAssertEqual(oauthSystem?[1]?["text"]?.stringValue, "Tutor rules")
+        XCTAssertNil(oauthSystem?[2])
 
         let keyTransport = MockTransport([.sse(SSE.text("hi"))])
         let keyClient = ClaudeClient.mock(keyTransport, auth: .apiKey("sk-ant-123"))

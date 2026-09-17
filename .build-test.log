@@ -1,0 +1,426 @@
+[0/1] Planning build
+Building for debugging...
+[0/4] Write sources
+[2/4] Write swift-version--58304C5D6DBC2206.txt
+[4/6] Emitting module ThubanCore
+[5/6] Compiling ThubanCore ClaudeClient.swift
+[6/10] Compiling ThubanCore TutorAgent.swift
+[7/10] Compiling ThubanCore CredentialStore.swift
+[8/10] Compiling ThubanCore FigureAgent.swift
+[9/10] Compiling ThubanCore ImportAgent.swift
+[10/15] Compiling ThubanCoreTests AITests.swift
+[11/15] Emitting module ThubanCoreTests
+[12/15] Compiling ThubanCoreTests AIAgentTests.swift
+[13/15] Compiling ThubanCoreTests AITestSupport.swift
+[13/15] Write Objects.LinkFileList
+[14/15] Linking ThubanCorePackageTests
+Build complete! (2.25s)
+Test Suite 'All tests' started at 2026-09-16 21:35:16.203.
+Test Suite 'ThubanCorePackageTests.xctest' started at 2026-09-16 21:35:16.204.
+Test Suite 'AIAgentTests' started at 2026-09-16 21:35:16.204.
+Test Case '-[ThubanCoreTests.AIAgentTests testFigureAgentDecodesChart]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testFigureAgentDecodesChart]' passed (0.004 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testFlaggedMessageAfterUnansweredMessageKeepsItsMarker]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testFlaggedMessageAfterUnansweredMessageKeepsItsMarker]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testImportAgentAsksForSmallerBatchesWhenEmitIsCutOff]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testImportAgentAsksForSmallerBatchesWhenEmitIsCutOff]' passed (0.006 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testImportAgentDoesNotEscalateWhenPolicyForbidsIt]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testImportAgentDoesNotEscalateWhenPolicyForbidsIt]' passed (0.005 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testImportAgentEscalatesToOpusAndRerunsChunk]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testImportAgentEscalatesToOpusAndRerunsChunk]' passed (0.019 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testImportAgentKeepsEarlierChunksWhenALaterChunkFails]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testImportAgentKeepsEarlierChunksWhenALaterChunkFails]' passed (0.005 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testImportAgentMatchesRepairedQuestionsByKeyNotPosition]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testImportAgentMatchesRepairedQuestionsByKeyNotPosition]' passed (0.007 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testImportAgentRepairsOneTemplateAndDowngradesTheOther]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testImportAgentRepairsOneTemplateAndDowngradesTheOther]' passed (0.008 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testImportChunkerSplitsByBudgetAndTracksPagesAndFigures]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testImportChunkerSplitsByBudgetAndTracksPagesAndFigures]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testImportPromptUsesQuestionsPerChunkHint]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testImportPromptUsesQuestionsPerChunkHint]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testQuestionDraftConversionAndDowngrade]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testQuestionDraftConversionAndDowngrade]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testRejectedToolCallYieldsFailureEvent]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testRejectedToolCallYieldsFailureEvent]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testSolutionTurnStatesGrantInSystemPromptAndRaisesBudget]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testSolutionTurnStatesGrantInSystemPromptAndRaisesBudget]' passed (0.002 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testStaleSolutionRequestDoesNotMergeIntoCurrentMessage]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testStaleSolutionRequestDoesNotMergeIntoCurrentMessage]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testStudentTypedMarkerIsRedacted]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testStudentTypedMarkerIsRedacted]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testTranscriptConversionFlagsSolutionRequest]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testTranscriptConversionFlagsSolutionRequest]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testTruncatedReplyIsSignalled]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testTruncatedReplyIsSignalled]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testTutorAgentRunsToolLoop]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testTutorAgentRunsToolLoop]' passed (0.002 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testTutorAgentWithoutGraphEditingOffersFewerTools]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testTutorAgentWithoutGraphEditingOffersFewerTools]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testTutorPromptStatesTheSolutionRule]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testTutorPromptStatesTheSolutionRule]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AIAgentTests testTutorToolSpecsAndSummaries]' started.
+Test Case '-[ThubanCoreTests.AIAgentTests testTutorToolSpecsAndSummaries]' passed (0.000 seconds).
+Test Suite 'AIAgentTests' passed at 2026-09-16 21:35:16.267.
+	 Executed 21 tests, with 0 failures (0 unexpected) in 0.062 (0.063) seconds
+Test Suite 'AITests' started at 2026-09-16 21:35:16.267.
+Test Case '-[ThubanCoreTests.AITests testAPIRejectionMarksTheSignInExpired]' started.
+Test Case '-[ThubanCoreTests.AITests testAPIRejectionMarksTheSignInExpired]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testBeginBuildsAuthorizeURL]' started.
+Test Case '-[ThubanCoreTests.AITests testBeginBuildsAuthorizeURL]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testCompleteCollectsTextAndToolUse]' started.
+Test Case '-[ThubanCoreTests.AITests testCompleteCollectsTextAndToolUse]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testCredentialStoreFallsBackToAPIKeyAndReportsNotConnected]' started.
+Test Case '-[ThubanCoreTests.AITests testCredentialStoreFallsBackToAPIKeyAndReportsNotConnected]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testCredentialStoreRefreshesTokensThatAreAboutToExpire]' started.
+Test Case '-[ThubanCoreTests.AITests testCredentialStoreRefreshesTokensThatAreAboutToExpire]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testDecoderAccumulatesToolInputJSON]' started.
+Test Case '-[ThubanCoreTests.AITests testDecoderAccumulatesToolInputJSON]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.AITests testDecoderDropsToolBlockCutOffByMaxTokens]' started.
+Test Case '-[ThubanCoreTests.AITests testDecoderDropsToolBlockCutOffByMaxTokens]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testDecoderMapsErrorEvent]' started.
+Test Case '-[ThubanCoreTests.AITests testDecoderMapsErrorEvent]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testDisconnectClearsEverythingItCanAndRethrows]' started.
+Test Case '-[ThubanCoreTests.AITests testDisconnectClearsEverythingItCanAndRethrows]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testDisconnectDuringRefreshDoesNotResurrectTokens]' started.
+Test Case '-[ThubanCoreTests.AITests testDisconnectDuringRefreshDoesNotResurrectTokens]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testExchangePostsCodeVerifierAndDecodesTokens]' started.
+Test Case '-[ThubanCoreTests.AITests testExchangePostsCodeVerifierAndDecodesTokens]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testGivesUpAfterThreeRetryableFailures]' started.
+Test Case '-[ThubanCoreTests.AITests testGivesUpAfterThreeRetryableFailures]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testJoinedCallersShareTheRefreshOutcome]' started.
+Test Case '-[ThubanCoreTests.AITests testJoinedCallersShareTheRefreshOutcome]' passed (0.056 seconds).
+Test Case '-[ThubanCoreTests.AITests testKeychainDenialIsReportedAsSuch]' started.
+Test Case '-[ThubanCoreTests.AITests testKeychainDenialIsReportedAsSuch]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testNonRetryableHTTPErrorMapsToAPIError]' started.
+Test Case '-[ThubanCoreTests.AITests testNonRetryableHTTPErrorMapsToAPIError]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testOAuthPrefixesSystemPromptAndAPIKeyDoesNot]' started.
+Test Case '-[ThubanCoreTests.AITests testOAuthPrefixesSystemPromptAndAPIKeyDoesNot]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.AITests testPastedCodeParsingAcceptsThreeForms]' started.
+Test Case '-[ThubanCoreTests.AITests testPastedCodeParsingAcceptsThreeForms]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testPKCEChallengeKnownVector]' started.
+Test Case '-[ThubanCoreTests.AITests testPKCEChallengeKnownVector]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testRefreshedTokensSurviveAKeychainWriteFailure]' started.
+Test Case '-[ThubanCoreTests.AITests testRefreshedTokensSurviveAKeychainWriteFailure]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testRefusedRefreshMarksTheSignInExpired]' started.
+Test Case '-[ThubanCoreTests.AITests testRefusedRefreshMarksTheSignInExpired]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testRequestBodyAndHeadersWithAPIKey]' started.
+Test Case '-[ThubanCoreTests.AITests testRequestBodyAndHeadersWithAPIKey]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.AITests testRequestHeadersWithOAuthAndThinking]' started.
+Test Case '-[ThubanCoreTests.AITests testRequestHeadersWithOAuthAndThinking]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testRetriesOn529ThenSucceeds]' started.
+Test Case '-[ThubanCoreTests.AITests testRetriesOn529ThenSucceeds]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.AITests testSSEParserHandlesAwkwardChunkBoundaries]' started.
+Test Case '-[ThubanCoreTests.AITests testSSEParserHandlesAwkwardChunkBoundaries]' passed (0.000 seconds).
+Test Suite 'AITests' passed at 2026-09-16 21:35:16.331.
+	 Executed 24 tests, with 0 failures (0 unexpected) in 0.063 (0.064) seconds
+Test Suite 'DocumentsTests' started at 2026-09-16 21:35:16.331.
+Test Case '-[ThubanCoreTests.DocumentsTests testChunkerRespectsMaxTokensAndCarriesPagesAndFigures]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testChunkerRespectsMaxTokensAndCarriesPagesAndFigures]' passed (0.005 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testChunkerSplitsOversizedBlockAndPrefersHeadings]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testChunkerSplitsOversizedBlockAndPrefersHeadings]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testCsvHandlesQuotesEmbeddedNewlinesAndCRLF]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testCsvHandlesQuotesEmbeddedNewlinesAndCRLF]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testDocxHeadingsParagraphsListsTablesAndFigures]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testDocxHeadingsParagraphsListsTablesAndFigures]' passed (0.012 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testHtmlBlocksAndDataURIImage]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testHtmlBlocksAndDataURIImage]' passed (0.009 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testImageParserReturnsFigureAndOCRText]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testImageParserReturnsFigureAndOCRText]' passed (0.228 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testMarkdownBlocksAndRelativeImage]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testMarkdownBlocksAndRelativeImage]' passed (0.002 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testMhtmlDecodesHtmlPartAndImagePart]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testMhtmlDecodesHtmlPartAndImagePart]' passed (0.002 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testMhtmlResolvesRelativeImageSources]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testMhtmlResolvesRelativeImageSources]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testPDFExtractsTextPagesAndEmbeddedImage]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testPDFExtractsTextPagesAndEmbeddedImage]' passed (0.015 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testPDFParsingHonoursCancellation]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testPDFParsingHonoursCancellation]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testPDFScannedPageBecomesFullPageFigureAndIsOCRed]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testPDFScannedPageBecomesFullPageFigureAndIsOCRed]' passed (0.081 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testPlainTextAndFullText]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testPlainTextAndFullText]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testPptxSlidesInOrderWithTitlesBodyAndPictures]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testPptxSlidesInOrderWithTitlesBodyAndPictures]' passed (0.003 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testQuotedPrintableAndDataURIDecoding]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testQuotedPrintableAndDataURIDecoding]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testRegistryDetectsKindsByExtension]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testRegistryDetectsKindsByExtension]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testRegistryFallsBackToUniformType]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testRegistryFallsBackToUniformType]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testTextParagraphsAndFormFeedPages]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testTextParagraphsAndFormFeedPages]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testUnsupportedFileThrowsThubanError]' started.
+CoreGraphics PDF has logged an error. Set environment variable "CG_PDF_VERBOSE" to learn more.
+Test Case '-[ThubanCoreTests.DocumentsTests testUnsupportedFileThrowsThubanError]' passed (0.003 seconds).
+Test Case '-[ThubanCoreTests.DocumentsTests testXlsxSheetBecomesTable]' started.
+Test Case '-[ThubanCoreTests.DocumentsTests testXlsxSheetBecomesTable]' passed (0.003 seconds).
+Test Suite 'DocumentsTests' passed at 2026-09-16 21:35:16.700.
+	 Executed 20 tests, with 0 failures (0 unexpected) in 0.369 (0.370) seconds
+Test Suite 'MathEngineFormattingTests' started at 2026-09-16 21:35:16.700.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testCoefficientOneIsDropped]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testCoefficientOneIsDropped]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testCoefficientOneIsKeptWhenNotACoefficient]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testCoefficientOneIsKeptWhenNotACoefficient]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testDifferentSeedsDiverge]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testDifferentSeedsDiverge]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testExponentsAreBraced]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testExponentsAreBraced]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testNegativeAfterMinusFlipsTheSign]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testNegativeAfterMinusFlipsTheSign]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testNegativeAfterMultiplicationIsParenthesised]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testNegativeAfterMultiplicationIsParenthesised]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testNegativeAfterPlusFoldsTheSign]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testNegativeAfterPlusFoldsTheSign]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testNegativeAtStartOrAfterOpeningIsBare]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testNegativeAtStartOrAfterOpeningIsBare]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testNewSeedStringIsEightHexCharacters]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testNewSeedStringIsEightHexCharacters]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testNonHexSeedsStillSeedDeterministically]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testNonHexSeedsStillSeedDeterministically]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testPlaceholderNames]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testPlaceholderNames]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testPlainSubstitution]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testPlainSubstitution]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testRangesAreRespected]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testRangesAreRespected]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testRealRendering]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testRealRendering]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testSamplerHonoursExclusions]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testSamplerHonoursExclusions]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testSamplerRejectsImpossibleExclusions]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testSamplerRejectsImpossibleExclusions]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testSplitMixIsDeterministic]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testSplitMixIsDeterministic]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testSplitMixKnownValue]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testSplitMixKnownValue]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testUnknownPlaceholdersAndLatexBracesAreUntouched]' started.
+Test Case '-[ThubanCoreTests.MathEngineFormattingTests testUnknownPlaceholdersAndLatexBracesAreUntouched]' passed (0.000 seconds).
+Test Suite 'MathEngineFormattingTests' passed at 2026-09-16 21:35:16.703.
+	 Executed 19 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'MathEngineTemplateTests' started at 2026-09-16 21:35:16.703.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testAnswersAreEvaluatedLatex]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testAnswersAreEvaluatedLatex]' passed (0.129 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testConstraintsAndExclusionsAreSatisfied]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testConstraintsAndExclusionsAreSatisfied]' passed (0.016 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testDifferentSeedsGiveDifferentInstances]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testDifferentSeedsGiveDifferentInstances]' passed (0.013 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testInstanceAnswersGradeCorrectlyAgainstThemselves]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testInstanceAnswersGradeCorrectlyAgainstThemselves]' passed (0.005 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testNilSeedGeneratesAnEightHexCharacterSeed]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testNilSeedGeneratesAnEightHexCharacterSeed]' passed (0.005 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testPlaceholdersInAnswerExprAreSubstituted]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testPlaceholdersInAnswerExprAreSubstituted]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testQuestionIdIsCarriedThrough]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testQuestionIdIsCarriedThrough]' passed (0.002 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testRealParametersRespectDecimals]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testRealParametersRespectDecimals]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testSameSeedGivesSameInstance]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testSameSeedGivesSameInstance]' passed (0.004 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testUnsatisfiableConstraintsThrowInvalidTemplate]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testUnsatisfiableConstraintsThrowInvalidTemplate]' passed (0.031 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidateCatchesBadAnswerExpr]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidateCatchesBadAnswerExpr]' passed (0.002 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidateCatchesBadConstraintAndUnknownParameter]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidateCatchesBadConstraintAndUnknownParameter]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidateCatchesStructuralProblems]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidateCatchesStructuralProblems]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidateCatchesUnsatisfiableConstraints]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidateCatchesUnsatisfiableConstraints]' passed (0.095 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidateCatchesUnsubstitutableAnswerExpr]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidateCatchesUnsubstitutableAnswerExpr]' passed (0.008 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidateCountsExclusionsArithmetically]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidateCountsExclusionsArithmetically]' passed (0.005 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidateHugeIntRangeDoesNotMaterialiseIt]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidateHugeIntRangeDoesNotMaterialiseIt]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidTemplatePassesValidation]' started.
+Test Case '-[ThubanCoreTests.MathEngineTemplateTests testValidTemplatePassesValidation]' passed (0.010 seconds).
+Test Suite 'MathEngineTemplateTests' passed at 2026-09-16 21:35:17.032.
+	 Executed 18 tests, with 0 failures (0 unexpected) in 0.328 (0.329) seconds
+Test Suite 'MathEngineTests' started at 2026-09-16 21:35:17.032.
+Test Case '-[ThubanCoreTests.MathEngineTests testCanonicalFormsAreFilled]' started.
+Test Case '-[ThubanCoreTests.MathEngineTests testCanonicalFormsAreFilled]' passed (0.125 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTests testChainedInequalityDisplayKeepsBothBounds]' started.
+Test Case '-[ThubanCoreTests.MathEngineTests testChainedInequalityDisplayKeepsBothBounds]' passed (0.003 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTests testChoiceGradingMatchesOptionText]' started.
+Test Case '-[ThubanCoreTests.MathEngineTests testChoiceGradingMatchesOptionText]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTests testEvaluateRejectsInvalidLatex]' started.
+Test Case '-[ThubanCoreTests.MathEngineTests testEvaluateRejectsInvalidLatex]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTests testEvaluateReturnsAtMostTenSignificantDigits]' started.
+Test Case '-[ThubanCoreTests.MathEngineTests testEvaluateReturnsAtMostTenSignificantDigits]' passed (0.002 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTests testFreeResponseAlwaysNeedsTutor]' started.
+Test Case '-[ThubanCoreTests.MathEngineTests testFreeResponseAlwaysNeedsTutor]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTests testGradingIsFastAfterWarmUp]' started.
+Test Case '-[ThubanCoreTests.MathEngineTests testGradingIsFastAfterWarmUp]' passed (0.104 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTests testGradingMatrix]' started.
+Test Case '-[ThubanCoreTests.MathEngineTests testGradingMatrix]' passed (0.569 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTests testMessagesNeverRevealTheExpectedAnswer]' started.
+Test Case '-[ThubanCoreTests.MathEngineTests testMessagesNeverRevealTheExpectedAnswer]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTests testMissingExpectedAnswerNeedsTutor]' started.
+Test Case '-[ThubanCoreTests.MathEngineTests testMissingExpectedAnswerNeedsTutor]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTests testMultipleFailedConditionsAreAllReported]' started.
+Test Case '-[ThubanCoreTests.MathEngineTests testMultipleFailedConditionsAreAllReported]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTests testNormalizeText]' started.
+Test Case '-[ThubanCoreTests.MathEngineTests testNormalizeText]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTests testSimplify]' started.
+Test Case '-[ThubanCoreTests.MathEngineTests testSimplify]' passed (0.003 seconds).
+Test Case '-[ThubanCoreTests.MathEngineTests testTextGradingIsCaseAndWhitespaceInsensitive]' started.
+Test Case '-[ThubanCoreTests.MathEngineTests testTextGradingIsCaseAndWhitespaceInsensitive]' passed (0.000 seconds).
+Test Suite 'MathEngineTests' passed at 2026-09-16 21:35:17.842.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 0.809 (0.810) seconds
+Test Suite 'ModelsTests' started at 2026-09-16 21:35:17.842.
+Test Case '-[ThubanCoreTests.ModelsTests testAnswerConditionsLenientDecoding]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testAnswerConditionsLenientDecoding]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ModelsTests testAnswerConditionsSummary]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testAnswerConditionsSummary]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ModelsTests testAppPathsDefaultIsApplicationSupport]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testAppPathsDefaultIsApplicationSupport]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ModelsTests testAppPathsHonorsHomeOverride]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testAppPathsHonorsHomeOverride]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.ModelsTests testAttemptRoundTrips]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testAttemptRoundTrips]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ModelsTests testFigureRoundTrips]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testFigureRoundTrips]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ModelsTests testIdentifiersEncodeAsBareStrings]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testIdentifiersEncodeAsBareStrings]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ModelsTests testJSONValueFoundationRoundTrip]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testJSONValueFoundationRoundTrip]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ModelsTests testModelPolicyRoundTripAndEscalation]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testModelPolicyRoundTripAndEscalation]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ModelsTests testQuestionWithTemplateRoundTrips]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testQuestionWithTemplateRoundTrips]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ModelsTests testSettingsKeys]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testSettingsKeys]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ModelsTests testStandardChartClampsConfidence]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testStandardChartClampsConfidence]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ModelsTests testStudyClassAndDocumentRoundTrip]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testStudyClassAndDocumentRoundTrip]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ModelsTests testTemplateParamKindUsesTypeDiscriminator]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testTemplateParamKindUsesTypeDiscriminator]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ModelsTests testThubanErrorDescriptions]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testThubanErrorDescriptions]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ModelsTests testTutorMessageRoundTrips]' started.
+Test Case '-[ThubanCoreTests.ModelsTests testTutorMessageRoundTrips]' passed (0.000 seconds).
+Test Suite 'ModelsTests' passed at 2026-09-16 21:35:17.845.
+	 Executed 16 tests, with 0 failures (0 unexpected) in 0.003 (0.004) seconds
+Test Suite 'SmokeTests' started at 2026-09-16 21:35:17.845.
+Test Case '-[ThubanCoreTests.SmokeTests testComputeEngineResourcePresent]' started.
+Test Case '-[ThubanCoreTests.SmokeTests testComputeEngineResourcePresent]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.SmokeTests testVersion]' started.
+Test Case '-[ThubanCoreTests.SmokeTests testVersion]' passed (0.000 seconds).
+Test Suite 'SmokeTests' passed at 2026-09-16 21:35:17.846.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'StoreTests' started at 2026-09-16 21:35:17.846.
+Test Case '-[ThubanCoreTests.StoreTests testClassCRUD]' started.
+Test Case '-[ThubanCoreTests.StoreTests testClassCRUD]' passed (0.005 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testDeleteClassCascadesAndRemovesFiles]' started.
+Test Case '-[ThubanCoreTests.StoreTests testDeleteClassCascadesAndRemovesFiles]' passed (0.009 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testDeleteClassSucceedsWhenAFileCannotBeRemoved]' started.
+Test Case '-[ThubanCoreTests.StoreTests testDeleteClassSucceedsWhenAFileCannotBeRemoved]' passed (0.006 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testDeleteClassWithoutDeleteFilesKeepsFiles]' started.
+Test Case '-[ThubanCoreTests.StoreTests testDeleteClassWithoutDeleteFilesKeepsFiles]' passed (0.005 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testDeleteDocumentCascadesToFiguresAndQuestions]' started.
+Test Case '-[ThubanCoreTests.StoreTests testDeleteDocumentCascadesToFiguresAndQuestions]' passed (0.006 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testDeleteFiguresForDocumentRemovesRowsAndFilesOfThatDocumentOnly]' started.
+Test Case '-[ThubanCoreTests.StoreTests testDeleteFiguresForDocumentRemovesRowsAndFilesOfThatDocumentOnly]' passed (0.003 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testDocumentCRUD]' started.
+Test Case '-[ThubanCoreTests.StoreTests testDocumentCRUD]' passed (0.003 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testExportArchiveContainsDatabaseAndFiles]' started.
+Test Case '-[ThubanCoreTests.StoreTests testExportArchiveContainsDatabaseAndFiles]' passed (0.011 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testFigureCRUD]' started.
+Test Case '-[ThubanCoreTests.StoreTests testFigureCRUD]' passed (0.003 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testInMemoryStoreHasSchemaAndForeignKeys]' started.
+Test Case '-[ThubanCoreTests.StoreTests testInMemoryStoreHasSchemaAndForeignKeys]' passed (0.002 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testMasteryThresholdIsConfigurable]' started.
+Test Case '-[ThubanCoreTests.StoreTests testMasteryThresholdIsConfigurable]' passed (0.003 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testMessagesPerThread]' started.
+Test Case '-[ThubanCoreTests.StoreTests testMessagesPerThread]' passed (0.003 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testMigrationsCreateAllTablesOnTempFile]' started.
+Test Case '-[ThubanCoreTests.StoreTests testMigrationsCreateAllTablesOnTempFile]' passed (0.007 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testProgressRulesNewLearningMasteredNeedsReview]' started.
+Test Case '-[ThubanCoreTests.StoreTests testProgressRulesNewLearningMasteredNeedsReview]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testQuestionCRUDWithNestedJSON]' started.
+Test Case '-[ThubanCoreTests.StoreTests testQuestionCRUDWithNestedJSON]' passed (0.003 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testQuestionFilterByKindDocumentAndSearch]' started.
+Test Case '-[ThubanCoreTests.StoreTests testQuestionFilterByKindDocumentAndSearch]' passed (0.003 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testQuestionFilterByProgressStatus]' started.
+Test Case '-[ThubanCoreTests.StoreTests testQuestionFilterByProgressStatus]' passed (0.003 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testRecordAttemptStoresAttemptAndProgressAtomically]' started.
+Test Case '-[ThubanCoreTests.StoreTests testRecordAttemptStoresAttemptAndProgressAtomically]' passed (0.003 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testRelativePathsCannotEscapeTheirRoot]' started.
+Test Case '-[ThubanCoreTests.StoreTests testRelativePathsCannotEscapeTheirRoot]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testRetryOnSameInstanceDoesNotExtendStreak]' started.
+Test Case '-[ThubanCoreTests.StoreTests testRetryOnSameInstanceDoesNotExtendStreak]' passed (0.003 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testSettingsRoundTrip]' started.
+Test Case '-[ThubanCoreTests.StoreTests testSettingsRoundTrip]' passed (0.003 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testStorageSizeCountsDatabaseAndFiles]' started.
+Test Case '-[ThubanCoreTests.StoreTests testStorageSizeCountsDatabaseAndFiles]' passed (0.008 seconds).
+Test Case '-[ThubanCoreTests.StoreTests testUpdatingMissingClassThrowsStoreError]' started.
+Test Case '-[ThubanCoreTests.StoreTests testUpdatingMissingClassThrowsStoreError]' passed (0.002 seconds).
+Test Suite 'StoreTests' passed at 2026-09-16 21:35:17.941.
+	 Executed 23 tests, with 0 failures (0 unexpected) in 0.094 (0.095) seconds
+Test Suite 'ThemeTests' started at 2026-09-16 21:35:17.941.
+Test Case '-[ThubanCoreTests.ThemeTests testAllResolvedTokensAreNormalizedHex]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testAllResolvedTokensAreNormalizedHex]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testBrassDarkKeepsRawChromaAndDarkInkOnAccent]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testBrassDarkKeepsRawChromaAndDarkInkOnAccent]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testBrassLightAccentTextIsLegibleOnBrassGround]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testBrassLightAccentTextIsLegibleOnBrassGround]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testCSSVariablesContainsEveryToken]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testCSSVariablesContainsEveryToken]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testCustomSchemeWithBadHexFallsBackToBrassValues]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testCustomSchemeWithBadHexFallsBackToBrassValues]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testDerivedTokensFollowContractMixes]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testDerivedTokensFollowContractMixes]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testEveryPresetInBothModesMeetsContrastTargets]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testEveryPresetInBothModesMeetsContrastTargets]' passed (0.002 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testFillsKeepRawSchemeValuesInLightMode]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testFillsKeepRawSchemeValuesInLightMode]' passed (0.001 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testHSLRoundTripIsExactForPresetColors]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testHSLRoundTripIsExactForPresetColors]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testHSLWrapsHueAndClampsComponents]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testHSLWrapsHueAndClampsComponents]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testLegibleKeepsBestEffortWhenTargetIsUnreachable]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testLegibleKeepsBestEffortWhenTargetIsUnreachable]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testLegibleNudgesBrassAccentOntoLightGround]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testLegibleNudgesBrassAccentOntoLightGround]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testLegibleReturnsInputUnchangedWhenAlreadyPassing]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testLegibleReturnsInputUnchangedWhenAlreadyPassing]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testLuminanceAndContrastMatchWCAG]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testLuminanceAndContrastMatchWCAG]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testMixBlendsLinearly]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testMixBlendsLinearly]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testOnAccentPicksDarkInkForBrassAndLightForDeepFills]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testOnAccentPicksDarkInkForBrassAndLightForDeepFills]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testParseHexRejectsGarbageWithThubanError]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testParseHexRejectsGarbageWithThubanError]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testParseHexToleratesShortLongAndUnprefixedForms]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testParseHexToleratesShortLongAndUnprefixedForms]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testPresetsAreEightInAtlasOrderWithDistinctIds]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testPresetsAreEightInAtlasOrderWithDistinctIds]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testSanitizedNormalizesSpellingAndSubscriptRoundTrips]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testSanitizedNormalizesSpellingAndSubscriptRoundTrips]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testSchemeCardModelsForSettingsGrid]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testSchemeCardModelsForSettingsGrid]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testSchemeDeriverAppliesToSchemeWithoutTouchingGrounds]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testSchemeDeriverAppliesToSchemeWithoutTouchingGrounds]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testSchemeDeriverRotatesHueAndKeepsLightness]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testSchemeDeriverRotatesHueAndKeepsLightness]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testSelectionResolvesModeAndUnknownIdsToBrass]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testSelectionResolvesModeAndUnknownIdsToBrass]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testShadeMovesTowardBlackBelowOneAndWhiteAboveOne]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testShadeMovesTowardBlackBelowOneAndWhiteAboveOne]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testThemeSelectionDefaultsAndTolerantDecoding]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testThemeSelectionDefaultsAndTolerantDecoding]' passed (0.000 seconds).
+Test Case '-[ThubanCoreTests.ThemeTests testToHexRoundTripsAndNormalizes]' started.
+Test Case '-[ThubanCoreTests.ThemeTests testToHexRoundTripsAndNormalizes]' passed (0.000 seconds).
+Test Suite 'ThemeTests' passed at 2026-09-16 21:35:17.949.
+	 Executed 27 tests, with 0 failures (0 unexpected) in 0.007 (0.008) seconds
+Test Suite 'ThubanCorePackageTests.xctest' passed at 2026-09-16 21:35:17.949.
+	 Executed 184 tests, with 0 failures (0 unexpected) in 1.737 (1.745) seconds
+Test Suite 'All tests' passed at 2026-09-16 21:35:17.949.
+	 Executed 184 tests, with 0 failures (0 unexpected) in 1.737 (1.746) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
