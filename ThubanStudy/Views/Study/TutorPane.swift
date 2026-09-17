@@ -216,51 +216,80 @@ struct TutorComposer: View {
                     .help("Send (Enter)")
                 }
             }
-            HStack(spacing: 8) {
-                Button {
-                    confirmingSolution = true
-                } label: {
-                    HStack(spacing: 5) {
-                        Glyph(.lock, size: 13)
-                        Text("Ask for the solution")
-                            .lineLimit(1)
-                    }
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(theme.brassInkColor)
-                    .fixedSize()
-                }
-                .buttonStyle(.plain)
-                .disabled(session.isTutorStreaming || session.currentInstance == nil)
-                .accessibilityLabel("Ask for the complete solution")
-                .popover(isPresented: $confirmingSolution, arrowEdge: .top) {
-                    ConfirmPopover(
-                        title: "Ask for the solution?",
-                        message: "The tutor will give the complete solution for this question. Continue?",
-                        confirmTitle: "Continue"
-                    ) {
-                        confirmingSolution = false
-                        sendSolutionRequest()
-                    } cancel: {
-                        confirmingSolution = false
-                    }
-                    .environment(\.thubanTheme, theme)
-                }
-                Text("Only on your explicit request")
-                    .font(.system(size: 12))
-                    .foregroundStyle(theme.inkDimColor)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Spacer(minLength: 4)
-                // The keyboard hint is the first thing to go in the 420-pt pane; the lock link never wraps.
-                Text("Shift+Enter for a new line")
-                    .font(.system(size: 12))
-                    .foregroundStyle(theme.inkDimColor)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .layoutPriority(-1)
-            }
+            footer
         }
         .padding(12)
+    }
+
+    /// The footer degrades in three steps as the pane narrows (320 pt when the graph shares the window):
+    /// link · caption · keyboard hint on one line; the hint goes first; then the caption drops under the link.
+    /// Nothing clips mid-glyph: the link keeps its intrinsic size and the captions truncate with an ellipsis.
+    private var footer: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                solutionLink
+                explicitRequestCaption
+                Spacer(minLength: 12)
+                newlineHint
+            }
+            HStack(spacing: 8) {
+                solutionLink
+                explicitRequestCaption
+                Spacer(minLength: 0)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                solutionLink
+                explicitRequestCaption
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var solutionLink: some View {
+        Button {
+            confirmingSolution = true
+        } label: {
+            HStack(spacing: 5) {
+                Glyph(.lock, size: 13)
+                Text("Ask for the solution")
+                    .lineLimit(1)
+            }
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(theme.brassInkColor)
+            .fixedSize()
+        }
+        .buttonStyle(.plain)
+        .disabled(session.isTutorStreaming || session.currentInstance == nil)
+        .accessibilityLabel("Ask for the complete solution")
+        .popover(isPresented: $confirmingSolution, arrowEdge: .top) {
+            ConfirmPopover(
+                title: "Ask for the solution?",
+                message: "The tutor will give the complete solution for this question. Continue?",
+                confirmTitle: "Continue"
+            ) {
+                confirmingSolution = false
+                sendSolutionRequest()
+            } cancel: {
+                confirmingSolution = false
+            }
+            .environment(\.thubanTheme, theme)
+        }
+    }
+
+    private var explicitRequestCaption: some View {
+        Text("Only on your explicit request")
+            .font(.system(size: 12))
+            .foregroundStyle(theme.inkDimColor)
+            .lineLimit(1)
+            .truncationMode(.tail)
+    }
+
+    private var newlineHint: some View {
+        Text("Shift+Enter for a new line")
+            .font(.system(size: 12))
+            .foregroundStyle(theme.inkDimColor)
+            .lineLimit(1)
+            .fixedSize()
     }
 
     private func send() {

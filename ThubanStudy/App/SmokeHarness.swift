@@ -21,6 +21,11 @@ enum SmokeHarness {
 
     static var isEnabled: Bool { outputDirectory != nil }
 
+    /// Seed that instantiates the tangent-plane template with a = 1, b = 2, so the form shows P(1, 2, f(1, 2)) and
+    /// matches the seeded transcript (which talks about f_x(1, 2), (x − 1) and (y − 2)). Instantiation is
+    /// deterministic per seed (SplitMix64 through `TemplateSampler`), so the smoke screenshot is stable.
+    static let tangentPlaneSeed = "00000023"
+
     // MARK: Seeding
 
     /// Inserts the demo class, document, questions, transcript and progress rows (idempotent per fresh home).
@@ -226,7 +231,18 @@ enum SmokeHarness {
 
             // 01 — Study with the form, transcript (and a graph-free layout).
             let state = session.studyState
-            await waitUntil(timeout: 4) { state.form.bridge.isReady && state.chat.bridge.isReady }
+            await waitUntil(timeout: 6) {
+                session.currentInstance != nil && state.form.bridge.isReady && state.chat.bridge.isReady
+            }
+            // Re-instantiate the first question with the pinned seed once the initial (random) instance is in, so
+            // the numbers on screen are the ones the transcript refers to.
+            if let question = session.currentQuestion, question.kind == .mathTemplate {
+                await session.instantiate(question, seed: tangentPlaneSeed)
+                let params = session.currentInstance?.params ?? [:]
+                if params["a"] != "1" || params["b"] != "2" {
+                    fputs("smoke: WARNING: seed \(tangentPlaneSeed) produced a=\(params["a"] ?? "?") b=\(params["b"] ?? "?"), expected a=1 b=2\n", stderr)
+                }
+            }
             await sleep(2)
             written.append(try await capture(window: window, name: "01-study", in: directory))
 

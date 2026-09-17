@@ -22,12 +22,15 @@ struct QuestionTable: View {
             TableColumn("Question") { row in
                 StemCell(row: row)
             }
-            .width(min: 240, ideal: 320)   // ideal widths must sum below the table width at 1280 pt or the trailing columns clip
+            // The only column without a max: it absorbs whatever the window adds. The ideal widths of all six columns
+            // sum to ~700 pt so the trailing Status / Last result columns still fit at the 1100 pt window minimum
+            // (the table is ~740 pt wide there); the table does not shrink columns below their ideal by itself.
+            .width(min: 180, ideal: 200)
 
             TableColumn("Type") { row in
                 Chip.kind(row.question.kind)
             }
-            .width(min: 110, ideal: 130, max: 150)
+            .width(min: 112, ideal: 120, max: 140)
 
             TableColumn("Source") { row in
                 Text(row.source)
@@ -37,12 +40,13 @@ struct QuestionTable: View {
                     .truncationMode(.middle)
                     .help(row.source)
             }
-            .width(min: 120, ideal: 160, max: 260)
+            .width(min: 100, ideal: 120, max: 220)
 
             TableColumn("Status") { row in
                 Chip.status(row.status)
             }
-            .width(min: 96, ideal: 112, max: 130)
+            // Wide enough for the widest pill ("Needs review") plus the cell insets, so it never truncates.
+            .width(min: 112, ideal: 116, max: 128)
 
             TableColumn("Last result") { row in
                 Text(row.lastResult)
@@ -51,7 +55,7 @@ struct QuestionTable: View {
                     .monospacedDigit()
                     .lineLimit(1)
             }
-            .width(min: 96, ideal: 120, max: 160)
+            .width(min: 88, ideal: 96, max: 140)
         }
         .tableStyle(.inset(alternatesRowBackgrounds: false))
         .scrollContentBackground(.hidden)

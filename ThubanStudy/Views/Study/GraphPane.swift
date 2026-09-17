@@ -108,43 +108,76 @@ struct GraphPane: View {
 
     // MARK: Header
 
+    /// Four tiers as the pane narrows (down to 300 pt beside the tutor): the labelled "Reset view" button; then an
+    /// icon reset button; then the title goes and the tutor chip shortens; finally the chip is just its dot.
+    /// The close button is never squeezed.
     private var header: some View {
-        HStack(spacing: 10) {
+        ViewThatFits(in: .horizontal) {
+            headerRow(title: true, chipText: "Tutor is editing", resetIcon: false)
+            headerRow(title: true, chipText: "Tutor is editing", resetIcon: true)
+            headerRow(title: false, chipText: "Editing", resetIcon: true)
+            headerRow(title: false, chipText: nil, resetIcon: true)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 12)
+        .frame(height: ThubanMetrics.sectionBarHeight)
+        .thubanHairline(.bottom, color: theme.lineColor)
+        .animation(.easeInOut(duration: 0.15), value: session.tutorEditedRecently)
+    }
+
+    private func headerRow(title: Bool, chipText: String?, resetIcon: Bool) -> some View {
+        HStack(spacing: title ? 10 : 8) {
             Icon(.graph2D, size: 18)
                 .foregroundStyle(theme.brassInkColor)
-            // The title is the only thing allowed to shrink when the pane is narrow; controls keep their labels.
-            Text("Graph")
-                .font(ThubanFont.display(16))
-                .foregroundStyle(theme.inkColor)
-                .lineLimit(1)
-                .layoutPriority(-1)
+            if title {
+                Text("Graph")
+                    .font(ThubanFont.display(16))
+                    .foregroundStyle(theme.inkColor)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
             SegmentedPicker(selection: $session.graphMode, options: [
                 SegmentOption(.twoD, "2D", icon: .graph2D),
                 SegmentOption(.threeD, "3D", icon: .graph3D),
             ], segmentHeight: 24)
                 .fixedSize()
             if session.tutorEditedRecently {
-                Chip("Tutor is editing", kind: .accent, dot: true)
-                    .fixedSize()
-                    .id(chipTick)
-                    .transition(.opacity)
+                Group {
+                    if let chipText {
+                        Chip(chipText, kind: .accent, dot: true)
+                    } else {
+                        Circle()
+                            .fill(theme.brassInkColor)
+                            .frame(width: 8, height: 8)
+                            .help("Tutor is editing")
+                    }
+                }
+                .fixedSize()
+                .id(chipTick)
+                .transition(.opacity)
+                .accessibilityLabel("Tutor is editing")
             }
             Spacer(minLength: 4)
-            Button("Reset view") {
-                session.graphViewport = nil
-                controller?.resetView()
+            if resetIcon {
+                IconButton(glyph: .reset, label: "Reset view", size: 28, iconSize: 15, action: resetView)
+                    .disabled(!canResetView)
+            } else {
+                Button("Reset view", action: resetView)
+                    .buttonStyle(GhostButtonStyle(height: 28, horizontalPadding: 8))
+                    .fixedSize()
+                    .disabled(!canResetView)
             }
-                .buttonStyle(GhostButtonStyle(height: 28, horizontalPadding: 8))
-                .fixedSize()
-                .disabled(controller == nil || !app.hasDesmosKey)
             IconButton(glyph: .close, label: "Close graph", size: 28, iconSize: 14) {
                 session.showGraph = false
             }
         }
-        .padding(.horizontal, 12)
-        .frame(height: ThubanMetrics.sectionBarHeight)
-        .thubanHairline(.bottom, color: theme.lineColor)
-        .animation(.easeInOut(duration: 0.15), value: session.tutorEditedRecently)
+    }
+
+    private var canResetView: Bool { controller != nil && app.hasDesmosKey }
+
+    private func resetView() {
+        session.graphViewport = nil
+        controller?.resetView()
     }
 
     // MARK: Notices

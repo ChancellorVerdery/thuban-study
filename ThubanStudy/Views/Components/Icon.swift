@@ -44,9 +44,9 @@ struct Icon: View {
     }
 }
 
-/// Minimal stroke glyphs the icon set does not include (plus, close, check, chevron, search, send, lock, drag).
+/// Minimal stroke glyphs the icon set does not include (plus, close, check, chevron, search, send, lock, drag, reset).
 struct Glyph: View {
-    enum Kind { case plus, close, check, chevronDown, chevronRight, chevronLeft, search, send, lock, dragHandle, dot }
+    enum Kind { case plus, close, check, chevronDown, chevronRight, chevronLeft, search, send, lock, dragHandle, dot, reset }
     var kind: Kind
     var size: CGFloat = 16
 
@@ -92,6 +92,10 @@ struct Glyph: View {
                 }
             case .dot:
                 path.addEllipse(in: CGRect(x: 8 * s, y: 8 * s, width: 8 * s, height: 8 * s))
+            case .reset:
+                // Counter-clockwise arc with an arrowhead at its start (the "reset view" convention).
+                path.addArc(center: p(12, 12.5), radius: 7 * s, startAngle: .degrees(-150), endAngle: .degrees(120), clockwise: false)
+                path.move(to: p(3.4, 4.5)); path.addLine(to: p(5.9, 9)); path.addLine(to: p(10.4, 7.2))
             }
             let style = StrokeStyle(lineWidth: (kind == .dragHandle ? 2.5 : 1.75) * s, lineCap: .round, lineJoin: .round)
             if kind == .dot {
