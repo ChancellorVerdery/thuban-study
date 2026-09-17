@@ -30,9 +30,6 @@ final class ThemeTests: XCTestCase {
         assertContrast(theme.ink, on: bg, atLeast: 7, "\(label) ink", file: file, line: line)
         assertContrast(theme.inkDim, on: bg, atLeast: 4.5, "\(label) inkDim", file: file, line: line)
         assertContrast(theme.inkFaint, on: bg, atLeast: 3.2, "\(label) inkFaint", file: file, line: line)
-        for (name, fill) in [("accent", theme.accent), ("signal", theme.signal), ("pos", theme.pos), ("neg", theme.neg)] {
-            assertContrast(fill, on: bg, atLeast: 3.2, "\(label) \(name) fill", file: file, line: line)
-        }
         for (name, text) in [("accentText", theme.accentText), ("signalText", theme.signalText),
                              ("posText", theme.posText), ("negText", theme.negText)] {
             assertContrast(text, on: bg, atLeast: 4.5, "\(label) \(name)", file: file, line: line)
@@ -251,10 +248,29 @@ final class ThemeTests: XCTestCase {
         XCTAssertEqual(theme.inkRGB, "22,26,33")
     }
 
+    func testFillsKeepRawSchemeValuesInLightMode() {
+        // Fills are the brief's raw slot colours (brass stays brass on the light ground); only the *Text variants
+        // are walked to 4.5:1 and onAccent is chosen for the raw fill.
+        let theme = ThemeResolver.resolve(ThemeSelection(mode: .light), systemIsDark: false)
+        XCTAssertEqual(theme.accent, "#e0b15c")
+        XCTAssertEqual(theme.signal, "#74d6c4")
+        XCTAssertEqual(theme.pos, "#5fd08a")
+        XCTAssertEqual(theme.neg, "#e08c8c")
+        XCTAssertEqual(theme.accentRGB, "224,177,92")
+        XCTAssertEqual(theme.onAccent, ColorMath.darkOnAccent)
+        for scheme in SchemePresets.all {
+            let light = ThemeResolver.resolve(scheme: scheme, isDark: false)
+            XCTAssertEqual(light.accent, scheme.accent.lowercased(), "\(scheme.id) light accent fill is the raw slot")
+            XCTAssertEqual(light.signal, scheme.signal.lowercased(), "\(scheme.id) light signal fill is the raw slot")
+            XCTAssertEqual(light.pos, scheme.pos.lowercased(), "\(scheme.id) light pos fill is the raw slot")
+            XCTAssertEqual(light.neg, scheme.neg.lowercased(), "\(scheme.id) light neg fill is the raw slot")
+        }
+    }
+
     func testBrassDarkKeepsRawChromaAndDarkInkOnAccent() {
         let theme = ThemeResolver.resolve(ThemeSelection(mode: .auto), systemIsDark: true)
         XCTAssertTrue(theme.isDark)
-        XCTAssertEqual(theme.accent, "#e0b15c", "already ≥ 3.2:1 on the dark ground, so untouched")
+        XCTAssertEqual(theme.accent, "#e0b15c", "fills are always the raw slot value")
         XCTAssertEqual(theme.accentText, "#e0b15c")
         XCTAssertEqual(theme.signal, "#74d6c4")
         XCTAssertEqual(theme.pos, "#5fd08a")

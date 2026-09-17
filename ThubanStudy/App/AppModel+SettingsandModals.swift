@@ -114,11 +114,11 @@ extension AppModel {
     /// The text shown for the connected account ("you@example.com" or "your Claude account").
     var connectedAccountLabel: String {
         switch connection {
-        case .oauth(let email, _):
+        case .oauth(let email, _), .oauthExpired(let email):
             return email?.nilIfEmpty ?? "your Claude account"
         case .apiKey:
             return "an API key"
-        case .notConnected:
+        case .notConnected, .keychainDenied:
             return "not connected"
         }
     }

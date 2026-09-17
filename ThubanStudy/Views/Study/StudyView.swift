@@ -27,17 +27,17 @@ struct StudyView: View {
                 }
 
                 TutorPane(session: session)
-                    .frame(width: StudyLayout.tutorWidth)
+                    .frame(width: tutorWidth(total: geometry.size.width))
                     .thubanHairline(.leading, color: theme.lineColor)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if session.showCalculator {
-                CalculatorPanel(session: session)
-                    .padding(.trailing, StudyLayout.tutorWidth + 16)
-                    .padding(.bottom, 16)
-                    .transition(.opacity)
+            .overlay(alignment: .bottomTrailing) {
+                if session.showCalculator {
+                    CalculatorPanel(session: session)
+                        .padding(.trailing, tutorWidth(total: geometry.size.width) + 16)
+                        .padding(.bottom, 16)
+                        .transition(.opacity)
+                }
             }
         }
         .sheet(item: $state.results) { results in
@@ -57,10 +57,23 @@ struct StudyView: View {
 
     // MARK: Layout
 
+    /// The tutor pane keeps its preferred width until the three panes no longer fit; below that it gives up
+    /// width first (down to `tutorMinWidth`) so nothing is pushed off-screen at the 1100 pt window minimum.
+    private func tutorWidth(total: CGFloat) -> CGFloat {
+        guard session.showGraph else { return StudyLayout.tutorWidth }
+        let needed = StudyLayout.questionMinWidth + PaneDivider.thickness + StudyLayout.graphMinWidth
+            + StudyLayout.tutorWidth
+        let deficit = max(0, needed - total)
+        return max(StudyLayout.tutorMinWidth, StudyLayout.tutorWidth - deficit)
+    }
+
     private func graphWidthRange(total: CGFloat) -> ClosedRange<CGFloat> {
-        let available = total - StudyLayout.tutorWidth - StudyLayout.questionMinWidth - PaneDivider.thickness
-        let upper = max(StudyLayout.graphMinWidth, available)
-        return StudyLayout.graphMinWidth...upper
+        let available = total - tutorWidth(total: total) - StudyLayout.questionMinWidth - PaneDivider.thickness
+        // When even a shrunken tutor pane leaves less than the preferred graph minimum, the graph takes what is
+        // left (never below its hard floor) rather than overflowing the window.
+        let lower = max(StudyLayout.graphFloorWidth, min(StudyLayout.graphMinWidth, available))
+        let upper = max(lower, available)
+        return lower...upper
     }
 
     private func clampedGraphWidth(total: CGFloat) -> CGFloat {
@@ -91,11 +104,14 @@ struct StudyView: View {
     }
 }
 
-/// Fixed widths of the Study layout.
+/// Fixed widths of the Study layout. At the 1100 pt window minimum with the graph open, the tutor pane shrinks
+/// to `tutorMinWidth` and the graph to whatever remains (≥ `graphFloorWidth`) so the layout never overflows.
 enum StudyLayout {
     static let questionMinWidth: CGFloat = 420
     static let graphMinWidth: CGFloat = 380
+    static let graphFloorWidth: CGFloat = 300
     static let tutorWidth: CGFloat = 420
+    static let tutorMinWidth: CGFloat = 320
 }
 
 /// A draggable hairline between the question pane and the graph pane.

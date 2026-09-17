@@ -42,6 +42,8 @@ final class StudyState {
 
     enum TutorError: Equatable {
         case notConnected
+        /// Credentials exist but were rejected (401/403, refused refresh) or could not be read from the Keychain.
+        case reconnect(String)
         case failed(String)
     }
 
@@ -61,7 +63,14 @@ final class StudyState {
     }
 
     func calculatorController(desmosKey: String) -> CalculatorWebView.Controller {
-        if let calculator { return calculator }
+        if let calculator {
+            // The sticky `config` is replayed on every page load, so a key changed while the panel was closed
+            // must replace it (mirrors `graphController`).
+            if calculator.desmosKey != desmosKey {
+                calculator.configure(desmosKey: desmosKey, forceFallback: desmosKey.isEmpty)
+            }
+            return calculator
+        }
         let controller = CalculatorWebView.Controller(desmosKey: desmosKey)
         calculator = controller
         return controller
@@ -175,7 +184,10 @@ extension ClassSession {
     /// and fills `studyState.results` for the results sheet.
     func checkAnswers() async {
         let state = studyState
-        guard !state.isGrading, let instance = currentInstance, let question = currentQuestion else { return }
+        // `results != nil` means the answer sheet is up: menu key equivalents (⌘⏎) still fire under a window
+        // sheet, and grading again would record a duplicate Attempt for the same inputs.
+        guard !state.isGrading, state.results == nil, let instance = currentInstance, let question = currentQuestion,
+              instance.questionId == question.id else { return }
         state.isGrading = true
         defer { state.isGrading = false }
 
@@ -207,15 +219,16 @@ extension ClassSession {
             verdicts: graded,
             score: score
         )
+        let bankDefaults = app.questionBankSettings.defaults
         do {
-            try await store.record(attempt)
+            try await store.record(attempt, masteryStreak: bankDefaults.masteryThreshold)
         } catch {
             lastError = error.localizedDescription
             Self.logger.error("record attempt failed: \(error.localizedDescription, privacy: .public)")
         }
         await reloadProgress()
 
-        state.results = GradeResults(
+        let results = GradeResults(
             questionId: question.id,
             seed: instance.seed,
             rows: rows,
@@ -225,6 +238,14 @@ extension ClassSession {
             rules: Self.gradingRules(for: instance),
             progress: progress[question.id]
         )
+        state.results = results
+
+        // Settings › Question bank: a fully correct template answer draws fresh numbers right away, so "Try again"
+        // (and the next visit to this question) shows a new instance instead of the one just solved.
+        if results.isFullyCorrect, bankDefaults.autoRegenerateAfterCorrect, question.kind == .mathTemplate,
+           currentInstance?.seed == instance.seed {
+            await regenerate()
+        }
     }
 
     /// The answer the engine compares against: the instance's resolved answer, plus the bank part's alternatives
@@ -284,22 +305,26 @@ extension ClassSession {
         let state = studyState
         let thread = currentThread
         guard state.loadedThread != thread else { return }
-        cancelTutor()
         state.loadedThread = thread
         state.tutorError = nil
+        // Let a reply in flight finish (and persist what arrived) before the thread is replaced.
+        await cancelTutorAndWait()
+        let questionId: QuestionID?
+        if case .question(let id) = thread { questionId = id } else { questionId = nil }
+        var loaded: [TutorMessage] = []
         do {
-            transcript = try await store.messages(for: classId, question: currentThreadQuestionId)
+            loaded = try await store.messages(for: classId, question: questionId)
         } catch {
-            transcript = []
             Self.logger.error("transcript load failed: \(error.localizedDescription, privacy: .public)")
         }
         guard state.loadedThread == thread else { return }
+        transcript = loaded
         state.chat.setTranscript(transcript)
     }
 
     /// Forgets the current thread (store + view).
     func clearTranscript() async {
-        cancelTutor()
+        await cancelTutorAndWait()
         transcript = []
         studyState.chat.clear()
         studyState.tutorError = nil
@@ -310,16 +335,18 @@ extension ClassSession {
         }
     }
 
-    /// Stops a streaming reply, keeping whatever text arrived.
+    /// Stops a streaming reply. The streaming task observes the cancellation and finishes the reply itself: it keeps
+    /// whatever text and tool events arrived, persists them, and resets the streaming state.
     func cancelTutor() {
+        studyState.tutorTask?.cancel()
+    }
+
+    /// `cancelTutor()` plus waiting for the reply to be wrapped up (persisted or discarded).
+    func cancelTutorAndWait() async {
         let state = studyState
-        state.tutorTask?.cancel()
-        state.tutorTask = nil
-        if let id = state.streamingMessageId {
-            state.chat.finish(id: id)
-            state.streamingMessageId = nil
-        }
-        isTutorStreaming = false
+        guard let task = state.tutorTask else { return }
+        task.cancel()
+        await task.value
     }
 
     /// Asks the tutor for a small hint (never the answer).
@@ -341,7 +368,8 @@ extension ClassSession {
         let history = transcript
         transcript.append(studentMessage)
         state.chat.appendMessage(studentMessage)
-        Task { [store] in try? await store.append(studentMessage) }
+        // The student message is persisted together with the reply once something arrived, so a failed or
+        // cancelled request never leaves an unanswered message behind in the store.
 
         var reply = TutorMessage(classId: classId, questionId: questionId, role: .tutor, content: "")
         transcript.append(reply)
@@ -355,6 +383,7 @@ extension ClassSession {
         state.tutorTask = Task { [weak self] in
             guard let self else { return }
             var failure: Error?
+            var truncated = false
             do {
                 let events = agent.respond(
                     context: context, transcript: history, student: trimmed,
@@ -371,6 +400,8 @@ extension ClassSession {
                         reply.toolEvents.append(toolEvent)
                         self.replaceTranscriptMessage(reply)
                         state.chat.appendMessage(reply, streaming: true)
+                    case .truncated:
+                        truncated = true
                     case .done:
                         break
                     }
@@ -388,19 +419,34 @@ extension ClassSession {
                     state.tutorError = .notConnected
                 } else if case ThubanError.cancelled = failure {
                     // Student moved on; keep any partial text.
+                } else if let thuban = failure as? ThubanError, thuban.isCredentialProblem {
+                    state.tutorError = .reconnect(thuban.localizedDescription)
+                    await self.app.noteCredentialProblem(thuban)
                 } else {
                     state.tutorError = .failed(failure.localizedDescription)
                 }
+            } else if truncated {
+                state.tutorError = .failed("The tutor's reply was cut off at its length limit. Ask it to continue from where it stopped.")
             }
             let hasContent = !reply.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !reply.toolEvents.isEmpty
             if hasContent {
                 self.replaceTranscriptMessage(reply)
                 state.chat.finish(id: reply.id, markdown: reply.content)
-                let persisted = reply
-                Task { [store = self.store] in try? await store.append(persisted) }
+                do {
+                    try await self.store.append(studentMessage)
+                    try await self.store.append(reply)
+                } catch {
+                    self.lastError = "Could not save the conversation: \(error.localizedDescription)"
+                    Self.logger.error("message append failed: \(error.localizedDescription, privacy: .public)")
+                }
             } else {
-                self.transcript.removeAll { $0.id == reply.id }
+                // Nothing arrived: drop the empty reply and the unanswered student message; after a failure hand the
+                // text back to the composer so it can be sent again.
+                self.transcript.removeAll { $0.id == reply.id || $0.id == studentMessage.id }
                 state.chat.setTranscript(self.transcript)
+                if state.tutorError != nil, state.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    state.composerText = trimmed
+                }
             }
         }
     }
@@ -424,7 +470,7 @@ extension ClassSession {
             sourceRef: currentQuestion?.sourceRef,
             inputs: inputs,
             verdicts: verdicts,
-            graphExpressions: graphExpressions.map(\.latex),
+            graphExpressions: visibleGraphExpressions.map(\.latex),
             mayEditGraph: app.tutorMayEditGraph,
             model: app.tutorModel,
             includeReferenceAnswers: true
@@ -436,6 +482,10 @@ extension ClassSession {
     /// Executes one tutor tool call against the session (graph, calculator, reading the student's work).
     func handleTutorTool(name: String, input: JSONValue) -> JSONValue {
         let state = studyState
+        let graphTools: Set<String> = [TutorTools.showGraph, TutorTools.graphAddExpression, TutorTools.graphRemoveExpression, TutorTools.graphClear, TutorTools.graphSetViewport]
+        if graphTools.contains(name), !app.hasDesmosKey {
+            return Self.toolError("The grapher is not configured (no Desmos API key in Settings › Grapher), so nothing can be drawn.")
+        }
         switch name {
         case TutorTools.showGraph:
             let mode = GraphMode(rawValue: input["mode"]?.stringValue ?? "2d") ?? .twoD
@@ -460,12 +510,13 @@ extension ClassSession {
                 dashed: input["dashed"]?.boolValue ?? false,
                 label: input["label"]?.stringValue,
                 hidden: input["hidden"]?.boolValue ?? false,
-                fromTutor: true
+                fromTutor: true,
+                mode: graphMode
             )
             upsertGraphExpression(expression)
             showGraph = true
             state.graph?.addExpression(expression)
-            return ["ok": true, "count": .number(Double(graphExpressions.count))]
+            return ["ok": true, "mode": .string(graphMode.rawValue), "count": .number(Double(visibleGraphExpressions.count))]
 
         case TutorTools.graphRemoveExpression:
             guard app.tutorMayEditGraph else { return Self.toolError("The student has disabled tutor graph edits.") }
@@ -486,9 +537,13 @@ extension ClassSession {
             guard let xmin = input["xmin"]?.doubleValue, let xmax = input["xmax"]?.doubleValue,
                   let ymin = input["ymin"]?.doubleValue, let ymax = input["ymax"]?.doubleValue, xmin < xmax, ymin < ymax
             else { return Self.toolError("xmin < xmax and ymin < ymax are required.") }
+            guard graphMode == .twoD else { return Self.toolError("The viewport can only be set in 2D mode; the graph is in 3D.") }
+            let viewport = GraphViewport(xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax)
             showGraph = true
             tutorEditedAt = Date()
-            state.graph?.setViewport(GraphViewport(xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax))
+            // Kept on the session so the pane can apply it once the page is up (see GraphPane.attach).
+            graphViewport = viewport
+            state.graph?.setViewport(viewport)
             return ["ok": true]
 
         case TutorTools.showCalculator:
@@ -518,11 +573,7 @@ extension ClassSession {
             ]
             if let choices = part.choices { object["choices"] = .array(choices.map { .string($0) }) }
             if let verdict = verdicts[part.id] {
-                object["verdict"] = .object([
-                    "outcome": .string(verdict.outcome.rawValue),
-                    "message": .string(verdict.message),
-                    "failedConditions": .array(verdict.failedConditions.map { .string($0) }),
-                ])
+                object["verdict"] = QuestionFormWebView.Controller.pageVerdict(verdict)
             } else {
                 object["verdict"] = .null
             }
@@ -532,7 +583,8 @@ extension ClassSession {
             "stem": .string(instance.stem),
             "seed": .string(instance.seed),
             "parts": .array(parts),
-            "graph": .array(graphExpressions.map { .string($0.latex) }),
+            "graphMode": .string(graphMode.rawValue),
+            "graph": .array(visibleGraphExpressions.map { .string($0.latex) }),
         ])
     }
 

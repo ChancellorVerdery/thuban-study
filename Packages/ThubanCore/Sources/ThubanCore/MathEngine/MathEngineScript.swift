@@ -11,8 +11,9 @@ enum MathEngineScript {
     /// CommonJS shim evaluated before the UMD bundle so `module.exports.ComputeEngine` is populated.
     static let commonJSShim = "var module={exports:{}}; var exports=module.exports;"
 
-    /// Constructs the single shared `ComputeEngine` instance and hands it to the helper.
-    static let bootstrap = "var __thubanCE = new module.exports.ComputeEngine(); thubanMath.setEngine(__thubanCE); thubanMath.ping();"
+    /// Constructs the single shared `ComputeEngine` instance and hands it (plus the library's top-level helpers such
+    /// as `expandAll`) to the helper.
+    static let bootstrap = "var __thubanCE = new module.exports.ComputeEngine(); thubanMath.setEngine(__thubanCE, module.exports); thubanMath.ping();"
 
     /// The helper script source. Kept as a raw string so regular expressions and LaTeX escapes stay verbatim.
     static let source = #"""
@@ -22,6 +23,8 @@ var thubanMath = (function () {
   'use strict';
 
   var ce = null;
+  var lib = null;          // the Compute Engine module exports (expandAll, …), when available
+  var strictExact = false; // set while deciding whether a decimal answer is exactly (not just numerically) equal
 
   // ---------------------------------------------------------------- constants
 
@@ -34,6 +37,10 @@ var thubanMath = (function () {
   var SAMPLE_RANGE = 3;
   var ORDERED_HEADS = { Tuple: 1, List: 1, AngleBracket: 1, Sequence: 1, Delimiter: 1, Matrix: 1 };
   var RELATION_HEADS = { Less: 1, LessEqual: 1, Greater: 1, GreaterEqual: 1, NotEqual: 1 };
+  // Heads that name what an equation is solved for without being a lone symbol: dy/dx, y', f'(x).
+  var LABEL_HEADS = { D: 1, Derivative: 1, ND: 1, Prime: 1 };
+  // LaTeX spacing commands carry no meaning; left in place they make Compute Engine drop a following `+`/`-`.
+  var SPACING_PATTERN = /\\(?:quad|qquad|thinspace|negthinspace|enspace|medspace|thickspace)(?![A-Za-z])|\\[,;:!]|\\ |~/g;
 
   var MESSAGES = {
     correct: 'Correct.',
@@ -55,7 +62,7 @@ var thubanMath = (function () {
 
   // ---------------------------------------------------------------- utilities
 
-  function setEngine(engine) { ce = engine; }
+  function setEngine(engine, library) { ce = engine; lib = library || null; }
 
   function isArray(x) { return Object.prototype.toString.call(x) === '[object Array]'; }
 
@@ -102,7 +109,11 @@ var thubanMath = (function () {
   }
 
   function safeSimplifyLatex(expr) {
-    try { return expr.simplify().latex; } catch (e) { return safeLatex(expr); }
+    try {
+      // simplify() truncates a chained relation (`2 < x < 5` → `2 < x`); show it as written.
+      if (RELATION_HEADS[expr.operator] && expr.ops.length > 2) return expr.latex;
+      return expr.simplify().latex;
+    } catch (e) { return safeLatex(expr); }
   }
 
   function tryBox(json) {
@@ -219,12 +230,40 @@ var thubanMath = (function () {
     return { has: has, maxDecimals: maxDecimals };
   }
 
+  function zeros(n) { return new Array(n + 1).join('0'); }
+
+  /// The exact rational a decimal literal denotes (`0.5` → 5/10, `1.5e3` → 1500), as MathJSON; null when unreadable.
+  function decimalToRational(text) {
+    var m = /^(-?)(\d*)(?:\.(\d*))?(?:e([+-]?\d+))?$/.exec(text);
+    if (!m || !((m[2] || '').length || (m[3] || '').length)) return null;
+    var frac = m[3] || '';
+    var digits = ((m[2] || '') + frac).replace(/^0+(?=\d)/, '');
+    var shift = (m[4] ? Number(m[4]) : 0) - frac.length;
+    var value = shift >= 0 ? { num: digits + zeros(shift) } : ['Divide', { num: digits }, { num: '1' + zeros(-shift) }];
+    return m[1] ? ['Negate', value] : value;
+  }
+
+  /// Replaces every decimal literal with the rational it denotes, so equality can be decided symbolically.
+  function rationalizeDecimals(json) {
+    if (isArray(json)) return json.map(function (n, i) { return i === 0 ? n : rationalizeDecimals(n); });
+    var s = numberString(json);
+    if (s === null) return json;
+    var lower = s.toLowerCase();
+    if (lower.indexOf('.') < 0 && lower.indexOf('e') < 0) return json;
+    return decimalToRational(lower) || json;
+  }
+
+  /// True for `a, b, c` written without brackets (a Sequence delimited by commas only).
+  function isBareList(json) {
+    return headOf(json) === 'Delimiter' && json.length >= 3 && json[2] === "','" && headOf(json[1]) === 'Sequence';
+  }
+
   /// Parses one LaTeX answer into the shapes the grader needs.
   function parseAnswer(latex, requiredUnit) {
     var text = String(latex == null ? '' : latex).trim();
     var split = splitUnits(text, requiredUnit);
-    var core = split.core.trim();
-    var result = { latex: text, core: core, unit: split.unit, valid: false, nc: null, c: null, json: null, decimals: { has: false, maxDecimals: 0 } };
+    var core = split.core.replace(SPACING_PATTERN, ' ').trim();
+    var result = { latex: text, core: core, unit: split.unit, valid: false, nc: null, c: null, json: null, bare: false, decimals: { has: false, maxDecimals: 0 } };
     if (!core.length) return result;
     var pm = expandPlusMinus(core);
     if (pm) {
@@ -239,6 +278,7 @@ var thubanMath = (function () {
       result.nc = nc;
       result.c = c;
       result.json = nc.json;
+      result.bare = !result.plusMinus && isBareList(nc.json);
       result.decimals = decimalInfo(nc.json);
       result.valid = true;
     } catch (e) {
@@ -282,18 +322,56 @@ var thubanMath = (function () {
     return ops;
   }
 
-  /// Returns { kind, elements?, expr } where kind in expression|equation|relation|solutions|ordered.
-  function classify(c) {
+  /// A plain value: not a collection, interval, equation or relation.
+  function isScalarExpr(expr) {
+    var h = expr.operator;
+    return !(ORDERED_HEADS[h] || h === 'Set' || h === 'Or' || h === 'Union' || h === 'Interval' || h === 'Element' || h === 'Equal' || RELATION_HEADS[h]);
+  }
+
+  function endpoint(expr) {
+    if (expr.operator === 'Open' && expr.ops.length === 1) return { value: expr.ops[0], open: true };
+    if (expr.operator === 'Closed' && expr.ops.length === 1) return { value: expr.ops[0], open: false };
+    return { value: expr, open: false };
+  }
+
+  /// Interval view of an `Interval`, or of a two-element `[a,b]` (closed) / `(a,b)` (open) written with brackets.
+  /// Compute Engine only produces `Interval` for half-open forms; `[2,5]` is a List and `(2,5)` a Tuple.
+  function intervalOf(c, elements, bare) {
+    var h = c.operator;
+    if (h === 'Interval' && c.ops.length === 2) return { lo: endpoint(c.ops[0]), hi: endpoint(c.ops[1]), head: h };
+    if ((h === 'List' || h === 'Tuple') && !bare && elements && elements.length === 2 && elements.every(isScalarExpr)) {
+      var open = h === 'Tuple';
+      return { lo: { value: elements[0], open: open }, hi: { value: elements[1], open: open }, head: h };
+    }
+    return null;
+  }
+
+  /// `x=2, x=-2`, or `x=2, -2` (one labelled root followed by bare values), lists solutions rather than a tuple.
+  function isSolutionList(elements) {
+    if (!elements.length || elements[0].operator !== 'Equal') return false;
+    for (var i = 1; i < elements.length; i++) {
+      var el = elements[i];
+      if (el.operator === 'Equal') continue;
+      if (!explicitVariable(elements[0]) || !isScalarExpr(el)) return false;
+    }
+    return true;
+  }
+
+  /// Returns { kind, elements?, interval?, bare? } where kind in expression|equation|relation|solutions|ordered|interval.
+  /// `bare` marks a comma list written without brackets (`2, -2`): unordered unless the other side is a tuple.
+  function classify(c, bare) {
     var h = c.operator;
     if (h === 'Element' && c.ops.length === 2 && c.ops[1].operator === 'Set') {
       return { kind: 'solutions', elements: collectionElements(c.ops[1]), variable: c.ops[0].symbol || null };
     }
     if (h === 'Set' || h === 'Or') return { kind: 'solutions', elements: collectionElements(c) };
+    if (h === 'Union') return { kind: 'solutions', elements: c.ops.slice() };
+    if (h === 'Interval') return { kind: 'interval', interval: intervalOf(c) };
     if (ORDERED_HEADS[h]) {
       var elements = collectionElements(c);
-      var allEquations = elements.length > 0;
-      for (var i = 0; i < elements.length; i++) if (elements[i].operator !== 'Equal') allEquations = false;
-      return { kind: allEquations ? 'solutions' : 'ordered', elements: elements };
+      if (isSolutionList(elements)) return { kind: 'solutions', elements: elements };
+      if (bare && elements.length > 1 && elements.every(isScalarExpr)) return { kind: 'solutions', elements: elements, bare: true };
+      return { kind: 'ordered', elements: elements, interval: intervalOf(c, elements, bare) };
     }
     if (h === 'Equal') return { kind: 'equation' };
     if (RELATION_HEADS[h]) return { kind: 'relation' };
@@ -367,9 +445,70 @@ var thubanMath = (function () {
     return { agree: valid >= MIN_VALID_POINTS, valid: valid, needed: MIN_VALID_POINTS };
   }
 
+  /// Replaces each decimal literal in `json` with a placeholder symbol; returns { json, values } or null when
+  /// there is no decimal literal.
+  function decimalPlaceholders(json) {
+    var values = {}, count = 0;
+    var replaced = (function rec(n) {
+      if (isArray(n)) return n.map(function (m, i) { return i === 0 ? m : rec(m); });
+      var s = numberString(n);
+      if (s === null) return n;
+      var lower = s.toLowerCase();
+      if (lower.indexOf('.') < 0 && lower.indexOf('e') < 0) return n;
+      var v = Number(lower);
+      if (!isFinite(v) || (Number.isInteger(v) && lower.indexOf('.') < 0)) return n;
+      var name = 'thubanRounded' + (++count);
+      values[name] = v;
+      return name;
+    })(json);
+    return count ? { json: replaced, values: values } : null;
+  }
+
+  function merged(a, b) {
+    var out = {};
+    Object.keys(a || {}).forEach(function (k) { out[k] = a[k]; });
+    Object.keys(b || {}).forEach(function (k) { out[k] = b[k]; });
+    return out;
+  }
+
+  /// Rounding-aware agreement: every decimal literal in the student's expression may be off by `halfUnit`, and
+  /// the allowed difference at each sample point is the propagated effect of those errors (`0.33x` for `x/3` is
+  /// off by at most 0.005·|x|), never less than `halfUnit` itself for a plain number.
+  function roundingAgreement(s, e, halfUnit) {
+    var placeholders = decimalPlaceholders(s.json);
+    var probe = placeholders ? tryBox(placeholders.json) : null;
+    if (placeholders && !probe) placeholders = null;
+    var names = placeholders ? Object.keys(placeholders.values) : [];
+    var vars = freeVariablesOf([s, e]);
+    var valid = 0, needed = vars.length ? MIN_VALID_POINTS : 1;
+    for (var round = 0; round < SAMPLE_ROUNDS && valid < needed; round++) {
+      var points = vars.length ? samplePoints(vars, SAMPLE_POINTS, 0x7ab1 + round) : [{}];
+      for (var i = 0; i < points.length; i++) {
+        var pt = points[i];
+        var vs = numericValue(s, vars.length ? pt : null), ve = numericValue(e, vars.length ? pt : null);
+        if (!vs || !ve || isReal(vs) !== isReal(ve)) continue;
+        var spread = 0;
+        for (var k = 0; k < names.length; k++) {
+          var up = merged(pt, placeholders.values), down = merged(pt, placeholders.values);
+          up[names[k]] += halfUnit;
+          down[names[k]] -= halfUnit;
+          var vu = numericValue(probe, up), vd = numericValue(probe, down);
+          if (!vu || !vd) { spread = NaN; break; }
+          spread += Math.max(magnitude({ re: vu.re - vs.re, im: vu.im - vs.im }), magnitude({ re: vd.re - vs.re, im: vd.im - vs.im }));
+        }
+        if (isNaN(spread)) continue;
+        valid++;
+        var tol = Math.max(halfUnit, spread) * 1.000001 + 1e-12;
+        if (!close(vs, ve, tol, 0)) return { agree: false, valid: valid, needed: needed };
+      }
+      if (!vars.length) break;
+    }
+    return { agree: valid >= needed, valid: valid, needed: needed };
+  }
+
   // ---------------------------------------------------------------- expression comparison
 
-  /// Result levels: 'exact' | 'float' | 'approx' | 'no'. `loose` = { absTol, relTol } or null.
+  /// Result levels: 'exact' | 'float' | 'approx' | 'no'. `loose` = { absTol, relTol, rounding? } or null.
   function safeEvaluate(expr) {
     try {
       var v = expr.evaluate();
@@ -377,24 +516,36 @@ var thubanMath = (function () {
     } catch (e) { return expr; }
   }
 
+  /// In strict mode (`strictExact`) numeric agreement never counts as 'exact': `isEqual` uses a relative tolerance
+  /// of 1e-10, which a 10-digit calculator readout satisfies. Only a symbolic zero difference is exact there.
   function compareExpressions(s, e, loose) {
-    var eq;
-    try { eq = s.isEqual(e); } catch (err) { eq = undefined; }
-    if (eq === true) return 'exact';
+    if (strictExact) {
+      try { if (s.isSame(e)) return 'exact'; } catch (err0) { /* fall through */ }
+    } else {
+      var eq;
+      try { eq = s.isEqual(e); } catch (err) { eq = undefined; }
+      if (eq === true) return 'exact';
+    }
     var diff = tryBox(['Subtract', s, e]);
     if (diff) {
-      try { if (isZeroExpr(diff.simplify())) return 'exact'; } catch (err) { /* fall through */ }
+      try { if (isZeroExpr(diff.simplify())) return 'exact'; } catch (err1) { /* fall through */ }
+      if (strictExact) {
+        try { var expanded = expandOf(diff); if (expanded && isZeroExpr(expanded.simplify())) return 'exact'; } catch (err2) { /* fall through */ }
+      }
     }
     s = safeEvaluate(s);
     e = safeEvaluate(e);
-    try { if (s.isEqual(e) === true) return 'exact'; } catch (err2) { /* fall through */ }
+    if (!strictExact) {
+      try { if (s.isEqual(e) === true) return 'exact'; } catch (err3) { /* fall through */ }
+    }
     var strict = sampleAgreement(s, e, 0, REL_TOLERANCE);
     if (strict.agree) {
+      if (strictExact) return 'float';
       var floatExact = sampleAgreement(s, e, 0, FLOAT_EXACT_TOLERANCE);
       return floatExact.agree ? 'exact' : 'float';
     }
     if (loose) {
-      var lo = sampleAgreement(s, e, loose.absTol, loose.relTol, loose.variablesOnly);
+      var lo = loose.rounding != null ? roundingAgreement(s, e, loose.rounding) : sampleAgreement(s, e, loose.absTol, loose.relTol, loose.variablesOnly);
       if (lo.agree) return 'approx';
     }
     return 'no';
@@ -455,13 +606,27 @@ var thubanMath = (function () {
     return valid >= needed;
   }
 
+  /// Relations, including chained ones (`2 < x < 5` is the 3-ary `["Less", 2, "x", 5]`): every adjacent pair must
+  /// match up to a positive constant factor.
   function compareRelations(s, e) {
-    if (s.operator !== e.operator) return 'no';
-    var d1 = tryBox(['Subtract', s.ops[1], s.ops[0]]);
-    var d2 = tryBox(['Subtract', e.ops[1], e.ops[0]]);
-    if (!d1 || !d2) return 'no';
+    if (s.operator !== e.operator || s.ops.length !== e.ops.length || s.ops.length < 2) return 'no';
     var positiveOnly = s.operator !== 'NotEqual';
-    return constantRatio(d1, d2, positiveOnly) ? 'exact' : 'no';
+    for (var i = 0; i + 1 < s.ops.length; i++) {
+      var d1 = tryBox(['Subtract', s.ops[i + 1], s.ops[i]]);
+      var d2 = tryBox(['Subtract', e.ops[i + 1], e.ops[i]]);
+      if (!d1 || !d2 || !constantRatio(d1, d2, positiveOnly)) return 'no';
+    }
+    return 'exact';
+  }
+
+  /// Intervals match when both endpoints agree and have the same inclusivity.
+  function compareIntervals(a, b, loose) {
+    if (a.lo.open !== b.lo.open || a.hi.open !== b.hi.open) return 'no';
+    var lo = compareExpressions(a.lo.value, b.lo.value, loose);
+    if (lo === 'no') return 'no';
+    var hi = compareExpressions(a.hi.value, b.hi.value, loose);
+    if (hi === 'no') return 'no';
+    return weaker(lo, hi);
   }
 
   function solutionValue(expr) {
@@ -478,9 +643,15 @@ var thubanMath = (function () {
     return order[a] >= order[b] ? a : b;
   }
 
-  function compareAny(s, e, loose) {
-    var cs = classify(s), ce_ = classify(e);
-    if (cs.kind === 'solutions' || ce_.kind === 'solutions') return compareSolutions(cs, ce_, loose);
+  /// `hints` = { studentBare, expectedBare }: whether each top-level answer is a bracket-less comma list.
+  function compareAny(s, e, loose, hints) {
+    var cs = classify(s, hints && hints.studentBare), ce_ = classify(e, hints && hints.expectedBare);
+    if (cs.kind === 'interval' || ce_.kind === 'interval') {
+      return cs.interval && ce_.interval ? compareIntervals(cs.interval, ce_.interval, loose) : 'no';
+    }
+    // `[a,b]` against `(a,b)`: the endpoints are included on one side only.
+    if (cs.interval && ce_.interval && cs.interval.head !== ce_.interval.head) return 'no';
+    if (cs.kind === 'solutions' || ce_.kind === 'solutions') return compareSolutions(cs, ce_, s, e, loose);
     if (cs.kind === 'ordered' || ce_.kind === 'ordered') return compareOrdered(cs, ce_, loose);
     if (cs.kind === 'equation' && ce_.kind === 'equation') return compareEquations(s, e, loose);
     if (cs.kind === 'relation' && ce_.kind === 'relation') return compareRelations(s, e);
@@ -508,21 +679,42 @@ var thubanMath = (function () {
     return 'no';
   }
 
-  function elementsOf(classified, expr) {
-    if (classified.elements) return classified.elements.map(function (el) { return solutionValue(el).value; });
-    return [solutionValue(expr).value];
-  }
-
   function allEquations(elements) {
     for (var i = 0; i < elements.length; i++) if (elements[i].operator !== 'Equal') return false;
     return elements.length > 0;
   }
 
-  function compareSolutions(cs, ce_, loose) {
-    if (!cs.elements || !ce_.elements) return 'no';
-    var keepEquations = allEquations(cs.elements) && allEquations(ce_.elements);
+  /// Values of a labelled system (`x=2, y=3`) in alphabetical variable order, or null when the elements are not
+  /// distinct `symbol = value` equations.
+  function labeledValues(elements) {
+    if (!elements || !elements.length) return null;
+    var pairs = [], seen = {};
+    for (var i = 0; i < elements.length; i++) {
+      var el = elements[i];
+      if (el.operator !== 'Equal') return null;
+      var v = explicitVariable(el);
+      if (!v || seen[v]) return null;
+      seen[v] = true;
+      pairs.push({ variable: v, value: explicitSide(el, v) });
+    }
+    pairs.sort(function (p, q) { return p.variable < q.variable ? -1 : p.variable > q.variable ? 1 : 0; });
+    return pairs.map(function (p) { return p.value; });
+  }
+
+  /// Order-insensitive multiset match. A side without elements (`x=2`, `2`) is a single solution. A tuple against
+  /// a labelled system is matched positionally in variable order (x, y, z); against anything else it is one value.
+  function compareSolutions(cs, ce_, s, e, loose) {
+    var sOrdered = cs.kind === 'ordered', eOrdered = ce_.kind === 'ordered';
+    if (sOrdered || eOrdered) {
+      var sol = sOrdered ? ce_ : cs;
+      var values = sol.bare ? sol.elements : labeledValues(sol.elements);
+      if (values) return sOrdered ? compareOrdered(cs, { elements: values }, loose) : compareOrdered({ elements: values }, ce_, loose);
+    }
+    var aElements = sOrdered ? [s] : (cs.elements || [s]);
+    var bElements = eOrdered ? [e] : (ce_.elements || [e]);
+    var keepEquations = allEquations(aElements) && allEquations(bElements);
     var strip = function (el) { return keepEquations ? el : solutionValue(el).value; };
-    var a = cs.elements.map(strip), b = ce_.elements.map(strip);
+    var a = aElements.map(strip), b = bElements.map(strip);
     if (a.length !== b.length) return 'count';
     var used = [], level = 'exact';
     for (var i = 0; i < a.length; i++) {
@@ -655,7 +847,16 @@ var thubanMath = (function () {
     return false;
   }
 
+  /// Node count that ignores where a minus sign sits: `-(x/2)` and `(-1/2)x` are the same size.
+  function complexity(json) {
+    if (!isArray(json)) return 1;
+    var n = json[0] === 'Negate' ? 0 : 1;
+    for (var i = 1; i < json.length; i++) n += complexity(json[i]);
+    return n;
+  }
+
   /// Simplified: no reducible fractions / dead structure, and simplify() does not find a strictly smaller form.
+  /// Moving a sign or splitting a single fraction into partial fractions does not count as smaller.
   function isSimplified(nc, c) {
     if (hasReducibleNumericFraction(nc.json) || hasUnsimplifiedStructure(nc.json)) return false;
     if (c.operator === 'Equal' || RELATION_HEADS[c.operator]) {
@@ -665,15 +866,28 @@ var thubanMath = (function () {
     var simplified;
     try { simplified = c.simplify(); } catch (e) { return true; }
     try { if (simplified.isSame(c)) return true; } catch (e2) { /* compare sizes */ }
-    return nodeCount(simplified.json) >= nodeCount(c.json);
+    var size = complexity(c.json);
+    if (complexity(simplified.json) >= size) return true;
+    var core = c.operator === 'Negate' && c.ops.length === 1 ? c.ops[0] : c;
+    if (core.operator === 'Divide' && simplified.operator === 'Add') {
+      var together = null;
+      try { together = tryBox(['Together', simplified]).evaluate(); } catch (e3) { together = null; }
+      if (together && together.isValid && complexity(together.json) >= size) return true;
+    }
+    return false;
   }
 
   function factorOf(c) {
     try { return tryBox(['Factor', c]).evaluate(); } catch (e) { return null; }
   }
 
+  /// Symbolic expansion. `["ExpandAll", c].evaluate()` numerically evaluates constants (e → 2.718…), so the
+  /// library's `expandAll` is preferred.
   function expandOf(c) {
-    try { return tryBox(['ExpandAll', c]).evaluate(); } catch (e) { return null; }
+    try {
+      if (lib && typeof lib.expandAll === 'function') return lib.expandAll(c) || null;
+      return tryBox(['ExpandAll', c]).evaluate();
+    } catch (e) { return null; }
   }
 
   function isFullyFactored(c) {
@@ -712,8 +926,9 @@ var thubanMath = (function () {
     if (hasProductOfSums(nc.json)) return false;
     var ex = expandOf(c);
     if (!ex) return true;
-    try { if (ex.isSame(c)) return true; } catch (e) { return true; }
-    return ex.latex === c.latex;
+    try { if (ex.isSame(c) || ex.latex === c.latex) return true; } catch (e) { return true; }
+    // Only the sign moved (`-x/2` vs `(-1/2)x`): expansion changed nothing structural.
+    try { return ex.simplify().isSame(c.simplify()); } catch (e2) { return true; }
   }
 
   function forEachScalar(nc, c, fn) {
@@ -752,22 +967,40 @@ var thubanMath = (function () {
     return { nc: nc, c: c };
   }
 
-  function dependentVariable(expectedC) {
-    var cls = classify(expectedC);
-    if (cls.kind === 'equation') {
-      var v = explicitVariable(expectedC);
-      if (v) return v;
-    }
-    var vars = expectedC.freeVariables || [];
-    if (vars.indexOf('y') >= 0) return 'y';
-    if (cls.kind === 'equation' && vars.length) return vars[vars.length - 1];
+  /// The side of `dy/dx = …` / `y' = …` that names the quantity solved for, or null.
+  function labelSide(expr) {
+    if (!expr || expr.operator !== 'Equal') return null;
+    if (LABEL_HEADS[expr.ops[0].operator]) return expr.ops[0];
+    if (LABEL_HEADS[expr.ops[1].operator]) return expr.ops[1];
     return null;
   }
 
-  function isExplicitFor(studentC, variable) {
+  function sameExpr(a, b) {
+    try { if (a.isSame(b)) return true; } catch (e) { /* fall through */ }
+    var la = safeLatex(a);
+    return la !== null && la === safeLatex(b);
+  }
+
+  /// What "explicit" means for the expected equation: { variable } for `y = …`, { label } for `dy/dx = …`.
+  function explicitTarget(expectedC) {
+    var cls = classify(expectedC);
+    if (cls.kind === 'equation') {
+      var v = explicitVariable(expectedC);
+      if (v) return { variable: v };
+      var label = labelSide(expectedC);
+      if (label) return { label: label };
+    }
+    var vars = expectedC.freeVariables || [];
+    if (vars.indexOf('y') >= 0) return { variable: 'y' };
+    if (cls.kind === 'equation' && vars.length) return { variable: vars[vars.length - 1] };
+    return { variable: null };
+  }
+
+  function isExplicitFor(studentC, target) {
     if (studentC.operator !== 'Equal') return false;
+    if (target.label) return sameExpr(studentC.ops[0], target.label) || sameExpr(studentC.ops[1], target.label);
     var v = explicitVariable(studentC);
-    return !!v && (variable === null || v === variable);
+    return !!v && (target.variable === null || v === target.variable);
   }
 
   function checkConditions(student, expected, cond, level) {
@@ -784,8 +1017,7 @@ var thubanMath = (function () {
     if (cond.expanded && !forEachScalar(sNc, sC, function (n, c) { var s = scalarValue(n, c); return isExpanded(s.nc, s.c); })) failed.push('expanded');
     var expectedIsEquation = classify(expected.c).kind === 'equation';
     if ((cond.explicit || cond.implicitAllowed === false) && expectedIsEquation) {
-      var dep = dependentVariable(expected.c);
-      if (!isExplicitFor(sC, dep)) failed.push(cond.explicit ? 'explicit' : 'implicitAllowed');
+      if (!isExplicitFor(sC, explicitTarget(expected.c))) failed.push(cond.explicit ? 'explicit' : 'implicitAllowed');
     }
     if (cond.roundingDecimals != null && cond.exactRadicals && level !== 'exact' && student.decimals.has && hasRadical(expected.json)) {
       failed.push('exactRadicals');
@@ -798,7 +1030,7 @@ var thubanMath = (function () {
   function looseTolerance(cond, student) {
     if (cond.roundingDecimals != null) {
       var abs = cond.tolerance != null ? Math.abs(cond.tolerance) : 0.5 * Math.pow(10, -cond.roundingDecimals);
-      return { absTol: abs * 1.000001, relTol: 0 };
+      return { absTol: abs * 1.000001, relTol: 0, rounding: abs };
     }
     if (student.decimals.has) {
       var d = student.decimals.maxDecimals;
@@ -817,6 +1049,20 @@ var thubanMath = (function () {
 
   function conditionName(f) { return f === 'unitsMismatch' ? 'units' : f; }
 
+  /// Decimal literals count as exact only when the answer, with every decimal read as the rational it denotes, is
+  /// symbolically identical to the expected answer: 0.5 for 1/2 passes, the calculator's 0.6666666667 for 2/3 does
+  /// not. Falls back to accepting when the rationalised forms cannot be built.
+  function exactlyEqual(student, expected, hints) {
+    var s = tryBox(rationalizeDecimals(student.json)), e = tryBox(rationalizeDecimals(expected.json));
+    if (!s || !e) return true;
+    try { s = s.canonical; e = e.canonical; } catch (err) { return true; }
+    if (!s.isValid || !e.isValid) return true;
+    strictExact = true;
+    try { return compareAny(s, e, null, hints) === 'exact'; }
+    catch (err2) { return true; }
+    finally { strictExact = false; }
+  }
+
   function gradeAgainst(student, expectedLatex, cond) {
     var expected = parseAnswer(expectedLatex, cond.units);
     var out = { outcome: 'incorrect', message: MESSAGES.incorrect, canonicalStudent: null, canonicalExpected: null, failedConditions: [] };
@@ -828,11 +1074,13 @@ var thubanMath = (function () {
     out.canonicalStudent = safeSimplifyLatex(student.c);
     out.canonicalExpected = safeSimplifyLatex(expected.c);
     var loose = looseTolerance(cond, student);
-    var level = compareAny(student.c, expected.c, loose);
+    var hints = { studentBare: student.bare, expectedBare: expected.bare };
+    var level = compareAny(student.c, expected.c, loose, hints);
     if (level === 'count') { out.message = MESSAGES.countMismatch; return out; }
     if (level === 'no') return out;
     var failed = [];
     var roundingAllowed = cond.roundingDecimals != null;
+    if (!roundingAllowed && student.decimals.has && level === 'exact' && !exactlyEqual(student, expected, hints)) level = 'float';
     if (!roundingAllowed && student.decimals.has && level !== 'exact') failed.push('exactForm');
     failed = failed.concat(checkConditions(student, expected, cond, level));
     if (failed.length) {

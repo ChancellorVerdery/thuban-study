@@ -10,8 +10,6 @@ public enum ThemeResolver {
     public static let inkDimTarget = 4.5
     /// Tertiary ink must reach this ratio on bg.
     public static let inkFaintTarget = 3.2
-    /// Accent / signal / pos / neg fills must reach this ratio on bg.
-    public static let fillTarget = 3.2
     /// `*Text` variants must reach this ratio on bg.
     public static let textTarget = 4.5
 
@@ -119,9 +117,11 @@ public enum ThemeResolver {
         )
     }
 
+    /// Fills keep the raw scheme value (the brief's brass #e0b15c stays brass in light mode; `onAccent` is chosen
+    /// for the fill). Only the `*Text` variants are walked to legibility on bg.
     private static func resolveChroma(_ color: ColorMath.RGB, on bg: ColorMath.RGB) -> Chroma {
         Chroma(
-            fill: ColorMath.legible(color, on: bg, target: fillTarget),
+            fill: color,
             text: ColorMath.legible(color, on: bg, target: textTarget)
         )
     }

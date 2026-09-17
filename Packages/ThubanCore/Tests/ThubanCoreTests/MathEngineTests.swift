@@ -112,6 +112,100 @@ final class MathEngineTests: XCTestCase {
         Case(name: "\\mathrm units", student: "3\\,\\mathrm{m}", expected: "3", conditions: AnswerConditions(units: "m"), outcome: .correct),
         Case(name: "plain suffix units", student: "3 m", expected: "3", conditions: AnswerConditions(units: "m"), outcome: .correct),
 
+        // Chained inequalities compare every adjacent pair
+        Case(name: "2<x<6 vs 2<x<5 is wrong", student: "2<x<6", expected: "2<x<5", outcome: .incorrect),
+        Case(name: "-1<x<1 vs -1<x<2 is wrong", student: "-1<x<1", expected: "-1<x<2", outcome: .incorrect),
+        Case(name: "0<x<1 vs 0<x is wrong", student: "0<x<1", expected: "0<x", outcome: .incorrect),
+        Case(name: "4<2x<10 ≡ 2<x<5", student: "4<2x<10", expected: "2<x<5", outcome: .correct),
+        Case(name: "-1≤x≤1 ≡ itself", student: "-1\\le x\\le 1", expected: "-1\\le x\\le 1", outcome: .correct),
+
+        // Ordered point against a labelled system (x, y, z order)
+        Case(name: "(3,2) vs x=2,y=3 is wrong", student: "(3,2)", expected: "x=2,y=3", outcome: .incorrect),
+        Case(name: "(2,3) vs x=2,y=3", student: "(2,3)", expected: "x=2,y=3", outcome: .correct),
+        Case(name: "x=3,y=2 vs (2,3) is wrong", student: "x=3,y=2", expected: "(2,3)", outcome: .incorrect),
+        Case(name: "y=3,x=2 vs (2,3)", student: "y=3,x=2", expected: "(2,3)", outcome: .correct),
+        Case(name: "vector vs set is not a multiset match", student: "\\langle2,1\\rangle", expected: "\\{1,2\\}", outcome: .incorrect),
+
+        // Intervals: endpoint inclusivity
+        Case(name: "[2,5] vs (2,5) is wrong", student: "[2,5]", expected: "(2,5)", outcome: .incorrect),
+        Case(name: "(2,5) vs [2,5] is wrong", student: "(2,5)", expected: "[2,5]", outcome: .incorrect),
+        Case(name: "\\left[2,5\\right] vs (2,5) is wrong", student: "\\left[2,5\\right]", expected: "(2,5)", outcome: .incorrect),
+        Case(name: "\\left[2,5\\right] ≡ [2,5]", student: "\\left[2,5\\right]", expected: "[2,5]", outcome: .correct),
+        Case(name: "[2,5) vs [2,5] is wrong", student: "[2,5)", expected: "[2,5]", outcome: .incorrect),
+        Case(name: "[2,∞) vs (2,∞) is wrong", student: "[2,\\infty)", expected: "(2,\\infty)", outcome: .incorrect),
+        Case(name: "[2,∞) ≡ itself", student: "[2,\\infty)", expected: "[2,\\infty)", outcome: .correct),
+
+        // Calculator-precision decimals are not exact
+        Case(name: "0.6666666667 vs 2/3 ⇒ exactForm", student: "0.6666666667", expected: "\\frac{2}{3}", outcome: .equivalentButConditionFailed, failed: ["exactForm"]),
+        Case(name: "0.3333333333 vs 1/3 ⇒ exactForm", student: "0.3333333333", expected: "\\frac{1}{3}", outcome: .equivalentButConditionFailed, failed: ["exactForm"]),
+        Case(name: "1.4142135624 vs √2 ⇒ exactForm", student: "1.4142135624", expected: "\\sqrt{2}", outcome: .equivalentButConditionFailed, failed: ["exactForm"]),
+        Case(name: "0.6666666667 vs 2/3 rounded ⇒ correct", student: "0.6666666667", expected: "\\frac{2}{3}", conditions: AnswerConditions(roundingDecimals: 2), outcome: .correct),
+        Case(name: "1.5x ≡ 3x/2 exactly", student: "1.5x", expected: "\\frac{3x}{2}", outcome: .correct),
+        Case(name: "x^{0.5} ≡ √x exactly", student: "x^{0.5}", expected: "\\sqrt{x}", outcome: .correct),
+        Case(name: "{0.5, 1.5} ≡ {1/2, 3/2} exactly", student: "\\{0.5, 1.5\\}", expected: "\\{\\frac{1}{2}, \\frac{3}{2}\\}", outcome: .correct),
+        Case(name: "y=0.33x vs y=x/3 ⇒ exactForm", student: "y=0.33x", expected: "y=\\frac{x}{3}", outcome: .equivalentButConditionFailed, failed: ["exactForm"]),
+
+        // Spacing commands are ignored
+        Case(name: "x\\,+\\,1 ≡ x+1", student: "x\\,+\\,1", expected: "x+1", outcome: .correct),
+        Case(name: "x\\;+1 ≡ x+1", student: "x\\;+1", expected: "x+1", outcome: .correct),
+        Case(name: "x\\quad+1 ≡ x+1", student: "x\\quad+1", expected: "x+1", outcome: .correct),
+        Case(name: "x^2\\,-\\,1 ≡ x^2-1", student: "x^2\\,-\\,1", expected: "x^2-1", outcome: .correct),
+        Case(name: "-x^2 vs x^2\\,-\\,1 is wrong", student: "-x^2", expected: "x^2\\,-\\,1", outcome: .incorrect),
+        Case(name: "x\\,y ≡ xy", student: "x\\,y", expected: "xy", outcome: .correct),
+
+        // Simplified: sign placement and single fractions
+        Case(name: "-x/2 passes simplified", student: "-\\frac{x}{2}", expected: "-\\frac{x}{2}", conditions: AnswerConditions(simplified: true), outcome: .correct),
+        Case(name: "-π/6 passes simplified", student: "-\\frac{\\pi}{6}", expected: "-\\frac{\\pi}{6}", conditions: AnswerConditions(simplified: true), outcome: .correct),
+        Case(name: "-2x/(x²+1)² passes simplified", student: "-\\frac{2x}{(x^2+1)^2}", expected: "-\\frac{2x}{(x^2+1)^2}", conditions: AnswerConditions(simplified: true), outcome: .correct),
+        Case(name: "(x²+1)/x passes simplified", student: "\\frac{x^2+1}{x}", expected: "\\frac{x^2+1}{x}", conditions: AnswerConditions(simplified: true), outcome: .correct),
+        Case(name: "(x²+x)/x² fails simplified", student: "\\frac{x^2+x}{x^2}", expected: "\\frac{x+1}{x}", conditions: AnswerConditions(simplified: true), outcome: .equivalentButConditionFailed, failed: ["simplified"]),
+
+        // Expanded: constants stay symbolic
+        Case(name: "e^x passes expanded", student: "e^{x}", expected: "e^{x}", conditions: AnswerConditions(expanded: true), outcome: .correct),
+        Case(name: "2e^x passes expanded", student: "2e^{x}", expected: "2e^{x}", conditions: AnswerConditions(expanded: true), outcome: .correct),
+        Case(name: "πr² passes expanded", student: "\\pi r^2", expected: "\\pi r^2", conditions: AnswerConditions(expanded: true), outcome: .correct),
+        Case(name: "xe^x+e^x passes expanded", student: "xe^x+e^x", expected: "(x+1)e^x", conditions: AnswerConditions(expanded: true), outcome: .correct),
+        Case(name: "(x+1)e^x fails expanded", student: "(x+1)e^x", expected: "xe^x+e^x", conditions: AnswerConditions(expanded: true), outcome: .equivalentButConditionFailed, failed: ["expanded"]),
+        Case(name: "-x/2 passes expanded", student: "-\\frac{x}{2}", expected: "-\\frac{x}{2}", conditions: AnswerConditions(expanded: true), outcome: .correct),
+
+        // Explicit: derivative labels
+        Case(name: "dy/dx = 2x passes explicit", student: "\\frac{dy}{dx}=2x", expected: "\\frac{dy}{dx}=2x", conditions: AnswerConditions(explicit: true), outcome: .correct),
+        Case(name: "y' = 2x passes explicit", student: "y'=2x", expected: "y'=2x", conditions: AnswerConditions(explicit: true), outcome: .correct),
+        Case(name: "y' = 2x passes implicitAllowed:false", student: "y'=2x", expected: "y'=2x", conditions: AnswerConditions(implicitAllowed: false), outcome: .correct),
+        Case(name: "dy/dx = -x/y passes explicit", student: "\\frac{dy}{dx}=-\\frac{x}{y}", expected: "\\frac{dy}{dx}=-\\frac{x}{y}", conditions: AnswerConditions(explicit: true), outcome: .correct),
+
+        // Single solution against a one-element set
+        Case(name: "x=2 vs {2}", student: "x=2", expected: "\\{2\\}", outcome: .correct),
+        Case(name: "2 vs {2}", student: "2", expected: "\\{2\\}", outcome: .correct),
+        Case(name: "{2} vs x=2", student: "\\{2\\}", expected: "x=2", outcome: .correct),
+        Case(name: "x=1/2 vs {0.5}", student: "x=\\frac{1}{2}", expected: "\\{0.5\\}", outcome: .correct),
+        Case(name: "x=3 vs {2} is wrong", student: "x=3", expected: "\\{2\\}", outcome: .incorrect),
+        Case(name: "2 vs {2,3} is wrong", student: "2", expected: "\\{2,3\\}", outcome: .incorrect),
+
+        // Rounded coefficients with variables
+        Case(name: "0.33x vs x/3 rounded", student: "0.33x", expected: "\\frac{x}{3}", conditions: AnswerConditions(roundingDecimals: 2), outcome: .correct),
+        Case(name: "3.14r² vs πr² rounded", student: "3.14r^2", expected: "\\pi r^2", conditions: AnswerConditions(roundingDecimals: 2), outcome: .correct),
+        Case(name: "0.3x vs x/3 rounded is wrong", student: "0.3x", expected: "\\frac{x}{3}", conditions: AnswerConditions(roundingDecimals: 2), outcome: .incorrect),
+        Case(name: "2.7x vs ex rounded is wrong", student: "2.7x", expected: "ex", conditions: AnswerConditions(roundingDecimals: 2), outcome: .incorrect),
+        Case(name: "1.41x+3.14 vs √2x+π rounded", student: "1.41x+3.14", expected: "\\sqrt{2}x+\\pi", conditions: AnswerConditions(roundingDecimals: 2), outcome: .correct),
+        Case(name: "0.33/x vs 1/(3x) rounded", student: "\\frac{0.33}{x}", expected: "\\frac{1}{3x}", conditions: AnswerConditions(roundingDecimals: 2), outcome: .correct),
+
+        // Comma lists of solutions are order-insensitive
+        Case(name: "x=2,-2 vs x=-2,2", student: "x=2,-2", expected: "x=-2,2", outcome: .correct),
+        Case(name: "θ=5π/6,π/6 vs θ=π/6,5π/6", student: "\\theta=\\frac{5\\pi}{6},\\frac{\\pi}{6}", expected: "\\theta=\\frac{\\pi}{6},\\frac{5\\pi}{6}", outcome: .correct),
+        Case(name: "x=2,-2 vs x=2,x=-2", student: "x=2,-2", expected: "x=2,x=-2", outcome: .correct),
+        Case(name: "bare 2,-2 vs -2,2", student: "2,-2", expected: "-2,2", outcome: .correct),
+        Case(name: "x=2,3 vs x=2,-2 is wrong", student: "x=2,3", expected: "x=2,-2", outcome: .incorrect),
+        Case(name: "(2,-2) vs (-2,2) stays ordered", student: "(2,-2)", expected: "(-2,2)", outcome: .incorrect),
+
+        // Unions of intervals
+        Case(name: "union order-insensitive", student: "(2,\\infty)\\cup(-\\infty,2)", expected: "(-\\infty,2)\\cup(2,\\infty)", outcome: .correct),
+        Case(name: "union with closed ends order-insensitive", student: "[2,\\infty)\\cup(-\\infty,0]", expected: "(-\\infty,0]\\cup[2,\\infty)", outcome: .correct),
+        Case(name: "union with wrong inclusivity", student: "(2,\\infty)\\cup(-\\infty,0]", expected: "(-\\infty,0]\\cup[2,\\infty)", outcome: .incorrect),
+        Case(name: "three-piece union reordered", student: "(-\\infty,2)\\cup(2,\\infty)\\cup(3,4)", expected: "(3,4)\\cup(-\\infty,2)\\cup(2,\\infty)", outcome: .correct),
+        Case(name: "union with wrong endpoint", student: "(-\\infty,2)\\cup(2,\\infty)", expected: "(-\\infty,3)\\cup(3,\\infty)", outcome: .incorrect),
+        Case(name: "missing union piece", student: "(-\\infty,2)", expected: "(-\\infty,2)\\cup(2,\\infty)", outcome: .incorrect),
+
         // Unparseable
         Case(name: "unclosed fraction", student: "\\frac{", expected: "x", outcome: .unparseable),
         Case(name: "empty answer", student: "", expected: "x", outcome: .unparseable),
@@ -162,6 +256,18 @@ final class MathEngineTests: XCTestCase {
         XCTAssertEqual(verdict.canonicalStudent, "\\frac{x}{2}")
         XCTAssertEqual(verdict.canonicalExpected, "\\frac{x}{2}")
         XCTAssertTrue(verdict.isCorrect)
+    }
+
+    func testChainedInequalityDisplayKeepsBothBounds() async {
+        let verdict = await Self.engine.grade(
+            student: "2<x<6",
+            expected: AnswerSpec(latex: "2<x<5"),
+            conditions: .none,
+            kind: .math
+        )
+        XCTAssertEqual(verdict.outcome, .incorrect)
+        XCTAssertEqual(verdict.canonicalStudent, "2\\lt x\\lt6")
+        XCTAssertEqual(verdict.canonicalExpected, "2\\lt x\\lt5")
     }
 
     func testMultipleFailedConditionsAreAllReported() async {

@@ -113,12 +113,23 @@ struct TemplateInstantiator {
         return errors
     }
 
+    /// Widest integer range a template parameter may declare (`max - min`).
+    static let maxIntRangeWidth = 1_000_000_000_000
+
     private func kindErrors(_ param: TemplateParam) -> [String] {
         switch param.kind {
         case let .int(min, max):
             guard min <= max else { return ["Parameter '\(param.name)': min \(min) is greater than max \(max)."] }
-            let available = (min...max).filter { value in !param.exclude.contains { abs($0 - Double(value)) < 1e-9 } }
-            return available.isEmpty ? ["Parameter '\(param.name)': every value in \(min)…\(max) is excluded."] : []
+            // Never materialise the range: an agent-written `1…1e9` must not allocate gigabytes here.
+            let (width, overflow) = max.subtractingReportingOverflow(min)
+            guard !overflow, width < Self.maxIntRangeWidth else {
+                return ["Parameter '\(param.name)': the range \(min)…\(max) is too wide (at most \(Self.maxIntRangeWidth) values)."]
+            }
+            let excludedInRange = Set(param.exclude.compactMap { value -> Int? in
+                guard value.isFinite, abs(value - value.rounded()) < 1e-9, let int = Int(exactly: value.rounded()) else { return nil }
+                return (min...max).contains(int) ? int : nil
+            }).count
+            return excludedInRange > width ? ["Parameter '\(param.name)': every value in \(min)…\(max) is excluded."] : []
         case let .real(min, max, decimals):
             var errors: [String] = []
             if !(min <= max) || !min.isFinite || !max.isFinite { errors.append("Parameter '\(param.name)': invalid real range.") }

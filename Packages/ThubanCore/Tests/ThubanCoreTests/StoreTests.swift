@@ -101,7 +101,7 @@ final class StoreTests: XCTestCase {
             XCTAssertTrue(tables.contains(table), "missing table \(table)")
         }
         let applied = try await store.queue.read { db in try Store.migrator.appliedIdentifiers(db) }
-        XCTAssertEqual(applied, ["v1"])
+        XCTAssertEqual(applied, Set(Store.migrationIdentifiers))
         XCTAssertTrue(FileManager.default.fileExists(atPath: locations.database?.path ?? ""))
         try store.close()
 
@@ -183,7 +183,8 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(listed[1], doc)
 
         try await store.update(status: .generating, detail: "Reading pages 4–9 of 22", model: "claude-sonnet-5", for: doc.id)
-        try await store.update(classification: .existingQuestions, questionCount: 7, figureCount: 2, for: doc.id)
+        try await store.update(classification: .existingQuestions, questionCount: 7, figureCount: 2,
+                               warnings: ["Part 2 of 3 could not be processed: boom", "Template rejected for \"Q4\""], for: doc.id)
         let updated = try await store.document(id: doc.id)
         XCTAssertEqual(updated?.status, .generating)
         XCTAssertEqual(updated?.statusDetail, "Reading pages 4–9 of 22")
@@ -191,6 +192,7 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(updated?.classification, .existingQuestions)
         XCTAssertEqual(updated?.questionCount, 7)
         XCTAssertEqual(updated?.figureCount, 2)
+        XCTAssertEqual(updated?.warnings, ["Part 2 of 3 could not be processed: boom", "Template rejected for \"Q4\""])
 
         doc.status = .done
         doc.byteCount = 9999
@@ -349,6 +351,37 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(remaining.map(\.id), [first.id])
     }
 
+    func testDeleteFiguresForDocumentRemovesRowsAndFilesOfThatDocumentOnly() async throws {
+        let store = try makeMemoryStore()
+        let studyClass = sampleClass()
+        try await store.insert(studyClass)
+        let doc = sampleDocument(classId: studyClass.id)
+        let other = sampleDocument(classId: studyClass.id, filename: "notes.pdf")
+        try await store.insert(doc)
+        try await store.insert(other)
+
+        let png = Data([0x89, 0x50, 0x4E, 0x47])
+        for (document, name) in [(doc, "0.png"), (doc, "1.png"), (other, "0.png")] {
+            let relative = "\(document.id.raw)/\(name)"
+            let url = store.locations.figures.appendingPathComponent(relative)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try png.write(to: url)
+            try await store.insert(Figure(documentId: document.id, pageOrIndex: 0, originalPath: relative))
+        }
+
+        let removed = try await store.deleteFigures(for: doc.id, deleteFiles: true)
+        XCTAssertEqual(removed, 2)
+        let mine = try await store.figures(for: doc.id)
+        XCTAssertTrue(mine.isEmpty)
+        let theirs = try await store.figures(for: other.id)
+        XCTAssertEqual(theirs.count, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: store.locations.figures.appendingPathComponent("\(doc.id.raw)/0.png").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: store.locations.figures.appendingPathComponent("\(other.id.raw)/0.png").path))
+
+        let none = try await store.deleteFigures(for: doc.id, deleteFiles: true)
+        XCTAssertEqual(none, 0, "a document without figures is a no-op")
+    }
+
     // MARK: Attempts and progress
 
     func testRecordAttemptStoresAttemptAndProgressAtomically() async throws {
@@ -428,6 +461,34 @@ final class StoreTests: XCTestCase {
         let wrongFirst = ProgressRules.apply(current: start, verdictScore: 0, at: at(8))
         XCTAssertEqual(wrongFirst.status, .learning)
         XCTAssertEqual(wrongFirst.streak, 0)
+    }
+
+    func testMasteryThresholdIsConfigurable() async throws {
+        let start = QuestionProgress(questionId: QuestionID.new())
+        // Threshold 1: the first correct answer masters the question.
+        XCTAssertEqual(ProgressRules.apply(current: start, verdictScore: 1, masteryStreak: 1, at: at(1)).status, .mastered)
+        // Threshold 3: two in a row is still learning, the third masters.
+        let one = ProgressRules.apply(current: start, verdictScore: 1, masteryStreak: 3, at: at(1))
+        let two = ProgressRules.apply(current: one, verdictScore: 1, masteryStreak: 3, at: at(2))
+        XCTAssertEqual(two.status, .learning)
+        XCTAssertEqual(two.streak, 2)
+        XCTAssertEqual(ProgressRules.apply(current: two, verdictScore: 1, masteryStreak: 3, at: at(3)).status, .mastered)
+        // Nonsense thresholds are clamped to 1 rather than making mastery unreachable.
+        XCTAssertEqual(ProgressRules.apply(current: start, verdictScore: 1, masteryStreak: 0, at: at(1)).status, .mastered)
+
+        // The store threads the threshold through `record(_:masteryStreak:)`.
+        let store = try makeMemoryStore()
+        let studyClass = sampleClass()
+        try await store.insert(studyClass)
+        let question = sampleQuestion(classId: studyClass.id)
+        try await store.insert([question])
+        try await store.record(attempt(on: question, seed: "seed0001", correct: true, at: at(1)), masteryStreak: 3)
+        try await store.record(attempt(on: question, seed: "seed0002", correct: true, at: at(2)), masteryStreak: 3)
+        let afterTwo = try await store.progress(for: question.id)
+        XCTAssertEqual(afterTwo.status, .learning)
+        try await store.record(attempt(on: question, seed: "seed0003", correct: true, at: at(3)), masteryStreak: 3)
+        let afterThree = try await store.progress(for: question.id)
+        XCTAssertEqual(afterThree.status, .mastered)
     }
 
     func testRetryOnSameInstanceDoesNotExtendStreak() async throws {
@@ -579,6 +640,28 @@ final class StoreTests: XCTestCase {
         XCTAssertFalse(fm.fileExists(atPath: docFile.deletingLastPathComponent().path), "empty class folder pruned")
         XCTAssertTrue(fm.fileExists(atPath: keptFile.path))
         XCTAssertTrue(fm.fileExists(atPath: store.locations.documents.path), "root directory survives")
+    }
+
+    func testDeleteClassSucceedsWhenAFileCannotBeRemoved() async throws {
+        // The rows are committed before the files go; a file that cannot be removed must not turn the deletion
+        // into an error, or callers would keep showing a class that no longer exists.
+        let store = try makeFileStore()
+        let studyClass = sampleClass()
+        try await store.insert(studyClass)
+        var doc = sampleDocument(classId: studyClass.id)
+        doc.storedPath = "../outside-the-root.pdf"   // unresolvable: `Store.resolve` refuses it
+        try await store.insert(doc)
+        let good = sampleDocument(classId: studyClass.id, filename: "good.pdf")
+        try await store.insert(good)
+        let goodFile = try writeFile(good.storedPath, under: store.locations.documents)
+
+        try await store.delete(studyClass.id, deleteFiles: true)
+
+        let classes = try await store.allClasses()
+        XCTAssertTrue(classes.isEmpty)
+        let docs = try await store.documents(in: studyClass.id)
+        XCTAssertTrue(docs.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: goodFile.path), "the removable file still goes")
     }
 
     func testDeleteClassWithoutDeleteFilesKeepsFiles() async throws {

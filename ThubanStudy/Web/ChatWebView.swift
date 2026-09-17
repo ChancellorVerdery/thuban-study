@@ -15,7 +15,8 @@ struct ChatWebView: View {
     @Observable
     final class Controller {
         let bridge: WebBridge
-        private(set) var isPageReady = false
+        /// True while the page that is currently attached has posted `ready`.
+        var isPageReady: Bool { bridge.isPageReady }
 
         /// A link inside a message was clicked. Default behaviour (when nil): open it in the browser.
         var onLinkClicked: ((URL) -> Void)?
@@ -24,7 +25,6 @@ struct ChatWebView: View {
         init() {
             bridge = WebBridge(name: "chat")
             bridge.on("ready") { [weak self] _ in
-                self?.isPageReady = true
                 self?.onReady?()
             }
             bridge.on("linkClicked") { [weak self] payload in
@@ -62,14 +62,17 @@ struct ChatWebView: View {
             bridge.send("clear")
         }
 
-        /// `{id, role, markdown, toolEvents:[{name, summary}], streaming}` as chat.js expects.
+        /// `{id, role, markdown, toolEvents:[{name, summary, kind, isError}], streaming}` as chat.js expects.
         static func payload(for message: TutorMessage, streaming: Bool) -> JSONValue {
             .object([
                 "id": .string(message.id.raw),
                 "role": .string(message.role.rawValue),
                 "markdown": .string(message.content),
                 "toolEvents": .array(message.toolEvents.map { event in
-                    .object(["id": .string(event.id), "name": .string(event.name), "summary": .string(event.summary), "kind": .string(Self.kind(for: event.name))])
+                    .object([
+                        "id": .string(event.id), "name": .string(event.name), "summary": .string(event.summary),
+                        "kind": .string(Self.kind(for: event.name)), "isError": .bool(event.isError),
+                    ])
                 }),
                 "streaming": .bool(streaming),
                 "solutionRequested": .bool(message.solutionRequested),

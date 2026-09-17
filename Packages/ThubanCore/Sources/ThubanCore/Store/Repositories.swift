@@ -113,17 +113,19 @@ public struct QuestionFilter: Sendable, Equatable {
 /// - a wrong attempt resets the streak; after `.mastered` (or while in `.needsReview`) ⇒ `.needsReview`, otherwise
 ///   the question stays in `.learning`.
 public enum ProgressRules {
-    /// Consecutive first-try correct attempts needed for mastery.
+    /// Default consecutive first-try correct attempts needed for mastery (Settings › Question bank can override).
     public static let masteryStreak = 2
     /// Attempts scoring at least this much count as correct.
     public static let passingScore = 1.0
 
     /// Returns the progress after an attempt with `verdictScore` (0…1). `isFirstTry` is false when the student
     /// re-submits the same instance after an earlier attempt; such retries never extend the streak.
+    /// `masteryStreak` is the streak needed for `.mastered` (clamped to ≥ 1).
     public static func apply(
         current: QuestionProgress,
         verdictScore: Double,
         isFirstTry: Bool = true,
+        masteryStreak: Int = ProgressRules.masteryStreak,
         at date: Date = Date()
     ) -> QuestionProgress {
         var next = current
@@ -131,7 +133,7 @@ public enum ProgressRules {
         next.lastScore = verdictScore
         if verdictScore >= passingScore {
             if isFirstTry { next.streak += 1 }
-            next.status = (current.status == .mastered || next.streak >= masteryStreak) ? .mastered : .learning
+            next.status = (current.status == .mastered || next.streak >= max(1, masteryStreak)) ? .mastered : .learning
         } else {
             next.streak = 0
             next.status = (current.status == .mastered || current.status == .needsReview) ? .needsReview : .learning

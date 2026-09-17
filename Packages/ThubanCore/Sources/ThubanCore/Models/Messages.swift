@@ -13,15 +13,18 @@ public struct ToolEvent: Codable, Identifiable, Sendable, Equatable {
     /// Student-facing one-liner, e.g. "Added y = 2x + 1 to the graph".
     public var summary: String
     public var input: JSONValue?
+    /// True when the tool handler rejected the call (the summary then describes the failure, not an edit).
+    public var isError: Bool
 
-    public init(id: String = UUID().uuidString, name: String, summary: String, input: JSONValue? = nil) {
+    public init(id: String = UUID().uuidString, name: String, summary: String, input: JSONValue? = nil, isError: Bool = false) {
         self.id = id
         self.name = name
         self.summary = summary
         self.input = input
+        self.isError = isError
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, summary, input }
+    private enum CodingKeys: String, CodingKey { case id, name, summary, input, isError }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -29,6 +32,16 @@ public struct ToolEvent: Codable, Identifiable, Sendable, Equatable {
         name = try c.decode(String.self, forKey: .name)
         summary = try c.decodeIfPresent(String.self, forKey: .summary) ?? ""
         input = try c.decodeIfPresent(JSONValue.self, forKey: .input)
+        isError = try c.decodeIfPresent(Bool.self, forKey: .isError) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(summary, forKey: .summary)
+        try c.encodeIfPresent(input, forKey: .input)
+        if isError { try c.encode(isError, forKey: .isError) }
     }
 }
 

@@ -389,7 +389,7 @@ private struct FigureReviewPane: View {
             Chip(chart.chartType.capitalized, kind: .accent)
             Chip("Axes: \(chart.xLabel?.nilIfEmpty ?? "x") / \(chart.yLabel?.nilIfEmpty ?? "y")", kind: .neutral)
             Chip("\(chart.series.count) series", kind: .neutral)
-            Chip("Confidence \(Int((chart.confidence * 100).rounded()))%", kind: chart.confidence >= 0.7 ? .pos : .warn)
+            Chip("Confidence \(Int((StandardChart.clampedConfidence(chart.confidence) * 100).rounded()))%", kind: chart.confidence >= 0.7 ? .pos : .warn)
             Spacer()
             FigureStatusChip(status: figure.status)
         }

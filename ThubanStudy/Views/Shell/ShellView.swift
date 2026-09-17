@@ -107,11 +107,11 @@ struct ConnectionChip: View {
         Button {
             openWindow(id: "settings")
         } label: {
-            Chip(app.isConnected ? "Connected" : "Not connected", kind: app.isConnected ? .pos : .neutral, dot: true)
+            Chip(app.connectionSummary, kind: app.isConnected ? .pos : (app.connection.needsAttention ? .warn : .neutral), dot: true)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(app.isConnected ? "Claude account connected. Open Settings" : "Claude account not connected. Open Settings")
-        .help(app.isConnected ? "Claude account connected" : "Connect your Claude account in Settings")
+        .accessibilityLabel(app.isConnected ? "Claude account connected. Open Settings" : "Claude account \(app.connectionSummary.lowercased()). Open Settings")
+        .help(app.isConnected ? "Claude account connected" : (app.connection.needsAttention ? "Sign in to Claude again in Settings" : "Connect your Claude account in Settings"))
     }
 }
 
@@ -267,8 +267,15 @@ struct WelcomeView: View {
                         body: app.isConnected ? "Your Claude account is connected." : "The tutor and the import agent run on your Claude account or an API key.",
                         done: app.isConnected
                     ) {
-                        Button(app.isConnected ? "Manage account" : "Connect…") { openWindow(id: "settings") }
-                            .buttonStyle(app.isConnected ? AnyButtonStyle(.thubanSecondary) : AnyButtonStyle(.thubanPrimary))
+                        // Two Buttons rather than a type-erased style: a ButtonStyle only gets its environment
+                        // (theme, isEnabled) when SwiftUI installs it through `.buttonStyle()`.
+                        if app.isConnected {
+                            Button("Manage account") { openWindow(id: "settings") }
+                                .buttonStyle(.thubanSecondary)
+                        } else {
+                            Button("Connect…") { openWindow(id: "settings") }
+                                .buttonStyle(.thubanPrimary)
+                        }
                     }
                     WelcomeStep(
                         number: "2",
@@ -332,18 +339,5 @@ private struct WelcomeStep<Action: View>: View {
             action()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-/// Type-erased button style so a branch can pick between two styles.
-struct AnyButtonStyle: ButtonStyle {
-    private let make: (Configuration) -> AnyView
-
-    init<S: ButtonStyle>(_ style: S) {
-        make = { AnyView(style.makeBody(configuration: $0)) }
-    }
-
-    func makeBody(configuration: Configuration) -> some View {
-        make(configuration)
     }
 }

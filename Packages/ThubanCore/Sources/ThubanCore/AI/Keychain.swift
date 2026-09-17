@@ -37,7 +37,12 @@ public enum Keychain {
     }
 }
 
-/// `kSecClassGenericPassword` items under one service, accessible when the device is unlocked.
+/// `kSecClassGenericPassword` items under one service in the login keychain. Access is governed by that keychain's
+/// per-item ACL, which trusts the binary that created the item: an ad-hoc-signed development build changes identity
+/// on every rebuild, so macOS asks the student to allow the first read. A refused prompt (or a locked keychain)
+/// surfaces as `ThubanError.keychainDenied` so the app can point at Settings instead of reporting a storage error.
+/// (`kSecAttrAccessible` is not set: the login keychain ignores it; it only applies to the data-protection keychain,
+/// which needs a signed app with an application identifier.)
 public struct SecurityKeychain: KeychainStorage {
     public let service: String
 
@@ -54,10 +59,7 @@ public struct SecurityKeychain: KeychainStorage {
     }
 
     public func save(_ data: Data, account: String) throws {
-        let attributes: [String: Any] = [
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
-        ]
+        let attributes: [String: Any] = [kSecValueData as String: data]
         let query = baseQuery(account: account)
         let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
         if updateStatus == errSecSuccess { return }
@@ -84,8 +86,13 @@ public struct SecurityKeychain: KeychainStorage {
         guard status == errSecSuccess || status == errSecItemNotFound else { throw Self.error(status, "delete") }
     }
 
+    /// Statuses that mean the OS would not let this binary at the item (denied prompt, locked or non-interactive
+    /// keychain) rather than a broken item.
+    static let accessDeniedStatuses: Set<OSStatus> = [errSecAuthFailed, errSecInteractionNotAllowed, errSecUserCanceled]
+
     private static func error(_ status: OSStatus, _ operation: String) -> ThubanError {
         let message = (SecCopyErrorMessageString(status, nil) as String?) ?? "OSStatus \(status)"
+        if accessDeniedStatuses.contains(status) { return .keychainDenied(message) }
         return .store("Keychain \(operation) failed: \(message)")
     }
 }

@@ -41,7 +41,7 @@ struct DeleteClassAlert: View {
                                 ProgressView().controlSize(.small)
                                 Text("Counting what this class holds…")
                                     .font(ThubanFont.small)
-                                    .foregroundStyle(theme.inkFaintColor)
+                                    .foregroundStyle(theme.inkDimColor)
                             }
                         }
                         if let countsError {
@@ -61,7 +61,7 @@ struct DeleteClassAlert: View {
 
                 Text("Attempts, progress and the tutor transcript go with the class. This cannot be undone.")
                     .font(ThubanFont.small)
-                    .foregroundStyle(theme.inkFaintColor)
+                    .foregroundStyle(theme.inkDimColor)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let error {
@@ -75,9 +75,10 @@ struct DeleteClassAlert: View {
             Button("Cancel") { dismiss() }
                 .buttonStyle(.thubanSecondary)
                 .keyboardShortcut(.cancelAction)
+            // Deliberately no `.defaultAction`: Return must not delete a class (HIG — destructive actions are
+            // never the default); Escape cancels, the button needs a click.
             Button(isDeleting ? "Deleting…" : "Delete class") { confirm() }
                 .buttonStyle(DestructiveButtonStyle())
-                .keyboardShortcut(.defaultAction)
                 .disabled(isDeleting)
         }
         .task(id: studyClass.id) { await loadCounts() }

@@ -27,6 +27,13 @@ final class AppModel {
 
     private(set) var connection: ConnectionStatus = .notConnected
     var isConnected: Bool { connection.isConnected }
+    /// What the connection chips say: "Connected", "Sign in again" (credentials need attention) or "Not connected".
+    var connectionSummary: String {
+        if connection.isConnected { return "Connected" }
+        return connection.needsAttention ? "Sign in again" : "Not connected"
+    }
+    /// The last failure from Disconnect (a Keychain delete the OS refused); shown on the account card.
+    private(set) var accountError: String?
 
     // MARK: Theme
 
@@ -57,6 +64,12 @@ final class AppModel {
     var selectedSession: ClassSession? {
         guard let selectedClassID, classes.contains(where: { $0.id == selectedClassID }) else { return nil }
         return session(for: selectedClassID)
+    }
+
+    /// The selected session only while its Study section is on screen (the target of the Study menu commands).
+    var studySession: ClassSession? {
+        guard let session = selectedSession, session.section == .study else { return nil }
+        return session
     }
 
     // MARK: Settings values
@@ -131,6 +144,9 @@ final class AppModel {
             startupError = startupError ?? error.localizedDescription
         }
         recomputeTheme()
+        // Question-bank defaults (mastery threshold, auto-regenerate, questions per chunk) are read by grading
+        // and the import pipeline, so they must be loaded before the first attempt, not only when Settings opens.
+        await questionBankSettings.load()
         await refreshConnection()
         isLoaded = true
         Task.detached(priority: .utility) { [engine] in
@@ -157,16 +173,31 @@ final class AppModel {
 
     func setAPIKey(_ key: String) async throws {
         try await credentials.setAPIKey(key)
+        accountError = nil
         await refreshConnection()
     }
 
     func setOAuth(_ tokens: OAuthTokens) async throws {
         try await credentials.setOAuth(tokens)
+        accountError = nil
         await refreshConnection()
     }
 
     func disconnect() async {
-        try? await credentials.disconnect()
+        do {
+            try await credentials.disconnect()
+            accountError = nil
+        } catch {
+            accountError = "Disconnect did not finish: \(error.localizedDescription)"
+        }
+        await refreshConnection()
+    }
+
+    /// A tutor or import request failed because of the credentials: mark rejected OAuth tokens as expired so the
+    /// status chip and the account card say "Sign in again" instead of "Connected", and re-read the status.
+    func noteCredentialProblem(_ error: ThubanError) async {
+        // Only a 401 proves the token itself is dead; a 403 can be a per-request permission problem.
+        if case .api(let status, _) = error, status == 401 { await credentials.noteAuthenticationFailure() }
         await refreshConnection()
     }
 
@@ -296,12 +327,21 @@ final class AppModel {
     }
 
     func deleteClass(_ id: ClassID, deleteFiles: Bool) async throws {
-        try await store.delete(id, deleteFiles: deleteFiles)
-        sessions[id] = nil
-        classes = try await store.allClasses()
-        if selectedClassID == id {
-            selectedClassID = classes.first?.id
+        var failure: Error?
+        do {
+            try await store.delete(id, deleteFiles: deleteFiles)
+        } catch {
+            failure = error
         }
+        // Whatever happened, the tabs follow the database: a class whose rows are gone must not stay on screen.
+        classes = try await store.allClasses()
+        if !classes.contains(where: { $0.id == id }) {
+            sessions[id] = nil
+            if selectedClassID == id {
+                selectedClassID = classes.first?.id
+            }
+        }
+        if let failure { throw failure }
     }
 
     /// Persists a new tab order (ids in display order).
@@ -331,16 +371,20 @@ final class AppModel {
             guard let session = selectedSession else { isPresentingNewClass = true; return }
             session.section = .importDocs
             importPanelRequest += 1
+        // The Study commands only act while the Study section is showing; on the bank or import screens the
+        // toggles are invisible and ⌘→ / ⌘⇧R would silently re-instantiate the hidden question.
         case .toggleGraph:
-            selectedSession?.showGraph.toggle()
+            studySession?.showGraph.toggle()
         case .toggleCalculator:
-            selectedSession?.showCalculator.toggle()
+            studySession?.showCalculator.toggle()
         case .toggleKeyboard:
-            selectedSession?.showKeyboard.toggle()
+            studySession?.showKeyboard.toggle()
         case .nextQuestion:
-            selectedSession?.next()
+            studySession?.next()
         case .regenerate:
-            guard let session = selectedSession else { return }
+            // Templates only (the action bar shows "Regenerate numbers" for .mathTemplate alone); for any other
+            // kind a regenerate would just wipe the student's typed answers.
+            guard let session = studySession, session.canRegenerate else { return }
             Task { await session.regenerate() }
         case .checkAnswers, .showHint:
             // Implemented by the Study screen through `commands.register`.

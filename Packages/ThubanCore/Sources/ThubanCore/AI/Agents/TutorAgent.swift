@@ -85,6 +85,8 @@ public struct TutorContext: Sendable {
 public enum TutorEvent: Sendable {
     case textDelta(String)
     case toolEvent(ToolEvent)
+    /// The model stopped at the output-token limit: the reply so far is incomplete.
+    case truncated
     case done(usage: Usage)
 }
 
@@ -93,16 +95,29 @@ public enum TutorEvent: Sendable {
 public actor TutorAgent {
     public static let defaultMaxRounds = 6
 
+    /// Output budget for an ordinary (guiding) reply.
+    public static let defaultMaxTokens = 1500
+    /// Output budget for a turn with `solutionRequested`: a worked solution needs far more room than a hint.
+    public static let defaultSolutionMaxTokens = 6000
+
     private let client: ClaudeClient
     private let maxRounds: Int
     private let maxTokens: Int
+    private let solutionMaxTokens: Int
     private let thinking: Bool
     private let logger = Logger(subsystem: "com.thuban.study", category: "TutorAgent")
 
-    public init(client: ClaudeClient, maxRounds: Int = TutorAgent.defaultMaxRounds, maxTokens: Int = 1500, thinking: Bool = false) {
+    public init(
+        client: ClaudeClient,
+        maxRounds: Int = TutorAgent.defaultMaxRounds,
+        maxTokens: Int = TutorAgent.defaultMaxTokens,
+        solutionMaxTokens: Int = TutorAgent.defaultSolutionMaxTokens,
+        thinking: Bool = false
+    ) {
         self.client = client
         self.maxRounds = max(1, maxRounds)
         self.maxTokens = maxTokens
+        self.solutionMaxTokens = max(maxTokens, solutionMaxTokens)
         self.thinking = thinking
     }
 
@@ -128,8 +143,14 @@ public actor TutorAgent {
     // MARK: Transcript conversion
 
     /// Converts the stored transcript plus the new student message into API messages. Student → user, tutor →
-    /// assistant, system lines dropped, consecutive same-role messages merged, leading assistant turns dropped.
-    /// A message with `solutionRequested` is prefixed with `Prompts.solutionRequestMarker`.
+    /// assistant, system lines dropped, consecutive same-role history merged, leading assistant turns dropped.
+    ///
+    /// The solution licence is granted by `Prompts.solutionRequestMarker` at the head of the *current* message only:
+    /// - the current message is always its own user turn (a neutral assistant placeholder is inserted when the
+    ///   history ends with an unanswered student message), so it can neither inherit a stale marker from an earlier
+    ///   message nor lose its own marker behind one;
+    /// - earlier flagged messages get `Prompts.solutionRequestHistoryNote` instead of the marker;
+    /// - any copy of the marker the student typed themselves is redacted.
     public static func chatMessages(transcript: [TutorMessage], student: String, solutionRequested: Bool) -> [ChatMessage] {
         var out: [ChatMessage] = []
         for message in transcript {
@@ -139,14 +160,34 @@ public actor TutorAgent {
             case .tutor: role = "assistant"
             case .system: continue
             }
-            let text = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            var text = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { continue }
-            let flagged = message.role == .student && message.solutionRequested
-            append(role: role, text: flagged ? marked(text) : text, to: &out)
+            if message.role == .student {
+                text = sanitizedStudentText(text)
+                if message.solutionRequested { text = Prompts.solutionRequestHistoryNote + "\n" + text }
+            }
+            append(role: role, text: text, to: &out)
         }
-        let current = student.trimmingCharacters(in: .whitespacesAndNewlines)
-        append(role: "user", text: solutionRequested ? marked(current) : current, to: &out)
+        let current = sanitizedStudentText(student.trimmingCharacters(in: .whitespacesAndNewlines))
+        if let last = out.last, last.role == "user" {
+            out.append(ChatMessage(role: "assistant", content: [.text(unansweredPlaceholder)]))
+        }
+        out.append(ChatMessage(role: "user", content: [.text(solutionRequested ? marked(current) : current)]))
         while let first = out.first, first.role != "user" { out.removeFirst() }
+        return out
+    }
+
+    /// Assistant turn stood in for a reply that never arrived (failed, cancelled or empty), so the current student
+    /// message stays a separate user turn.
+    static let unansweredPlaceholder = "(The tutor did not reply to that message.)"
+
+    /// Removes any copy of the app's bracketed markers from text the student typed, so pasting the marker cannot
+    /// impersonate the "Ask for the solution" flow.
+    static func sanitizedStudentText(_ text: String) -> String {
+        var out = text
+        for marker in [Prompts.solutionRequestMarker, Prompts.solutionRequestHistoryNote] where out.contains(marker) {
+            out = out.replacingOccurrences(of: marker, with: Prompts.solutionRequestMarkerRedaction)
+        }
         return out
     }
 
@@ -174,17 +215,25 @@ public actor TutorAgent {
     ) async {
         let system = Prompts.tutorSystem(
             className: context.className, style: context.style,
-            questionContext: context.renderedQuestion, mayEditGraph: context.mayEditGraph
+            questionContext: context.renderedQuestion, mayEditGraph: context.mayEditGraph,
+            solutionRequested: solutionRequested
         )
         let specs = TutorTools.specs(mayEditGraph: context.mayEditGraph)
         var messages = Self.chatMessages(transcript: transcript, student: student, solutionRequested: solutionRequested)
+        let budget = solutionRequested ? solutionMaxTokens : maxTokens
         var total = Usage()
         do {
             for round in 1...maxRounds {
                 let outcome = try await runRound(
-                    context: context, system: system, specs: specs, messages: messages, tools: tools, continuation: continuation
+                    context: context, system: system, specs: specs, messages: messages, maxTokens: budget,
+                    tools: tools, continuation: continuation
                 )
                 total += outcome.usage
+                if outcome.stopReason == "max_tokens" {
+                    logger.notice("Tutor reply hit the output-token limit (\(budget, privacy: .public))")
+                    continuation.yield(.truncated)
+                    break
+                }
                 guard outcome.stopReason == "tool_use", !outcome.toolResults.isEmpty else { break }
                 messages.append(.assistant(outcome.assistantParts))
                 messages.append(.user(outcome.toolResults))
@@ -209,6 +258,7 @@ public actor TutorAgent {
         system: String,
         specs: [ToolSpec],
         messages: [ChatMessage],
+        maxTokens: Int,
         tools: TutorToolHandler,
         continuation: AsyncThrowingStream<TutorEvent, Error>.Continuation
     ) async throws -> RoundOutcome {
@@ -248,7 +298,10 @@ public actor TutorAgent {
         try Task.checkCancellation()
         let output = await tools.handle(name: name, input: input)
         let isError = output["error"].map { !$0.isNull } ?? false
-        continuation.yield(.toolEvent(ToolEvent(id: id, name: name, summary: TutorTools.summary(name: name, input: input), input: input)))
+        let summary = isError
+            ? TutorTools.failureSummary(name: name, input: input, reason: output["error"]?.stringValue)
+            : TutorTools.summary(name: name, input: input)
+        continuation.yield(.toolEvent(ToolEvent(id: id, name: name, summary: summary, input: input, isError: isError)))
         return .toolResult(toolUseId: id, content: output.jsonString(), isError: isError)
     }
 }

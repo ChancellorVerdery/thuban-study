@@ -161,13 +161,122 @@ enum OfficeXML {
             guard let element = child as? Element else { continue }
             let tag = element.tagNameNormal()
             switch tag {
-            case "w:t", "a:t", "t": text += element.getChildNodes().compactMap { ($0 as? TextNode)?.getWholeText() }.joined()
+            case "w:t", "a:t", "t", "m:t": text += ownText(of: element)
             case "w:tab", "a:tab": text += "\t"
             case "w:br", "a:br", "w:cr": text += "\n"
             case "w:deltext", "w:instrtext": continue
             case "w:sym": text += " "
+            case "m:omath":
+                // An equation-editor formula: linearised to LaTeX so the math survives in the chunk text.
+                let latex = OMML.linearize(element).trimmingCharacters(in: .whitespaces)
+                if !latex.isEmpty { text += "$\(latex)$" }
             default: appendRunText(element, into: &text)
             }
+        }
+    }
+
+    static func ownText(of element: Element) -> String {
+        element.getChildNodes().compactMap { ($0 as? TextNode)?.getWholeText() }.joined()
+    }
+}
+
+/// Office MathML (`m:oMath`) → a LaTeX-ish linear form. Structures the mapping does not know are flattened to the
+/// text of their runs, so no equation content is lost.
+enum OMML {
+    static func linearize(_ node: Element) -> String {
+        var out = ""
+        for child in node.children() {
+            let tag = child.tagNameNormal()
+            switch tag {
+            case "m:r": out += runText(child)
+            case "m:t": out += OfficeXML.ownText(of: child)
+            case "m:f": out += "\\frac{\(part(child, "m:num"))}{\(part(child, "m:den"))}"
+            case "m:ssup": out += "{\(part(child, "m:e"))}^{\(part(child, "m:sup"))}"
+            case "m:ssub": out += "{\(part(child, "m:e"))}_{\(part(child, "m:sub"))}"
+            case "m:ssubsup": out += "{\(part(child, "m:e"))}_{\(part(child, "m:sub"))}^{\(part(child, "m:sup"))}"
+            case "m:spre": out += "{}_{\(part(child, "m:sub"))}^{\(part(child, "m:sup"))}{\(part(child, "m:e"))}"
+            case "m:rad":
+                let degree = property(child, "m:radpr", "m:deghide") == "1" ? "" : part(child, "m:deg")
+                out += degree.isEmpty ? "\\sqrt{\(part(child, "m:e"))}" : "\\sqrt[\(degree)]{\(part(child, "m:e"))}"
+            case "m:d":
+                let open = property(child, "m:dpr", "m:begchr", default: "(")
+                let close = property(child, "m:dpr", "m:endchr", default: ")")
+                let separator = property(child, "m:dpr", "m:sepchr", default: ",")
+                let items = OfficeXML.children(of: child, named: "m:e").map(linearize)
+                out += "\\left\(escapedDelimiter(open))" + items.joined(separator: separator) + "\\right\(escapedDelimiter(close))"
+            case "m:nary":
+                let symbol = property(child, "m:narypr", "m:chr", default: "∫")
+                let sub = part(child, "m:sub"), sup = part(child, "m:sup")
+                out += naryCommand(symbol)
+                if !sub.isEmpty { out += "_{\(sub)}" }
+                if !sup.isEmpty { out += "^{\(sup)}" }
+                out += " \(part(child, "m:e"))"
+            case "m:func": out += "\(part(child, "m:fname")) \(part(child, "m:e"))"
+            case "m:limlow": out += "{\(part(child, "m:e"))}_{\(part(child, "m:lim"))}"
+            case "m:limupp": out += "{\(part(child, "m:e"))}^{\(part(child, "m:lim"))}"
+            case "m:bar": out += "\\overline{\(part(child, "m:e"))}"
+            case "m:acc":
+                let accent = property(child, "m:accpr", "m:chr", default: "\u{0302}")
+                out += accent == "\u{0302}" ? "\\hat{\(part(child, "m:e"))}" : "\(part(child, "m:e"))\(accent)"
+            case "m:m":
+                let rows = OfficeXML.children(of: child, named: "m:mr").map { row in
+                    OfficeXML.children(of: row, named: "m:e").map(linearize).joined(separator: " & ")
+                }
+                out += "\\begin{matrix}" + rows.joined(separator: " \\\\ ") + "\\end{matrix}"
+            case "m:eqarr":
+                out += OfficeXML.children(of: child, named: "m:e").map(linearize).joined(separator: " \\\\ ")
+            default:
+                // Property elements carry no content; any other structure is flattened.
+                if tag.hasSuffix("pr") || tag == "m:ctrlpr" { continue }
+                out += linearize(child)
+            }
+        }
+        return out
+    }
+
+    private static func runText(_ run: Element) -> String {
+        var text = ""
+        for child in run.children() {
+            let tag = child.tagNameNormal()
+            if tag == "m:t" || tag == "w:t" { text += OfficeXML.ownText(of: child) }
+        }
+        return text
+    }
+
+    /// Linearised content of the first `name` child (`m:num`, `m:e`, …), or "".
+    private static func part(_ element: Element, _ name: String) -> String {
+        OfficeXML.children(of: element, named: name).first.map(linearize) ?? ""
+    }
+
+    /// `m:val` of `<props><key m:val="…"/></props>`, or the default when absent.
+    private static func property(_ element: Element, _ props: String, _ key: String, default fallback: String = "") -> String {
+        guard let properties = OfficeXML.children(of: element, named: props).first,
+              let item = OfficeXML.children(of: properties, named: key).first else { return fallback }
+        let value = OfficeXML.attribute(item, "val")
+        return value.isEmpty ? fallback : value
+    }
+
+    private static func escapedDelimiter(_ char: String) -> String {
+        switch char {
+        case "{": return "\\{"
+        case "}": return "\\}"
+        case "|": return "|"
+        case "": return "."
+        default: return char
+        }
+    }
+
+    private static func naryCommand(_ symbol: String) -> String {
+        switch symbol {
+        case "∫": return "\\int"
+        case "∬": return "\\iint"
+        case "∭": return "\\iiint"
+        case "∮": return "\\oint"
+        case "∑": return "\\sum"
+        case "∏": return "\\prod"
+        case "⋃": return "\\bigcup"
+        case "⋂": return "\\bigcap"
+        default: return symbol
         }
     }
 }

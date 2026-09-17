@@ -75,6 +75,30 @@ final class AITests: XCTestCase {
         XCTAssertEqual(stop, ["tool_use"])
     }
 
+    func testDecoderDropsToolBlockCutOffByMaxTokens() throws {
+        let truncated = SSE.messageStart()
+            + SSE.toolUseBlock(index: 0, id: "toolu_1", name: "emit_questions", partials: [#"{"questions":[{"stem":"Le"#])
+            + SSE.messageEnd(stopReason: "max_tokens")
+        var parser = SSEParser()
+        var decoder = MessagesStreamDecoder()
+        var events: [StreamEvent] = []
+        for sse in parser.feed(Data(truncated.utf8)) + parser.finish() { events += try decoder.decode(sse) }
+        XCTAssertFalse(events.contains { if case .toolUseEnd = $0 { return true } else { return false } }, "a cut-off tool block is dropped")
+        let stop = events.compactMap { if case .messageEnd(let r, _) = $0 { return r } else { return nil } }
+        XCTAssertEqual(stop, ["max_tokens"])
+
+        // The same broken JSON with a normal stop reason is still a parse error.
+        let broken = SSE.messageStart()
+            + SSE.toolUseBlock(index: 0, id: "toolu_2", name: "emit_questions", partials: [#"{"questions":[{"stem":"Le"#])
+            + SSE.messageEnd(stopReason: "tool_use")
+        var parser2 = SSEParser()
+        var decoder2 = MessagesStreamDecoder()
+        XCTAssertThrowsError(try (parser2.feed(Data(broken.utf8)) + parser2.finish()).forEach { _ = try decoder2.decode($0) }) { error in
+            guard case .parse(let detail)? = error as? ThubanError else { return XCTFail("unexpected \(error)") }
+            XCTAssertTrue(detail.contains("emit_questions"))
+        }
+    }
+
     func testDecoderMapsErrorEvent() throws {
         var decoder = MessagesStreamDecoder()
         let events = try decoder.decode(SSEEvent(event: "error", data: #"{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}"#))
@@ -329,6 +353,220 @@ final class AITests: XCTestCase {
         XCTAssertEqual(keychain.accounts, [])
         status = await again.status()
         XCTAssertEqual(status, .notConnected)
+    }
+
+    private static let epoch = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func staleTokens(expiringIn seconds: TimeInterval = 120) -> OAuthTokens {
+        OAuthTokens(accessToken: "old", refreshToken: "ref", expiresAt: Self.epoch.addingTimeInterval(seconds),
+                    scopes: ["user:inference"], accountEmail: "me@x.y")
+    }
+
+    func testRefusedRefreshMarksTheSignInExpired() async throws {
+        let keychain = InMemoryKeychain()
+        let transport = MockTransport([.json(#"{"error":"invalid_grant","error_description":"Refresh token revoked"}"#, status: 400)])
+        let flow = try OAuthFlow(transport: transport, now: { Self.epoch })
+        let store = CredentialStore(keychain: keychain, refresher: { try await flow.refresh($0) }, now: { Self.epoch })
+        try await store.setOAuth(staleTokens())
+
+        await XCTAssertThrowsErrorAsync(try await store.currentAuth()) { XCTAssertEqual($0 as? ThubanError, .sessionExpired) }
+        XCTAssertTrue(ThubanError.sessionExpired.isAuthFailure)
+        XCTAssertTrue(ThubanError.api(status: 401, message: "x").isAuthFailure)
+        XCTAssertTrue(ThubanError.api(status: 403, message: "x").isAuthFailure)
+        XCTAssertFalse(ThubanError.api(status: 500, message: "x").isAuthFailure)
+        XCTAssertTrue(ThubanError.keychainDenied("x").isCredentialProblem)
+
+        // Stays expired (no second refresh attempt) until the student signs in again or disconnects.
+        var status = await store.status()
+        XCTAssertEqual(status, .oauthExpired(email: "me@x.y"))
+        XCTAssertFalse(status.isConnected)
+        XCTAssertTrue(status.needsAttention)
+        await XCTAssertThrowsErrorAsync(try await store.currentAuth()) { XCTAssertEqual($0 as? ThubanError, .sessionExpired) }
+        XCTAssertEqual(transport.requests.count, 1)
+
+        try await store.setOAuth(staleTokens(expiringIn: 7200))
+        status = await store.status()
+        XCTAssertEqual(status, .oauth(email: "me@x.y", expiresAt: Self.epoch.addingTimeInterval(7200)))
+        let auth = try await store.currentAuth()
+        XCTAssertEqual(auth, .oauth(accessToken: "old"))
+    }
+
+    func testAPIRejectionMarksTheSignInExpired() async throws {
+        let store = CredentialStore(keychain: InMemoryKeychain(), refresher: { $0 }, now: { Self.epoch })
+        try await store.setOAuth(staleTokens(expiringIn: 7200))
+        await store.noteAuthenticationFailure()
+        let status = await store.status()
+        XCTAssertEqual(status, .oauthExpired(email: "me@x.y"))
+        await XCTAssertThrowsErrorAsync(try await store.currentAuth()) { XCTAssertEqual($0 as? ThubanError, .sessionExpired) }
+        try await store.disconnect()
+        let after = await store.status()
+        XCTAssertEqual(after, .notConnected)
+    }
+
+    func testDisconnectDuringRefreshDoesNotResurrectTokens() async throws {
+        let keychain = InMemoryKeychain()
+        let gate = Gate()
+        let store = CredentialStore(keychain: keychain, refresher: { tokens in
+            await gate.wait()
+            return OAuthTokens(accessToken: "new", refreshToken: "ref2", expiresAt: Self.epoch.addingTimeInterval(7200))
+        }, now: { Self.epoch })
+        try await store.setOAuth(staleTokens())
+
+        let refreshing = Task { try await store.currentAuth() }
+        await gate.waitForWaiter()
+        try await store.disconnect()
+        await gate.open()
+
+        await XCTAssertThrowsErrorAsync(try await refreshing.value) { XCTAssertEqual($0 as? ThubanError, .notConnected) }
+        XCTAssertEqual(keychain.accounts, [])
+        let status = await store.status()
+        XCTAssertEqual(status, .notConnected)
+    }
+
+    func testJoinedCallersShareTheRefreshOutcome() async throws {
+        let gate = Gate()
+        let store = CredentialStore(keychain: InMemoryKeychain(), refresher: { _ in
+            await gate.wait()
+            throw URLError(.notConnectedToInternet)
+        }, now: { Self.epoch })
+        try await store.setOAuth(staleTokens())
+
+        let first = Task { try await store.currentAuth() }
+        await gate.waitForWaiter()
+        let second = Task { try await store.currentAuth() }
+        // Let the second caller join the in-flight task before the failure lands.
+        try await Task.sleep(nanoseconds: 50_000_000)
+        await gate.open()
+
+        // Transient failure while the old token is still valid: both callers get the old token.
+        let a = try await first.value
+        let b = try await second.value
+        XCTAssertEqual(a, .oauth(accessToken: "old"))
+        XCTAssertEqual(b, .oauth(accessToken: "old"))
+        let calls = await gate.waiterCount
+        XCTAssertEqual(calls, 1, "one shared refresh")
+    }
+
+    func testRefreshedTokensSurviveAKeychainWriteFailure() async throws {
+        let keychain = FlakyKeychain()
+        let store = CredentialStore(keychain: keychain, refresher: { old in
+            OAuthTokens(accessToken: "new", refreshToken: "ref2", expiresAt: Self.epoch.addingTimeInterval(7200),
+                        scopes: old.scopes, accountEmail: old.accountEmail)
+        }, now: { Self.epoch })
+        try await store.setOAuth(staleTokens())
+        keychain.failSaves = true
+
+        let auth = try await store.currentAuth()
+        XCTAssertEqual(auth, .oauth(accessToken: "new"), "the rotated tokens are used even though the Keychain write failed")
+        let status = await store.status()
+        XCTAssertEqual(status, .oauth(email: "me@x.y", expiresAt: Self.epoch.addingTimeInterval(7200)))
+
+        // Nothing was lost: the old record is still on disk and the new one lives in memory.
+        let again = try await store.currentAuth()
+        XCTAssertEqual(again, .oauth(accessToken: "new"))
+    }
+
+    func testDisconnectClearsEverythingItCanAndRethrows() async throws {
+        let keychain = FlakyKeychain()
+        let store = CredentialStore(keychain: keychain, refresher: { $0 }, now: { Self.epoch })
+        try await store.setOAuth(staleTokens(expiringIn: 7200))
+        try await store.setAPIKey("sk-key")
+        keychain.failDeletes = ["oauth"]
+
+        await XCTAssertThrowsErrorAsync(try await store.disconnect())
+        XCTAssertEqual(keychain.inner.accounts, ["oauth"], "the delete that could run did run")
+        // The status reflects what is really left, not the credentials that were meant to go.
+        let status = await store.status()
+        XCTAssertEqual(status, .oauth(email: "me@x.y", expiresAt: Self.epoch.addingTimeInterval(7200)))
+
+        keychain.failDeletes = []
+        try await store.disconnect()
+        let after = await store.status()
+        XCTAssertEqual(after, .notConnected)
+    }
+
+    func testKeychainDenialIsReportedAsSuch() async throws {
+        let keychain = FlakyKeychain()
+        try keychain.inner.save(Data("sk-key".utf8), account: "apikey")
+        keychain.denyLoads = true
+        let store = CredentialStore(keychain: keychain, refresher: { $0 }, now: { Self.epoch })
+
+        await XCTAssertThrowsErrorAsync(try await store.currentAuth()) {
+            XCTAssertEqual($0 as? ThubanError, .keychainDenied("denied"))
+        }
+        var status = await store.status()
+        XCTAssertEqual(status, .keychainDenied("denied"))
+        XCTAssertTrue(status.needsAttention)
+
+        // The student allowed access on the next prompt.
+        keychain.denyLoads = false
+        let auth = try await store.currentAuth()
+        XCTAssertEqual(auth, .apiKey("sk-key"))
+        status = await store.status()
+        XCTAssertEqual(status, .apiKey)
+    }
+}
+
+// MARK: - Test doubles
+
+/// A one-shot latch: `wait()` suspends until `open()`; the test can see how many callers are parked.
+private actor Gate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private(set) var waiterCount = 0
+
+    func wait() async {
+        waiterCount += 1
+        if isOpen { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func open() {
+        isOpen = true
+        let parked = waiters
+        waiters = []
+        parked.forEach { $0.resume() }
+    }
+
+    func waitForWaiter() async {
+        while waiterCount == 0 { await Task.yield() }
+    }
+}
+
+/// In-memory keychain whose failures the test switches on and off.
+private final class FlakyKeychain: KeychainStorage, @unchecked Sendable {
+    let inner = InMemoryKeychain()
+    private let lock = NSLock()
+    private var _failSaves = false
+    private var _denyLoads = false
+    private var _failDeletes: Set<String> = []
+
+    var failSaves: Bool {
+        get { lock.withLock { _failSaves } }
+        set { lock.withLock { _failSaves = newValue } }
+    }
+    var denyLoads: Bool {
+        get { lock.withLock { _denyLoads } }
+        set { lock.withLock { _denyLoads = newValue } }
+    }
+    var failDeletes: Set<String> {
+        get { lock.withLock { _failDeletes } }
+        set { lock.withLock { _failDeletes = newValue } }
+    }
+
+    func save(_ data: Data, account: String) throws {
+        if failSaves { throw ThubanError.store("Keychain save failed: User interaction is not allowed.") }
+        try inner.save(data, account: account)
+    }
+
+    func load(account: String) throws -> Data? {
+        if denyLoads { throw ThubanError.keychainDenied("denied") }
+        return try inner.load(account: account)
+    }
+
+    func delete(account: String) throws {
+        if failDeletes.contains(account) { throw ThubanError.store("Keychain delete failed: \(account)") }
+        try inner.delete(account: account)
     }
 }
 

@@ -250,8 +250,27 @@ body {
   border-top: 1px solid var(--line, #E3E0D9);
   box-shadow: none;
 }
-.ML__keyboard .MLK__toolbar > div > div { border-radius: 6px; font-weight: 600; }
+/* Six layout tabs must fit a 420-pt question pane: let them wrap onto a second row instead of being clipped by
+   the keyboard's overflow:hidden, and keep the tabs compact. */
+.ML__keyboard .MLK__toolbar { min-height: 0; }
+.ML__keyboard .MLK__toolbar > .left { flex-wrap: wrap; row-gap: 2px; }
+.ML__keyboard .MLK__toolbar > div > div {
+  border-radius: 6px;
+  font-weight: 600;
+  min-width: 0;
+  padding-left: 8px;
+  padding-right: 8px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
 .ML__keyboard .MLK__toolbar > div > div.selected {
+  /* Selected: tinted pill (keeps the radius so the ring never reads as a hard square over the edge). */
+  border-radius: 6px;
+  border-bottom-color: transparent;
+  padding-bottom: 6px;
+  margin-bottom: 2px;
   box-shadow: inset 0 0 0 1px var(--accent, #e0b15c);
   color: var(--accent-text, #A5772A);
 }

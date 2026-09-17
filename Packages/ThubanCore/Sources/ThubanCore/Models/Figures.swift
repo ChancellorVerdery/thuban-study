@@ -54,7 +54,13 @@ public struct StandardChart: Codable, Sendable, Equatable {
         self.series = series
         self.xRange = xRange
         self.yRange = yRange
-        self.confidence = confidence
+        self.confidence = Self.clampedConfidence(confidence)
+    }
+
+    /// Confidence is 0–1; anything else the model (or a stored row) reports is clamped so it can be shown safely.
+    public static func clampedConfidence(_ value: Double) -> Double {
+        guard value.isFinite else { return 0 }
+        return Swift.min(1, Swift.max(0, value))
     }
 
     private enum CodingKeys: String, CodingKey { case chartType, xLabel, yLabel, series, xRange, yRange, confidence }
@@ -67,7 +73,7 @@ public struct StandardChart: Codable, Sendable, Equatable {
         series = try c.decodeIfPresent([ChartSeries].self, forKey: .series) ?? []
         xRange = try c.decodeIfPresent([Double].self, forKey: .xRange)
         yRange = try c.decodeIfPresent([Double].self, forKey: .yRange)
-        confidence = try c.decodeIfPresent(Double.self, forKey: .confidence) ?? 0
+        confidence = Self.clampedConfidence(try c.decodeIfPresent(Double.self, forKey: .confidence) ?? 0)
     }
 }
 

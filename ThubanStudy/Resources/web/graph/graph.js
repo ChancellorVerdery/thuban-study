@@ -173,7 +173,7 @@
       if (key === lastReported) return;
       lastReported = key;
       syncModeMap();
-      send('expressionsChanged', { expressions: list });
+      send('expressionsChanged', { expressions: list, mode: mode });
     }, CHANGE_DEBOUNCE_MS);
   }
 
@@ -227,7 +227,7 @@
     if (Desmos.Colors) {
       Object.keys(Desmos.Colors).forEach(function (k) { colors[k] = Desmos.Colors[k]; });
     }
-    return {
+    var options = {
       expressions: true,
       keypad: false,
       settingsMenu: true,
@@ -235,14 +235,47 @@
       border: false,
       expressionsCollapsed: false,
       lockViewport: false,
-      invertedColors: isDark(),
       colors: colors
     };
+    var theme = themeSettings();
+    Object.keys(theme).forEach(function (k) { options[k] = theme[k]; });
+    return options;
+  }
+
+  /**
+   * The Desmos settings that carry the theme. In 2D the paper, expression list and chrome take the app's own
+   * tokens (`backgroundColor` / `textColor` / `accentColor` are first-class Desmos settings, validated as hex).
+   * `invertedColors` is a plain CSS `filter: invert()` over the whole calculator, so it must never be combined
+   * with custom colours; it is used only for 3D, whose plane material keys off it.
+   */
+  function themeSettings() {
+    if (mode === '3d') return { invertedColors: isDark() };
+    return {
+      invertedColors: false,
+      backgroundColor: cssVar('--panel', '#fffdf7'),
+      textColor: cssVar('--ink', '#161a21'),
+      accentColor: accentColor()
+    };
+  }
+
+  /** True when the live calculator reports every theme setting we asked for (unknown settings count as applied). */
+  function themeSettingsApplied(wanted) {
+    try {
+      var s = calculator && calculator.settings;
+      if (!s) return true;
+      return Object.keys(wanted).every(function (k) {
+        var have = s[k];
+        if (have === undefined || have === null) return true;
+        if (typeof have === 'string' && typeof wanted[k] === 'string') return have.toLowerCase() === wanted[k].toLowerCase();
+        return have === wanted[k];
+      });
+    } catch (err) { return true; }
   }
 
   function createCalculator() {
     destroyCalculator();
     hideNotice();
+    document.documentElement.dataset.graphMode = mode;   // graph.html styles Desmos chrome per mode
     var ctor = mode === '3d' ? Desmos.Calculator3D : Desmos.GraphingCalculator;
     if (typeof ctor !== 'function') {
       var msg = mode === '3d' ? 'Desmos 3D is not available for this API key.' : 'Desmos.GraphingCalculator is unavailable.';
@@ -336,7 +369,13 @@
         var list = Array.isArray(p.expressions) ? p.expressions : [];
         var map = modes[mode].expressions;
         map.clear();
-        try { calculator.setBlank(); } catch (err) { /* ignore */ }
+        // Remove rows one by one rather than setBlank(): Swift re-sends the list on every mode switch and page
+        // load, and the viewport (or 3D camera) the student set must survive that.
+        try {
+          calculator.getExpressions().forEach(function (e) {
+            try { calculator.removeExpression({ id: e.id }); } catch (err) { /* ignore */ }
+          });
+        } catch (err) { /* ignore */ }
         list.forEach(function (e) {
           if (!e || e.id === undefined) return;
           map.set(String(e.id), e);
@@ -359,8 +398,18 @@
     removeExpression: function (p) {
       whenReady('removeExpression', p, function () {
         if (p.id === undefined) return;
-        modes[mode].expressions.delete(String(p.id));
-        try { calculator.removeExpression({ id: String(p.id) }); } catch (err) { /* ignore */ }
+        var id = String(p.id);
+        modes[mode].expressions.delete(id);
+        try { calculator.removeExpression({ id: id }); } catch (err) { /* ignore */ }
+        // The row may belong to the other mode (Swift tracks both); drop it there too so it does not come back.
+        Object.keys(modes).forEach(function (k) {
+          if (k === mode) return;
+          modes[k].expressions.delete(id);
+          var s = modes[k].savedState;
+          if (s && s.expressions && Array.isArray(s.expressions.list)) {
+            s.expressions.list = s.expressions.list.filter(function (e) { return !e || e.id !== id; });
+          }
+        });
         snapshot();
       });
     },
@@ -439,12 +488,22 @@
     }
   };
 
-  /** Called after the theme CSS changed: flips Desmos' inverted colours and re-tints default-coloured rows. */
+  /** Called after the theme CSS changed: re-themes Desmos' paper and chrome and re-tints default-coloured rows. */
   function applyThemeToCalculator() {
     if (!calculator) return;
     var oldColor = defaultColor;
     var newColor = accentColor();
-    try { calculator.updateSettings({ invertedColors: isDark() }); } catch (err) { /* ignore */ }
+    var wanted = themeSettings();
+    try { calculator.updateSettings(wanted); } catch (err) { /* ignore */ }
+    if (!themeSettingsApplied(wanted)) {
+      // Desmos did not take the settings through updateSettings: rebuild the calculator with them set at
+      // construction, exactly as a mode switch does (state — rows and viewport — is saved and restored).
+      try { modes[mode].savedState = calculator.getState(); } catch (err) { modes[mode].savedState = null; }
+      syncModeMap();
+      createCalculator();
+      if (!calculator) return;
+      // `oldColor` still names the accent the restored rows carry, so the re-tint below applies to them too.
+    }
     if (newColor !== oldColor) {
       defaultColor = newColor;
       try {

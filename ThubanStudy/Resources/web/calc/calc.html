@@ -51,11 +51,15 @@
     button { font: inherit; cursor: pointer; }
     [hidden] { display: none !important; }
 
-    /* Desmos scientific calculator fills the page. */
+    /* Desmos scientific calculator fills the page. Its body/text/accent come from calc.js (Desmos'
+       backgroundColor / textColor / accentColor settings); the ground here covers the moment before it mounts. */
     #calculator {
       position: absolute;
       inset: 0;
+      background: var(--panel, #fffdf7);
     }
+    /* Desmos paints white text on its accent buttons (the Enter key); brass needs the theme's on-accent ink. */
+    #calculator .dcg-btn-blue { color: var(--on-accent, #14100a); }
 
     /* Loading status. */
     #status {

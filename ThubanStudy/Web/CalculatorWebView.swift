@@ -15,7 +15,10 @@ struct CalculatorWebView: View {
     @Observable
     final class Controller {
         let bridge: WebBridge
-        private(set) var isPageReady = false
+        /// True while the page that is currently attached has posted `ready`.
+        var isPageReady: Bool { bridge.isPageReady }
+        /// The key last delivered through `configure` (compared by `StudyState` when the panel is re-created).
+        private(set) var desmosKey: String = ""
         private(set) var lastError: String?
 
         /// The fallback calculator wants `latex` evaluated; answer with `sendResult(id:latex:)` or `sendResult(id:error:)`.
@@ -29,7 +32,6 @@ struct CalculatorWebView: View {
         init(desmosKey: String, forceFallback: Bool = false) {
             bridge = WebBridge(name: "calc")
             bridge.on("ready") { [weak self] _ in
-                self?.isPageReady = true
                 self?.onReady?()
             }
             bridge.on("evaluate") { [weak self] payload in
@@ -50,6 +52,7 @@ struct CalculatorWebView: View {
         }
 
         func configure(desmosKey: String, forceFallback: Bool = false) {
+            self.desmosKey = desmosKey
             var payload: [String: JSONValue] = ["desmosKey": .string(desmosKey)]
             if forceFallback { payload["forceFallback"] = .bool(true) }
             bridge.sendSticky("config", .object(payload))   // re-sent when the panel is re-created

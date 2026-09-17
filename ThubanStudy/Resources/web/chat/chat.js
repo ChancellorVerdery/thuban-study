@@ -257,13 +257,15 @@
     lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
     question: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h4"/>',
     check: '<circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/>',
-    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+    warn: '<path d="M12 3 2.5 20h19L12 3z"/><path d="M12 10v4M12 17h.01"/>'
   };
 
   function iconFor(kind) {
     var k = String(kind || '').toLowerCase();
     var name = 'info';
-    if (/graph|plot|surface|desmos/.test(k)) name = 'graph';
+    if (/warn|error|fail/.test(k)) name = 'warn';
+    else if (/graph|plot|surface|desmos/.test(k)) name = 'graph';
     else if (/calc/.test(k)) name = 'calculator';
     else if (/hint/.test(k)) name = 'hint';
     else if (/solution|lock/.test(k)) name = 'lock';
@@ -284,9 +286,9 @@
 
   function eventLine(ev) {
     var line = document.createElement('div');
-    line.className = 'event';
+    line.className = ev.isError ? 'event error' : 'event';
     var kind = ev.icon || ev.kind || ev.type || ev.name || ev.tool || '';
-    line.appendChild(iconFor(kind));
+    line.appendChild(iconFor(ev.isError ? 'warn' : kind));
     var span = document.createElement('span');
     span.className = 'summary';
     span.textContent = ev.summary || ev.text || ev.markdown || ev.name || '';

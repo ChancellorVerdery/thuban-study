@@ -13,12 +13,17 @@ struct ClaudeAccountSettings: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
             SettingsGroup("Status") {
-                ConnectionStatusCard(
-                    connection: app.connection,
-                    accountLabel: app.connectedAccountLabel,
-                    onConnect: { isConnecting = true },
-                    onDisconnect: { isConfirmingDisconnect = true }
-                )
+                VStack(alignment: .leading, spacing: 10) {
+                    ConnectionStatusCard(
+                        connection: app.connection,
+                        accountLabel: app.connectedAccountLabel,
+                        onConnect: { isConnecting = true },
+                        onDisconnect: { isConfirmingDisconnect = true }
+                    )
+                    if let accountError = app.accountError {
+                        SettingsNote(accountError, tone: .negative)
+                    }
+                }
             }
 
             SettingsGroup("API key", caption: "An Anthropic API key works instead of an account. When both are present, the account is used.") {
@@ -86,6 +91,11 @@ struct ConnectionStatusCard: View {
                     case .apiKey:
                         Chip("API key", kind: .pos, dot: true)
                         Chip("Messages API", kind: .neutral)
+                    case .oauthExpired:
+                        Chip("Sign-in expired", kind: .warn, dot: true)
+                        Chip("Claude account", kind: .neutral)
+                    case .keychainDenied:
+                        Chip("Keychain access denied", kind: .warn, dot: true)
                     case .notConnected:
                         Chip("Not connected", kind: .neutral, dot: true)
                     }
@@ -98,9 +108,14 @@ struct ConnectionStatusCard: View {
             Spacer(minLength: 12)
             VStack(alignment: .trailing, spacing: 8) {
                 switch connection {
-                case .notConnected:
+                case .notConnected, .keychainDenied:
                     Button("Connect Claude account", action: onConnect)
                         .buttonStyle(.thubanPrimary)
+                case .oauthExpired:
+                    Button("Sign in again", action: onConnect)
+                        .buttonStyle(.thubanPrimary)
+                    Button("Disconnect", action: onDisconnect)
+                        .buttonStyle(.thubanDangerOutline)
                 case .apiKey:
                     Button("Connect Claude account", action: onConnect)
                         .buttonStyle(.thubanSecondary)
@@ -136,7 +151,9 @@ struct ConnectionStatusCard: View {
     private var headline: String {
         switch connection {
         case .oauth: return "Connected as \(accountLabel)"
+        case .oauthExpired: return "Sign in again as \(accountLabel)"
         case .apiKey: return "Using an API key"
+        case .keychainDenied: return "Keychain access denied"
         case .notConnected: return "Not connected"
         }
     }
@@ -148,8 +165,12 @@ struct ConnectionStatusCard: View {
             return expiresAt > Date()
                 ? "Access token renews automatically · current one expires \(when)."
                 : "Access token expired \(when) · it renews on the next request."
+        case .oauthExpired:
+            return "Claude rejected the stored sign-in (it expired or was revoked). Sign in again to keep using the tutor and the import agent."
         case .apiKey:
             return "Requests are billed to the key's Anthropic organization."
+        case .keychainDenied(let detail):
+            return "macOS would not let Thuban Study read its Keychain items (\(detail)). Click Allow when it asks, or connect again to store fresh credentials."
         case .notConnected:
             return "Connect your Claude account, or paste an API key below."
         }

@@ -123,6 +123,34 @@ public enum TutorTools {
         }
     }
 
+    /// Student-facing one-liner for a tool call the app rejected: what the tutor tried, and why it did not happen.
+    public static func failureSummary(name: String, input: JSONValue, reason: String?) -> String {
+        let attempt: String
+        switch name {
+        case showGraph:
+            attempt = "Could not open the graph"
+        case hideGraph:
+            attempt = "Could not close the graph"
+        case graphAddExpression:
+            let latex = input["latex"]?.stringValue ?? ""
+            attempt = latex.isEmpty ? "Could not add an expression to the graph" : "Could not add $\(latex)$ to the graph"
+        case graphRemoveExpression:
+            attempt = "Could not remove \(input["id"]?.stringValue ?? "an expression") from the graph"
+        case graphClear:
+            attempt = "Could not clear the graph"
+        case graphSetViewport:
+            attempt = "Could not zoom the graph"
+        case showCalculator:
+            attempt = "Could not open the calculator"
+        case getStudentWork:
+            attempt = "Could not read your work"
+        default:
+            attempt = "Could not use \(name)"
+        }
+        let detail = reason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return detail.isEmpty ? attempt : "\(attempt): \(detail)"
+    }
+
     private static func number(_ value: JSONValue?) -> String {
         guard let d = value?.doubleValue else { return "?" }
         if d == d.rounded(), abs(d) < 1e15 { return String(Int(d)) }

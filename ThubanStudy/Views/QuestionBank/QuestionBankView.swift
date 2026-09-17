@@ -302,7 +302,7 @@ private struct FilterChip: View {
                     .frame(maxWidth: 220)
                 Text("\(count)")
                     .font(ThubanFont.mono(11))
-                    .foregroundStyle(isOn ? theme.brassInkColor : theme.inkFaintColor)
+                    .foregroundStyle(isOn ? theme.brassInkColor : theme.inkDimColor)
             }
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(isOn ? theme.brassInkColor : theme.inkDimColor)
@@ -390,7 +390,7 @@ private struct RailRow: View {
                 Spacer(minLength: 6)
                 Text("\(count)")
                     .font(ThubanFont.mono(11))
-                    .foregroundStyle(theme.inkFaintColor)
+                    .foregroundStyle(theme.inkDimColor)
             }
             .padding(.horizontal, 10)
             .frame(height: 30)
@@ -428,7 +428,7 @@ private struct BankFooter: View {
             if model.pageCount > 1 {
                 Text("Page \(model.page + 1) of \(model.pageCount)")
                     .font(ThubanFont.small)
-                    .foregroundStyle(theme.inkFaintColor)
+                    .foregroundStyle(theme.inkDimColor)
                     .monospacedDigit()
             }
             IconButton(glyph: .chevronLeft, label: "Previous page", size: 26, iconSize: 14) { model.previousPage() }

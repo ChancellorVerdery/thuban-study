@@ -184,6 +184,36 @@ final class MathEngineTemplateTests: XCTestCase {
         XCTAssertTrue(errors.contains { $0.contains("answerExpr is empty") }, "\(errors)")
     }
 
+    func testValidateHugeIntRangeDoesNotMaterialiseIt() async {
+        // An agent-written "population between 1 and a billion" must validate without allocating the range.
+        var template = quadratic
+        template.params = [
+            TemplateParam(name: "a", kind: .int(min: 1, max: 1_000_000_000), exclude: [5, 5.0, 2.5, 1e300, -3]),
+            TemplateParam(name: "b", kind: .int(min: Int.min, max: Int.max)),
+            TemplateParam(name: "c", kind: .int(min: 1, max: 1)),
+        ]
+        template.constraints = []
+        let started = Date()
+        let errors = await Self.engine.validate(template)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 5)
+        XCTAssertFalse(errors.contains { $0.contains("excluded") }, "\(errors)")
+        XCTAssertTrue(errors.contains { $0.contains("'b'") && $0.contains("too wide") }, "\(errors)")
+        XCTAssertFalse(errors.contains { $0.contains("'a'") && $0.contains("too wide") }, "\(errors)")
+    }
+
+    func testValidateCountsExclusionsArithmetically() async {
+        var template = quadratic
+        template.constraints = []
+        // Duplicates and non-integers do not count; 1, 2 and 3 do.
+        template.params = [TemplateParam(name: "a", kind: .int(min: 1, max: 3), exclude: [1, 1.0, 2, 3, 3.5, 0, 4]),
+                           TemplateParam(name: "b", kind: .int(min: 1, max: 2)), TemplateParam(name: "c", kind: .int(min: 1, max: 2))]
+        let all = await Self.engine.validate(template)
+        XCTAssertTrue(all.contains { $0.contains("'a'") && $0.contains("excluded") }, "\(all)")
+        template.params[0].exclude = [1, 1.0, 2, 3.5, 0, 4]
+        let some = await Self.engine.validate(template)
+        XCTAssertFalse(some.contains { $0.contains("excluded") }, "\(some)")
+    }
+
     func testValidateCatchesUnsatisfiableConstraints() async {
         var template = quadratic
         template.constraints = ["a > 100"]

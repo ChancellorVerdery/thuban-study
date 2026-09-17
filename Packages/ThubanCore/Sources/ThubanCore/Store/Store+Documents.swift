@@ -35,17 +35,19 @@ extension Store: DocumentRepository {
         }
     }
 
-    /// Updates the classification and the counts the import pipeline produced.
+    /// Updates the classification, the counts and the warnings the import pipeline produced.
     public func update(
         classification: DocumentClassification?,
         questionCount: Int,
         figureCount: Int,
+        warnings: [String] = [],
         for id: DocumentID
     ) async throws {
+        let encoded = String(decoding: try JSONEncoder().encode(warnings), as: UTF8.self)
         try await write { db in
             try db.execute(
-                sql: "UPDATE documents SET classification = ?, questionCount = ?, figureCount = ? WHERE id = ?",
-                arguments: [classification, questionCount, figureCount, id]
+                sql: "UPDATE documents SET classification = ?, questionCount = ?, figureCount = ?, warnings = ? WHERE id = ?",
+                arguments: [classification, questionCount, figureCount, encoded, id]
             )
             guard db.changesCount > 0 else { throw ThubanError.store("No document with id \(id)") }
         }
@@ -63,6 +65,6 @@ extension Store: DocumentRepository {
             _ = try ImportedDocument.deleteOne(db, id: id)
             return files
         }
-        try removeFiles(files)
+        removeFiles(files)
     }
 }

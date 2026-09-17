@@ -134,6 +134,10 @@ final class DocumentsTests: XCTestCase {
         XCTAssertEqual(content.blocks[4], .table([["x", "y"], ["1", "4"]]))
         XCTAssertEqual(content.blocks[5], .paragraph("See the graph below."))
         XCTAssertEqual(content.blocks[6], .image(index: 0))
+        // Equation-editor math (OMML) survives as inline LaTeX instead of vanishing.
+        XCTAssertEqual(content.blocks[7], .paragraph("Solve $\\frac{x}{2}+{y}^{2}=\\sqrt{3}$ for x."))
+        XCTAssertEqual(content.blocks[8], .paragraph("$\\sum_{k=1}^{n} {a}_{k}=\\left(1+n\\right)/2$"))
+        XCTAssertEqual(content.blocks.count, 9)
         XCTAssertEqual(content.figures.count, 1)
         XCTAssertEqual(content.figures[0].nearbyText, "See the graph below.")
         XCTAssertNotNil(ImageCodec.image(from: content.figures[0].pngData))

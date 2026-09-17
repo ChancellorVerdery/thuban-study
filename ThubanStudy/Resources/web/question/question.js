@@ -3,7 +3,7 @@
  * Contract: ARCHITECTURE.md → "Web bridge protocols" → question.html.
  *
  *   Swift → JS   load {instance}            render stem + parts
- *                setVerdicts {partId: Verdict}
+ *                setVerdicts {verdicts: {partId: {outcome, message, failedConditions}}}
  *                focusPart {partId}
  *                insert {latex}             insert at the caret of the focused math field (calculator "copy to answer")
  *                setKeyboardVisible {visible}
@@ -174,7 +174,7 @@
       ]
     },
     {
-      label: 'Sets & vectors', tooltip: 'Sets, logic and vectors',
+      label: 'Sets', tooltip: 'Sets, logic and vectors',
       rows: [
         [cap('\\in'), cap('\\notin'), cap('\\subset'), cap('\\subseteq'), cap('\\cup'), cap('\\cap'), cap('\\emptyset'), cap('\\forall')],
         [cap('\\mathbb{R}'), cap('\\mathbb{Z}'), cap('\\mathbb{N}'), cap('\\mathbb{Q}'), cap('\\mathbb{C}'), cap('\\exists'),

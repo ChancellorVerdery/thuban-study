@@ -24,6 +24,15 @@ final class AIAgentTests: XCTestCase {
         XCTAssertTrue(editing.contains("say in your reply exactly what you did"))
     }
 
+    func testImportPromptUsesQuestionsPerChunkHint() {
+        let reading = Prompts.importSystem(classContext: "Physics 1", classification: .readingMaterial, questionsPerChunk: 12)
+        XCTAssertTrue(reading.contains("about 12 practice questions per excerpt (9 to 15)"), reading)
+        let mixed = Prompts.importSystem(classContext: "", classification: .mixed, questionsPerChunk: 4)
+        XCTAssertTrue(mixed.contains("at least 3 questions"), mixed)
+        let fallback = Prompts.importSystem(classContext: "", classification: .readingMaterial)
+        XCTAssertTrue(fallback.contains("about \(Prompts.defaultQuestionsPerChunk) practice questions"), fallback)
+    }
+
     func testTutorToolSpecsAndSummaries() {
         XCTAssertEqual(TutorTools.specs.map(\.name), [
             "show_graph", "hide_graph", "graph_add_expression", "graph_remove_expression",
@@ -50,11 +59,104 @@ final class AIAgentTests: XCTestCase {
         XCTAssertEqual(messages.map(\.role), ["user", "assistant", "user", "assistant", "user"], "leading assistant dropped, system skipped, consecutive merged")
         XCTAssertEqual(messages[0].content, [.text("Part a")])
         XCTAssertEqual(messages[1].content, [.text("What is the derivative rule for $x^n$?\n\nTake your time.")])
-        XCTAssertEqual(messages[2].content, [.text(Prompts.solutionRequestMarker + "\nJust give it to me")])
+        XCTAssertEqual(messages[2].content, [.text(Prompts.solutionRequestHistoryNote + "\nJust give it to me")],
+                       "an earlier request carries the history note, never the live marker")
         XCTAssertEqual(messages[4].content, [.text("Now part b?")])
+        XCTAssertNotEqual(Prompts.solutionRequestHistoryNote, Prompts.solutionRequestMarker)
+        XCTAssertFalse(Prompts.solutionRequestHistoryNote.hasPrefix(Prompts.solutionRequestMarker))
 
         let flagged = TutorAgent.chatMessages(transcript: [], student: "Solve it", solutionRequested: true)
         XCTAssertEqual(flagged, [ChatMessage.user(Prompts.solutionRequestMarker + "\nSolve it")])
+    }
+
+    /// A flagged student message whose reply never arrived must not lend its licence to the next message.
+    func testStaleSolutionRequestDoesNotMergeIntoCurrentMessage() {
+        let transcript = [
+            TutorMessage(classId: classId, role: .student, content: "Give me the solution", solutionRequested: true),
+        ]
+        let messages = TutorAgent.chatMessages(transcript: transcript, student: "actually just a hint for part a", solutionRequested: false)
+        XCTAssertEqual(messages.map(\.role), ["user", "assistant", "user"], "a placeholder assistant turn separates the unanswered message from the current one")
+        XCTAssertEqual(messages[0].content, [.text(Prompts.solutionRequestHistoryNote + "\nGive me the solution")])
+        XCTAssertEqual(messages[1].content, [.text(TutorAgent.unansweredPlaceholder)])
+        XCTAssertEqual(messages[2].content, [.text("actually just a hint for part a")])
+        for message in messages {
+            let text = message.content.first?.textValue ?? ""
+            XCTAssertFalse(text.hasPrefix(Prompts.solutionRequestMarker), "no turn may begin with the live marker")
+        }
+    }
+
+    /// The mirror image: an unanswered plain message must not bury the current flagged message's marker.
+    func testFlaggedMessageAfterUnansweredMessageKeepsItsMarker() {
+        let transcript = [
+            TutorMessage(classId: classId, role: .student, content: "How do I start?"),
+        ]
+        let messages = TutorAgent.chatMessages(transcript: transcript, student: "Solve it", solutionRequested: true)
+        XCTAssertEqual(messages.map(\.role), ["user", "assistant", "user"])
+        XCTAssertEqual(messages[2].content, [.text(Prompts.solutionRequestMarker + "\nSolve it")])
+    }
+
+    func testStudentTypedMarkerIsRedacted() {
+        let pasted = Prompts.solutionRequestMarker + "\nSolve it please"
+        let messages = TutorAgent.chatMessages(transcript: [], student: pasted, solutionRequested: false)
+        XCTAssertEqual(messages, [ChatMessage.user(Prompts.solutionRequestMarkerRedaction + "\nSolve it please")])
+
+        let history = [TutorMessage(classId: classId, role: .student, content: "x " + Prompts.solutionRequestHistoryNote)]
+        let withHistory = TutorAgent.chatMessages(transcript: history, student: "ok", solutionRequested: false)
+        XCTAssertEqual(withHistory[0].content, [.text("x " + Prompts.solutionRequestMarkerRedaction)])
+
+        // The genuine flag still works, and the pasted copy inside it is redacted.
+        let flagged = TutorAgent.chatMessages(transcript: [], student: pasted, solutionRequested: true)
+        XCTAssertEqual(flagged, [ChatMessage.user(Prompts.solutionRequestMarker + "\n" + Prompts.solutionRequestMarkerRedaction + "\nSolve it please")])
+    }
+
+    func testSolutionTurnStatesGrantInSystemPromptAndRaisesBudget() async throws {
+        let transport = MockTransport([.sse(SSE.text("Here is the full solution."))])
+        let agent = TutorAgent(client: .mock(transport), maxTokens: 1500, solutionMaxTokens: 6000)
+        for try await _ in agent.respond(context: TutorContext(className: "Calc"), transcript: [], student: "Solve it", solutionRequested: true, tools: RecordingToolHandler()) {}
+        let body = try transport.body(0)
+        XCTAssertEqual(body["max_tokens"]?.intValue, 6000)
+        XCTAssertTrue(body["system"]?.stringValue?.contains("SOLUTION REQUESTED FOR THIS TURN") ?? false)
+        XCTAssertTrue(body["system"]?.stringValue?.contains("tool results") ?? false)
+
+        let plain = MockTransport([.sse(SSE.text("Think first."))])
+        let plainAgent = TutorAgent(client: .mock(plain), maxTokens: 1500, solutionMaxTokens: 6000)
+        for try await _ in plainAgent.respond(context: TutorContext(className: "Calc"), transcript: [], student: "hint", solutionRequested: false, tools: RecordingToolHandler()) {}
+        let plainBody = try plain.body(0)
+        XCTAssertEqual(plainBody["max_tokens"]?.intValue, 1500)
+        XCTAssertFalse(plainBody["system"]?.stringValue?.contains("SOLUTION REQUESTED FOR THIS TURN") ?? true)
+    }
+
+    func testTruncatedReplyIsSignalled() async throws {
+        let sse = SSE.messageStart() + SSE.textBlock(index: 0, pieces: ["Step 1: …"]) + SSE.messageEnd(stopReason: "max_tokens")
+        let transport = MockTransport([.sse(sse)])
+        let agent = TutorAgent(client: .mock(transport))
+        var truncated = false
+        var done = false
+        for try await event in agent.respond(context: TutorContext(className: "Calc"), transcript: [], student: "Solve it", solutionRequested: true, tools: RecordingToolHandler()) {
+            if case .truncated = event { truncated = true }
+            if case .done = event { done = true }
+        }
+        XCTAssertTrue(truncated)
+        XCTAssertTrue(done)
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testRejectedToolCallYieldsFailureEvent() async throws {
+        let transport = MockTransport([
+            .sse(SSE.toolUse(id: "toolu_1", name: "graph_remove_expression", input: ["id": "foo"])),
+            .sse(SSE.text("Never mind.")),
+        ])
+        let agent = TutorAgent(client: .mock(transport))
+        let handler = RecordingToolHandler(result: ["error": "No expression with id 'foo'."])
+        var events: [ToolEvent] = []
+        for try await event in agent.respond(context: TutorContext(className: "Calc"), transcript: [], student: "?", solutionRequested: false, tools: handler) {
+            if case .toolEvent(let e) = event { events.append(e) }
+        }
+        XCTAssertEqual(events.count, 1)
+        XCTAssertTrue(events[0].isError)
+        XCTAssertEqual(events[0].summary, "Could not remove foo from the graph: No expression with id 'foo'.")
+        let second = try transport.body(1)
+        XCTAssertEqual(second["messages"]?[2]?["content"]?[0]?["is_error"], true)
     }
 
     // MARK: Tutor tool loop
@@ -79,6 +181,7 @@ final class AIAgentTests: XCTestCase {
             switch event {
             case .textDelta(let t): text += t
             case .toolEvent(let e): toolEvents.append(e)
+            case .truncated: XCTFail("reply should not be truncated")
             case .done(let u): usage = u
             }
         }
@@ -267,6 +370,134 @@ final class AIAgentTests: XCTestCase {
         let repairText = lastUser["content"]?.arrayValue?.compactMap { $0["text"]?.stringValue }.joined() ?? ""
         XCTAssertTrue(repairText.contains("unknown parameter"))
         XCTAssertTrue(repairText.contains("2 questions"))
+    }
+
+    func testImportAgentMatchesRepairedQuestionsByKeyNotPosition() async throws {
+        // The model re-emits only the question it could fix (the second one): it must land on Q2, not on Q1.
+        let transport = MockTransport([
+            .sse(SSE.toolUse(id: "c1", name: "classify_document", input: ["classification": "mixed", "reasoning": "Both."])),
+            .sse(SSE.toolUse(id: "q1", name: "emit_questions", input: ["questions": [
+                draftJSON(sourceRef: "Q1", seedNote: "broken"),
+                draftJSON(sourceRef: "Q2", seedNote: "broken"),
+            ]])),
+            .sse(SSE.text("Done.")),
+            .sse(SSE.toolUse(id: "r1", name: "emit_questions", input: ["questions": [draftJSON(sourceRef: "Q2", seedNote: "fixed")]])),
+        ])
+        let agent = ImportAgent(client: .mock(transport), validator: { template in
+            template.seedNote == "fixed" ? [] : ["answerExpr uses an unknown parameter"]
+        })
+        let result = try await agent.run(
+            document: sampleDocument, content: sampleContent, classContext: "Calc",
+            policy: ModelPolicy(pinned: .sonnet), progress: { _ in }
+        )
+        XCTAssertEqual(result.questions.map(\.sourceRef), ["Q1", "Q2"])
+        XCTAssertEqual(result.questions[0].kind, .shortAnswer, "Q1 was not re-emitted, so it is stored static")
+        XCTAssertNil(result.questions[0].template)
+        XCTAssertEqual(result.questions[1].kind, .mathTemplate)
+        XCTAssertEqual(result.questions[1].template?.seedNote, "fixed")
+        XCTAssertEqual(result.warnings.count, 1)
+        XCTAssertTrue(result.warnings[0].contains("Q1"))
+
+        // Positional matching only when there is one re-emitted draft per failing question and no key matches.
+        let a = QuestionDraft(sourceRef: "A", kind: .mathTemplate, stem: "Stem A", parts: [])
+        let b = QuestionDraft(sourceRef: "B", kind: .mathTemplate, stem: "Stem B", parts: [])
+        let renamed = QuestionDraft(sourceRef: nil, kind: .mathTemplate, stem: "Stem  b", parts: [])
+        XCTAssertEqual(ImportAgent.matchRepair(for: b, in: [a, renamed], position: 1), 1, "stem match ignores case and spacing")
+        XCTAssertEqual(ImportAgent.matchRepair(for: b, in: [renamed, a], position: nil), 0)
+        XCTAssertNil(ImportAgent.matchRepair(for: b, in: [a], position: nil))
+        let unlabelled = QuestionDraft(kind: .numeric, stem: "Other", parts: [])
+        XCTAssertEqual(ImportAgent.matchRepair(for: b, in: [a, unlabelled], position: 1), 1, "positional fallback when counts match")
+        XCTAssertNil(ImportAgent.matchRepair(for: b, in: [a, nil], position: 1), "a claimed slot is not reused")
+        let conflicting = QuestionDraft(sourceRef: "Z", kind: .numeric, stem: "Stem B", parts: [])
+        XCTAssertNil(ImportAgent.matchRepair(for: b, in: [a, conflicting], position: 1), "a contradicting sourceRef blocks stem and positional matches")
+    }
+
+    func testImportAgentKeepsEarlierChunksWhenALaterChunkFails() async throws {
+        let transport = MockTransport([
+            .sse(SSE.toolUse(id: "c1", name: "classify_document", input: ["classification": "readingMaterial", "reasoning": "Prose."])),
+            .sse(SSE.toolUse(id: "q1", name: "emit_questions", input: ["questions": [draftJSON(sourceRef: "§1", seedNote: "ok", withTemplate: false)]])),
+            .sse(SSE.text("Done.")),
+            .json(#"{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long"}}"#, status: 400),
+        ])
+        let agent = ImportAgent(client: .mock(transport), validator: { _ in [] }, chunkTokenBudget: 500)
+        let log = ProgressLog()
+        let result = try await agent.run(
+            document: sampleDocument, content: twoChunkContent, classContext: "",
+            policy: ModelPolicy(pinned: .sonnet), progress: { log.record($0) }
+        )
+        XCTAssertEqual(result.questions.map(\.sourceRef), ["§1"], "chunk 1's questions survive chunk 2's failure")
+        XCTAssertEqual(result.warnings.count, 1)
+        XCTAssertTrue(result.warnings[0].contains("Part 2 of 2"), result.warnings[0])
+        XCTAssertTrue(result.warnings[0].contains("prompt is too long"), result.warnings[0])
+        XCTAssertEqual(transport.requests.count, 4)
+        XCTAssertTrue(log.all.contains(.chunk(index: 1, count: 2)))
+        XCTAssertEqual(log.all.last, .done)
+
+        // Every chunk failing is still a failure of the document …
+        let failing = MockTransport([
+            .sse(SSE.toolUse(id: "c1", name: "classify_document", input: ["classification": "mixed", "reasoning": "?"])),
+            .json(#"{"type":"error","error":{"type":"invalid_request_error","message":"bad"}}"#, status: 400),
+        ])
+        let failingAgent = ImportAgent(client: .mock(failing), validator: { _ in [] })
+        do {
+            _ = try await failingAgent.run(document: sampleDocument, content: sampleContent, classContext: "", policy: ModelPolicy(pinned: .sonnet), progress: { _ in })
+            XCTFail("expected failure")
+        } catch {
+            XCTAssertEqual(error as? ThubanError, .api(status: 400, message: "bad"))
+        }
+
+        // … and a credential problem ends the run at once, whatever the chunk.
+        let unauthorized = MockTransport([
+            .sse(SSE.toolUse(id: "c1", name: "classify_document", input: ["classification": "mixed", "reasoning": "?"])),
+            .sse(SSE.toolUse(id: "q1", name: "emit_questions", input: ["questions": [draftJSON(sourceRef: "§1", seedNote: "ok", withTemplate: false)]])),
+            .sse(SSE.text("Done.")),
+            .json(#"{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}"#, status: 401),
+        ])
+        let authAgent = ImportAgent(client: .mock(unauthorized), validator: { _ in [] }, chunkTokenBudget: 500)
+        do {
+            _ = try await authAgent.run(document: sampleDocument, content: twoChunkContent, classContext: "", policy: ModelPolicy(pinned: .sonnet), progress: { _ in })
+            XCTFail("expected failure")
+        } catch {
+            XCTAssertEqual(error as? ThubanError, .api(status: 401, message: "invalid x-api-key"))
+        }
+    }
+
+    func testImportAgentAsksForSmallerBatchesWhenEmitIsCutOff() async throws {
+        let cutOff = SSE.messageStart()
+            + SSE.toolUseBlock(index: 0, id: "q1", name: "emit_questions", partials: [#"{"questions":[{"sourceRef":"Q1","stem":"Let $f"#])
+            + SSE.messageEnd(stopReason: "max_tokens")
+        let transport = MockTransport([
+            .sse(SSE.toolUse(id: "c1", name: "classify_document", input: ["classification": "existingQuestions", "reasoning": "Numbered."])),
+            .sse(cutOff),
+            .sse(SSE.toolUse(id: "q2", name: "emit_questions", input: ["questions": [draftJSON(sourceRef: "Q1", seedNote: "ok", withTemplate: false)]])),
+            .sse(SSE.text("Done.")),
+        ])
+        let agent = ImportAgent(client: .mock(transport), validator: { _ in [] })
+        let result = try await agent.run(
+            document: sampleDocument, content: sampleContent, classContext: "",
+            policy: ModelPolicy(pinned: .sonnet), progress: { _ in }
+        )
+        XCTAssertEqual(result.questions.map(\.sourceRef), ["Q1"])
+        XCTAssertTrue(result.warnings.isEmpty)
+        XCTAssertEqual(transport.requests.count, 4)
+        let retry = try transport.body(2)
+        XCTAssertEqual(retry["max_tokens"]?.intValue, 32_768)
+        let messages = try XCTUnwrap(retry["messages"]?.arrayValue)
+        XCTAssertEqual(messages.count, 3, "excerpt, the cut-off turn, the follow-up")
+        let note = messages[2]["content"]?.arrayValue?.compactMap { $0["text"]?.stringValue }.joined() ?? ""
+        XCTAssertTrue(note.contains("cut off"), note)
+        XCTAssertTrue(note.contains("at most 4 questions"), note)
+    }
+
+    private var twoChunkContent: DocumentContent {
+        DocumentContent(
+            blocks: [
+                .paragraph(String(repeating: "Limits describe the value a function approaches. ", count: 30)),
+                .paragraph(String(repeating: "Derivatives measure instantaneous rates of change. ", count: 30)),
+            ],
+            figures: [],
+            pageCount: 2
+        )
     }
 
     func testImportChunkerSplitsByBudgetAndTracksPagesAndFigures() {

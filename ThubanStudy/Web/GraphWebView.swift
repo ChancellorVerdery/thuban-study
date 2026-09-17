@@ -22,6 +22,8 @@ struct GraphExpression: Codable, Identifiable, Hashable, Sendable {
     var hidden: Bool = false
     var fromTutor: Bool = false
     var sliderBounds: SliderBounds?
+    /// The calculator this row lives in; Desmos keeps a separate list per mode.
+    var mode: GraphMode = .twoD
 
     struct SliderBounds: Codable, Hashable, Sendable {
         var min: Double?
@@ -30,7 +32,7 @@ struct GraphExpression: Codable, Identifiable, Hashable, Sendable {
     }
 
     init(id: String, latex: String, color: String? = nil, dashed: Bool = false, label: String? = nil,
-         hidden: Bool = false, fromTutor: Bool = false, sliderBounds: SliderBounds? = nil) {
+         hidden: Bool = false, fromTutor: Bool = false, sliderBounds: SliderBounds? = nil, mode: GraphMode = .twoD) {
         self.id = id
         self.latex = latex
         self.color = color
@@ -39,19 +41,23 @@ struct GraphExpression: Codable, Identifiable, Hashable, Sendable {
         self.hidden = hidden
         self.fromTutor = fromTutor
         self.sliderBounds = sliderBounds
+        self.mode = mode
     }
 
-    /// The `{id, latex, color?, lineStyle?, label?, hidden?, sliderBounds?}` object graph.js expects.
+    /// The `{id, latex, color, lineStyle, label?, hidden, sliderBounds?}` object graph.js expects. `lineStyle` and
+    /// `hidden` are always present so a replace-by-id fully overrides the row's previous styling.
     func desmosPayload(theme: ResolvedTheme) -> JSONValue {
         var object: [String: JSONValue] = ["id": .string(id), "latex": .string(latex)]
         let resolvedColor = color ?? (fromTutor ? (dashed ? theme.accentDeep : theme.signal) : theme.accent)
         object["color"] = .string(resolvedColor)
-        if dashed { object["lineStyle"] = .string("DASHED") }
+        object["lineStyle"] = .string(dashed ? "DASHED" : "SOLID")
         if let label, !label.isEmpty {
             object["label"] = .string(label)
             object["showLabel"] = .bool(true)
+        } else {
+            object["showLabel"] = .bool(false)
         }
-        if hidden { object["hidden"] = .bool(true) }
+        object["hidden"] = .bool(hidden)
         if let sliderBounds {
             var bounds: [String: JSONValue] = [:]
             if let min = sliderBounds.min { bounds["min"] = .number(min) }
@@ -90,10 +96,12 @@ struct GraphWebView: View {
         private(set) var desmosKey: String = ""
         /// Set by the page when the Desmos script fails or an operation errors.
         private(set) var lastError: String?
-        private(set) var isPageReady = false
+        /// True while the page that is currently attached has posted `ready`.
+        var isPageReady: Bool { bridge.isPageReady }
 
-        /// Expression rows the student edited inside Desmos (debounced by the page): `[(id, latex)]`.
-        var onExpressionsChanged: (([(id: String, latex: String)]) -> Void)?
+        /// Expression rows the student edited inside Desmos (debounced by the page): `[(id, latex)]` of the
+        /// calculator in `mode` — the other mode's rows are untouched.
+        var onExpressionsChanged: ((_ rows: [(id: String, latex: String)], _ mode: GraphMode) -> Void)?
         var onError: ((String) -> Void)?
         /// Reply to `getState`: the raw Desmos state object and the mode it belongs to.
         var onState: ((JSONValue, GraphMode) -> Void)?
@@ -104,16 +112,16 @@ struct GraphWebView: View {
             self.desmosKey = desmosKey
             self.mode = mode
             bridge.on("ready") { [weak self] _ in
-                guard let self else { return }
-                self.isPageReady = true
-                self.onReady?()
+                self?.onReady?()
             }
             bridge.on("expressionsChanged") { [weak self] payload in
+                guard let self else { return }
                 let rows = (payload["expressions"]?.arrayValue ?? []).compactMap { row -> (id: String, latex: String)? in
                     guard let id = row["id"]?.stringValue else { return nil }
                     return (id, row["latex"]?.stringValue ?? "")
                 }
-                self?.onExpressionsChanged?(rows)
+                let mode = payload["mode"]?.stringValue.flatMap(GraphMode.init(rawValue:)) ?? self.mode
+                self.onExpressionsChanged?(rows, mode)
             }
             bridge.on("error") { [weak self] payload in
                 let message = payload["message"]?.stringValue ?? "Graph error"

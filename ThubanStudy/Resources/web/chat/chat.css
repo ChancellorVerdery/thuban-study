@@ -95,6 +95,9 @@ html, body {
   color: var(--accent-text, #A5772A);
 }
 .event .summary { overflow-wrap: anywhere; }
+/* A tool call the app rejected: the line reads as a failure, not an edit. */
+.event.error { color: var(--neg-text, #B5484A); }
+.event.error svg { color: var(--neg-text, #B5484A); }
 .msg .events { align-self: stretch; display: flex; flex-direction: column; gap: 4px; }
 
 /* ---- markdown content inside bubbles ---- */

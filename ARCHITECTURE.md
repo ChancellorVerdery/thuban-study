@@ -347,9 +347,16 @@ dispatch table; Swift calls `window.thuban.receive(type, payloadJSON)` via `eval
 `{type:"ready"}` when loaded. Theme: Swift sends `{type:"theme", payload:{css: "<:root{…}>", isDark}}`; pages apply it
 to a `<style id="theme">` element and set `data-theme` on `<html>`.
 
+Sends are queued in `WebBridge` until the page posts `ready`; a page reload drops that queue (every controller
+rebuilds its full state in its `ready` handler) and replays only the theme and the page's *sticky* messages (one per
+type — `config` below).
+
 question.html (`QuestionFormWebView`):
-- Swift → JS: `load {instance: QuestionInstanceView}` where parts have `{id, prompt, answerKind, choices?, conditionsText, value?, verdict?}`;
-  `setVerdicts {partId: Verdict}`; `setKeyboardVisible {visible}`; `focusPart {partId}`; `insert {latex}` (from the calculator "copy to answer").
+- Swift → JS: `load {instance: QuestionInstanceView}` where the view is `{questionId, seed, stem, parts:[{id, prompt,
+  answerKind, choices?, conditionsText, value?, verdict?}]}` — never the answers; a `verdict` is the page projection
+  `{outcome, message, failedConditions}` (no `canonicalStudent` / `canonicalExpected`);
+  `setVerdicts {verdicts: {partId: verdict}}` (same projection); `setKeyboardVisible {visible}`; `focusPart {partId}`;
+  `insert {latex}` (from the calculator "copy to answer").
 - JS → Swift: `ready`; `input {partId, latex, ascii}` (debounced 150 ms); `submit {}` (Enter on the last field or Cmd+Enter);
   `keyboardVisible {visible}`; `height {px}`.
 - MathLive setup: `MathfieldElement.fontsDirectory = "thuban://bundle/vendor/mathlive/fonts"`, `soundsDirectory = null`,
@@ -361,22 +368,31 @@ question.html (`QuestionFormWebView`):
 - Static math in stems/prompts: `renderMathInElement` from MathLive, Markdown via marked + DOMPurify.
 
 graph.html (`GraphWebView`) — Desmos:
-- loads `https://www.desmos.com/api/v1.11/calculator.js?apiKey=<key>` (key injected by Swift via `{type:"config", payload:{desmosKey}}` before init; page shows an inline notice if the script fails).
+- loads `https://www.desmos.com/api/v1.11/calculator.js?apiKey=<key>` (key injected by Swift via the sticky
+  `config {desmosKey, mode?: "2d"|"3d"}` before init; page shows an inline notice if the script fails).
 - Swift → JS: `setMode {mode:"2d"|"3d"}` (creates `Desmos.GraphingCalculator` or `Desmos.Calculator3D` in the container;
-  keeps expression lists per mode), `setExpressions {expressions:[{id, latex, color?, lineStyle?:"SOLID"|"DASHED"|"DOTTED", label?, hidden?, sliderBounds?}]}`,
-  `addExpression {…}`, `removeExpression {id}`, `clear {}`, `setViewport {xmin,xmax,ymin,ymax}`, `getState {}`,
-  `setState {state}`, `resetView {}`.
-- JS → Swift: `ready`, `expressionsChanged {expressions:[{id, latex}]}` (observer on the calculator; debounced), `error {message}`.
+  keeps expression lists per mode — Swift follows every `setMode` with `setExpressions` for that mode, because the
+  session's per-mode rows are the source of truth), `setExpressions {expressions:[{id, latex, color?, lineStyle?:"SOLID"|"DASHED"|"DOTTED", label?, showLabel?, hidden?, sliderBounds?}]}`
+  (replaces the rows of the mode on screen, viewport kept), `addExpression {…}`, `removeExpression {id}`, `clear {}`,
+  `setViewport {xmin,xmax,ymin,ymax}`, `getState {}`, `setState {state}`, `resetView {}`.
+- JS → Swift: `ready`, `expressionsChanged {expressions:[{id, latex}], mode}` (observer on the calculator; debounced;
+  only the calculator on screen), `state {state, mode}` (reply to `getState`), `error {message}`.
 - Options: `{expressions: true, keypad: false, settingsMenu: true, zoomButtons: true, border: false, lockViewport: false}`;
   colors default to the theme accent for user rows; tutor-added rows use `signal` (solid) or `accentDeep` dashed.
+  Theming: 2D (and the scientific calculator) pass Desmos' own `backgroundColor`/`textColor`/`accentColor` settings
+  from `--panel`/`--ink`/`--accent` (never together with `invertedColors`, which is a CSS invert filter over the
+  whole calculator); 3D uses `invertedColors: isDark` because its plane material keys off it.
 
-calc.html (`CalculatorWebView`): `Desmos.ScientificCalculator(elt, {})`; if `Desmos.ScientificCalculator` is
-undefined or errors, a fallback: an input + MathLive field evaluated by Swift (`{type:"evaluate", latex}` →
-`{type:"result", latex}` via MathEngine). JS → Swift: `copyToAnswer {latex}`.
+calc.html (`CalculatorWebView`): Swift → JS: sticky `config {desmosKey, forceFallback?}` (an empty key or
+`forceFallback` shows the fallback right away), `result {id, latex}` | `result {id, error}`. `Desmos.ScientificCalculator(elt, {})`
+when the key allows it; if `Desmos.ScientificCalculator` is undefined or errors, a fallback: a MathLive field evaluated
+by Swift (`evaluate {latex, id}` → `result` via `MathEngine.evaluate`). JS → Swift: `ready`, `evaluate {latex, id}`,
+`copyToAnswer {latex}`, `error {message}`.
 
 chat.html (`ChatWebView`): Swift → JS: `setTranscript {messages:[{id, role, html?, markdown, toolEvents, streaming}]}`,
-`appendDelta {id, text}`, `finish {id}`; JS renders markdown (marked + DOMPurify) then `renderMathInElement`.
-Auto-scrolls when at bottom. JS → Swift: `ready`, `linkClicked {href}`.
+`appendMessage {message}` (adds or replaces by id), `appendDelta {id, text, role?}`, `finish {id, markdown?}`, `clear {}`;
+JS renders markdown (marked + DOMPurify) then `renderMathInElement`. Auto-scrolls when at bottom.
+JS → Swift: `ready`, `linkClicked {href, url}` (`href` as written, `url` resolved).
 
 ## App target
 

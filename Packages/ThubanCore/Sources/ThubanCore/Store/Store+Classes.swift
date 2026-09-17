@@ -27,7 +27,7 @@ extension Store: ClassRepository {
             _ = try StudyClass.deleteOne(db, id: id)
             return files
         }
-        try removeFiles(files)
+        removeFiles(files)
     }
 
     /// Persists a new ordering: `ids[i].sortOrder = i`. Unknown ids are ignored.
@@ -42,13 +42,17 @@ extension Store: ClassRepository {
         }
     }
 
-    /// Deletes stored files after their rows are gone; throws when any file could not be removed.
-    func removeFiles(_ files: ClassFiles) throws {
+    /// Deletes stored files after their rows are gone. The rows are already committed, so a file that cannot be
+    /// removed (in use, permissions, an unresolvable path) is logged and returned rather than thrown: callers must
+    /// see the deletion as done, or their state would keep showing rows that no longer exist.
+    @discardableResult
+    func removeFiles(_ files: ClassFiles) -> [String] {
         let failed = Store.removeFiles(files.documentPaths, under: locations.documents)
             + Store.removeFiles(files.figurePaths, under: locations.figures)
-        guard failed.isEmpty else {
-            throw ThubanError.store("Could not delete \(failed.count) file(s): \(failed.joined(separator: ", "))")
+        if !failed.isEmpty {
+            Store.logger.error("Rows deleted but \(failed.count) file(s) were left behind: \(failed.joined(separator: ", "), privacy: .public)")
         }
+        return failed
     }
 }
 

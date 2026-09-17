@@ -128,7 +128,7 @@ struct ImportDropZone: View {
                     .buttonStyle(.thubanSecondary)
                 Text("or press ⌘I")
                     .font(ThubanFont.small)
-                    .foregroundStyle(theme.inkFaintColor)
+                    .foregroundStyle(theme.inkDimColor)
             }
             .padding(.top, 6)
             if rejected > 0 {
@@ -213,6 +213,8 @@ struct ImportBatchCard: View {
                     ForEach(Array(documents.enumerated()), id: \.element.id) { index, document in
                         ImportDocumentRow(document: document, activity: pipeline.activity(for: document.id), onRemove: {
                             Task { await session.removeDocument(document.id) }
+                        }, onRetry: {
+                            Task { await session.retryDocument(document.id) }
                         }, onReviewFigures: { onReviewFigures(document) })
                         if index < documents.count - 1 {
                             Rectangle().fill(theme.lineColor).frame(height: ThubanMetrics.hairline)
@@ -266,6 +268,7 @@ struct ImportDocumentRow: View {
     var document: ImportedDocument
     var activity: ImportPipeline.FileActivity?
     var onRemove: () -> Void
+    var onRetry: () -> Void = {}
     var onReviewFigures: () -> Void
 
     var body: some View {
@@ -280,13 +283,18 @@ struct ImportDocumentRow: View {
                         .truncationMode(.middle)
                     Text(ByteCountFormatter.string(fromByteCount: Int64(document.byteCount), countStyle: .file))
                         .font(ThubanFont.small)
-                        .foregroundStyle(theme.inkFaintColor)
+                        .foregroundStyle(theme.inkDimColor)
                 }
                 HStack(spacing: 8) {
                     Text(statusText)
                         .font(ThubanFont.small)
                         .foregroundStyle(document.status == .failed ? theme.negTextColor : theme.inkDimColor)
                         .lineLimit(1)
+                    if !warnings.isEmpty {
+                        Chip("\(warnings.count) warning\(warnings.count == 1 ? "" : "s")", kind: .warn)
+                            .help(warnings.joined(separator: "\n"))
+                            .accessibilityLabel("\(warnings.count) import warnings: \(warnings.joined(separator: ". "))")
+                    }
                     if let model = document.modelUsed.flatMap(ClaudeModel.init(modelId:)), document.status != .queued {
                         Chip(model.shortName, kind: model == .opus ? .warn : .neutral)
                     }
@@ -307,9 +315,24 @@ struct ImportDocumentRow: View {
         !(document.status == .queued || document.status.isTerminal)
     }
 
+    /// A row with an in-flight status but no live activity was left behind by an earlier run.
+    private var isOrphaned: Bool {
+        isActive && (activity == nil || activity?.isFinished == true)
+    }
+
+    private var warnings: [String] {
+        document.status == .done ? document.warnings : []
+    }
+
     private var statusText: String {
         switch document.status {
-        case .queued: return document.statusDetail == "Cancelled" ? "Queued · cancelled last time" : "Queued"
+        case .queued:
+            switch document.statusDetail {
+            case "Cancelled": return "Queued · cancelled last time"
+            case "Interrupted": return "Queued · interrupted last time"
+            case "Retry": return "Queued · retry"
+            default: return "Queued"
+            }
         case .failed: return document.statusDetail ?? "Failed"
         case .done: return document.classification.map(Self.label(for:)) ?? "Done"
         default: return document.statusDetail ?? document.status.rawValue
@@ -357,12 +380,25 @@ struct ImportDocumentRow: View {
         case .failed:
             HStack(spacing: 8) {
                 Chip("Failed", kind: .neg)
+                Button("Retry") { onRetry() }
+                    .buttonStyle(GhostButtonStyle(height: 28, tinted: true))
+                    .help("Put \(document.filename) back in the queue; the stored copy is reused")
                 IconButton(glyph: .close, label: "Remove \(document.filename)", size: 28, iconSize: 14, action: onRemove)
             }
         case .escalated:
-            Chip("Escalated to Opus", kind: .warn)
+            HStack(spacing: 8) {
+                Chip("Escalated to Opus", kind: .warn)
+                if isOrphaned {
+                    IconButton(glyph: .close, label: "Remove \(document.filename)", size: 28, iconSize: 14, action: onRemove)
+                }
+            }
         case .reading, .extractingFigures, .generating:
-            Chip(phaseLabel, kind: .signal)
+            HStack(spacing: 8) {
+                Chip(phaseLabel, kind: .signal)
+                if isOrphaned {
+                    IconButton(glyph: .close, label: "Remove \(document.filename)", size: 28, iconSize: 14, action: onRemove)
+                }
+            }
         }
     }
 
@@ -430,7 +466,7 @@ struct ImportRail: View {
                         .font(ThubanFont.small)
                         .foregroundStyle(theme.inkDimColor)
                         .frame(width: 84, alignment: .leading)
-                    Chip(app.isConnected ? "Connected" : "Not connected", kind: app.isConnected ? .pos : .neutral, dot: true)
+                    Chip(app.connectionSummary, kind: app.isConnected ? .pos : (app.connection.needsAttention ? .warn : .neutral), dot: true)
                 }
                 Rectangle().fill(theme.lineColor).frame(height: ThubanMetrics.hairline)
                 Toggle(isOn: Binding(get: { app.modelPolicy.allowEscalation }, set: { app.setAllowEscalation($0) })) {
@@ -595,7 +631,7 @@ struct FigureBeforeAfter: View {
             .background(theme.panel2Color, in: RoundedRectangle(cornerRadius: ThubanMetrics.chipRadius, style: .continuous))
             Text(label)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(theme.inkFaintColor)
+                .foregroundStyle(theme.inkDimColor)
         }
         .accessibilityHidden(true)
     }

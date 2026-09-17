@@ -20,6 +20,7 @@ struct TutorPane: View {
             if let error = state.tutorError {
                 switch error {
                 case .notConnected: connectCard
+                case .reconnect(let message): reconnectCard(message)
                 case .failed(let message): failureCard(message)
                 }
             }
@@ -88,6 +89,28 @@ struct TutorPane: View {
                 .font(ThubanFont.display(15))
                 .foregroundStyle(theme.inkColor)
             Text("The tutor runs on your Claude account or an API key. Connect in Settings › Claude account, then send your message again.")
+                .font(ThubanFont.body(13))
+                .foregroundStyle(theme.inkDimColor)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Button("Open Settings") { openWindow(id: "settings") }
+                    .buttonStyle(PrimaryButtonStyle(height: 30))
+                Button("Dismiss") { state.tutorError = nil }
+                    .buttonStyle(GhostButtonStyle(height: 30))
+            }
+        }
+        .thubanPanel(padding: 12)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 10)
+    }
+
+    /// Credentials exist but stopped working: same shape as the connect card, with the reason and a way to Settings.
+    private func reconnectCard(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Sign in to Claude again")
+                .font(ThubanFont.display(15))
+                .foregroundStyle(theme.inkColor)
+            Text(message)
                 .font(ThubanFont.body(13))
                 .foregroundStyle(theme.inkDimColor)
                 .fixedSize(horizontal: false, vertical: true)
@@ -224,14 +247,14 @@ struct TutorComposer: View {
                 }
                 Text("Only on your explicit request")
                     .font(.system(size: 12))
-                    .foregroundStyle(theme.inkFaintColor)
+                    .foregroundStyle(theme.inkDimColor)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer(minLength: 4)
                 // The keyboard hint is the first thing to go in the 420-pt pane; the lock link never wraps.
                 Text("Shift+Enter for a new line")
                     .font(.system(size: 12))
-                    .foregroundStyle(theme.inkFaintColor)
+                    .foregroundStyle(theme.inkDimColor)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .layoutPriority(-1)

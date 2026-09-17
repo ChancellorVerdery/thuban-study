@@ -15,7 +15,8 @@ struct QuestionFormWebView: View {
     @Observable
     final class Controller {
         let bridge: WebBridge
-        private(set) var isPageReady = false
+        /// True while the page that is currently attached has posted `ready`.
+        var isPageReady: Bool { bridge.isPageReady }
         /// Content height reported by the page, for a scroll view that hugs the form.
         private(set) var contentHeight: CGFloat = 0
         private(set) var isKeyboardVisible = false
@@ -31,7 +32,6 @@ struct QuestionFormWebView: View {
         init() {
             bridge = WebBridge(name: "question")
             bridge.on("ready") { [weak self] _ in
-                self?.isPageReady = true
                 self?.onReady?()
             }
             bridge.on("input") { [weak self] payload in
@@ -61,7 +61,17 @@ struct QuestionFormWebView: View {
 
         /// Shows verdict badges for the given parts.
         func setVerdicts(_ verdicts: [String: Verdict]) {
-            bridge.send("setVerdicts", ["verdicts": .object(verdicts.mapValues { WebBridge.jsonValue($0) })])
+            bridge.send("setVerdicts", ["verdicts": .object(verdicts.mapValues { Self.pageVerdict($0) })])
+        }
+
+        /// What the page gets to see of a verdict: `{outcome, message, failedConditions}`. The canonical forms
+        /// (`canonicalExpected` in particular) stay in Swift — the page never receives the answers.
+        static func pageVerdict(_ verdict: Verdict) -> JSONValue {
+            .object([
+                "outcome": .string(verdict.outcome.rawValue),
+                "message": .string(verdict.message),
+                "failedConditions": .array(verdict.failedConditions.map { .string($0) }),
+            ])
         }
 
         func focus(partId: String) {
@@ -93,7 +103,7 @@ struct QuestionFormWebView: View {
                     ]
                     if let choices = part.choices { object["choices"] = .array(choices.map { .string($0) }) }
                     if let value = inputs[part.id] { object["value"] = .string(value) }
-                    if let verdict = verdicts[part.id] { object["verdict"] = WebBridge.jsonValue(verdict) }
+                    if let verdict = verdicts[part.id] { object["verdict"] = Self.pageVerdict(verdict) }
                     return .object(object)
                 }),
             ])

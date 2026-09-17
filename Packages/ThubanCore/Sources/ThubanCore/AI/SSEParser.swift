@@ -130,6 +130,9 @@ public struct MessagesStreamDecoder: Sendable {
     private var blocks: [Int: Block] = [:]
     private var usage = Usage()
     private var stopReason = ""
+    /// Tool-use blocks whose input was not valid JSON, held until the stop reason is known: a block cut off by
+    /// `max_tokens` is dropped (the caller sees `stopReason == "max_tokens"`); anything else is a parse error.
+    private var invalidBlocks: [Block] = []
 
     public init() {}
 
@@ -148,7 +151,7 @@ public struct MessagesStreamDecoder: Sendable {
         case "content_block_delta": return handleBlockDelta(payload)
         case "content_block_stop": return try handleBlockStop(payload)
         case "message_delta": return handleMessageDelta(payload)
-        case "message_stop": return [.messageEnd(stopReason: stopReason, usage: usage)]
+        case "message_stop": return try handleMessageStop()
         case "error": return [.error(Self.apiError(from: payload))]
         default: return [] // ping and future event types
         }
@@ -202,10 +205,19 @@ public struct MessagesStreamDecoder: Sendable {
             do {
                 input = try JSONValue(jsonString: text)
             } catch {
-                throw ThubanError.parse("Tool '\(block.name)' produced invalid JSON input.")
+                invalidBlocks.append(block)
+                return []
             }
         }
         return [.toolUseEnd(id: block.id, name: block.name, input: input)]
+    }
+
+    private mutating func handleMessageStop() throws -> [StreamEvent] {
+        if let block = invalidBlocks.first, stopReason != "max_tokens" {
+            throw ThubanError.parse("Tool '\(block.name)' produced invalid JSON input.")
+        }
+        invalidBlocks = []
+        return [.messageEnd(stopReason: stopReason, usage: usage)]
     }
 
     private mutating func handleMessageDelta(_ payload: JSONValue) -> [StreamEvent] {

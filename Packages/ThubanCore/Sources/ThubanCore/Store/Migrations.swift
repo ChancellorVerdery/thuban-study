@@ -15,8 +15,17 @@ extension Store {
             try createMessages(db)
             try createSettings(db)
         }
+        migrator.registerMigration("v2-document-warnings") { db in
+            // JSON [String]: what the import agent could not do as well as it wanted.
+            try db.alter(table: "documents") { t in
+                t.add(column: "warnings", .text).notNull().defaults(to: "[]")
+            }
+        }
         return migrator
     }
+
+    /// Every migration identifier, in order.
+    public static let migrationIdentifiers = ["v1", "v2-document-warnings"]
 
     /// Every table "v1" creates, in dependency order.
     public static let tableNames = [

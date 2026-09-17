@@ -6,7 +6,7 @@
  * a MathLive <math-field> whose expression is evaluated by the native MathEngine.
  *
  * Message contract:
- *   Swift → JS : config {desmosKey}, result {latex, id?, error?}, theme {css, isDark}
+ *   Swift → JS : config {desmosKey, forceFallback?}, result {latex, id?, error?}, theme {css, isDark}
  *   JS → Swift : ready, evaluate {latex, id}, copyToAnswer {latex}, error {message}
  */
 (function () {
@@ -48,7 +48,25 @@
     try { bridge.send(type, payload || {}); } catch (e) { console.error('send failed', type, e); }
   }
 
-  function isDark() { return document.documentElement.dataset.theme === 'dark'; }
+  function cssVar(name, fallback) {
+    var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  }
+
+  /**
+   * Desmos settings that carry the theme: the calculator body takes --panel, its text --ink and its chrome
+   * (Enter key, RAD/DEG segment, links, focus rings) the app accent instead of Desmos' stock blue. These are
+   * first-class Desmos settings (validated as hex); `invertedColors` is a CSS invert filter over the whole
+   * calculator and would invert these too, so it stays off.
+   */
+  function themeSettings() {
+    return {
+      invertedColors: false,
+      backgroundColor: cssVar('--panel', '#fffdf7'),
+      textColor: cssVar('--ink', '#161a21'),
+      accentColor: cssVar('--accent', '#e0b15c')
+    };
+  }
 
   function showStatus(text) { statusEl.textContent = text; statusEl.hidden = false; }
   function hideStatus() { statusEl.hidden = true; }
@@ -56,7 +74,11 @@
   // ---- Desmos ---------------------------------------------------------------------------------------------
 
   function loadDesmos(key) {
-    if (window.Desmos) { createDesmos(); return; }
+    if (window.Desmos) {
+      // Script already present (e.g. the key was re-sent): the calculator is built once, never stacked.
+      if (!calculator) createDesmos();
+      return;
+    }
     if (loading) return;
     if (!key) { useFallback('No Desmos API key is configured.'); return; }
     loading = true;
@@ -86,7 +108,7 @@
       return;
     }
     try {
-      calculator = Desmos.ScientificCalculator(calculatorEl, { invertedColors: isDark() });
+      calculator = Desmos.ScientificCalculator(calculatorEl, themeSettings());
     } catch (err) {
       calculator = null;
       useFallback('The Desmos scientific calculator failed to start.');
@@ -150,12 +172,14 @@
     mathfield = new ME();
     mathfield.id = 'mf';
     mathfield.setAttribute('aria-label', 'Expression');
+    // Mount first: MathLive creates the underlying field in connectedCallback and some setters (menuItems)
+    // throw "Mathfield not mounted" before that.
+    mfHost.appendChild(mathfield);
     mathfield.mathVirtualKeyboardPolicy = 'manual';
     mathfield.smartFence = true;
     mathfield.smartSuperscript = true;
-    mathfield.menuItems = [];
+    try { mathfield.menuItems = []; } catch (_) { /* older API: no context-menu control */ }
     mathfield.placeholder = 'e.g. \\sqrt{2}\\cdot\\sin\\left(\\frac{\\pi}{6}\\right)';
-    mfHost.appendChild(mathfield);
 
     // MathLive dispatches 'change' when Return/Enter is pressed inside the field.
     mathfield.addEventListener('change', function () { evaluateCurrent(); });
@@ -335,7 +359,7 @@
   });
 
   function applyTheme() {
-    if (calculator) { try { calculator.updateSettings({ invertedColors: isDark() }); } catch (e) { /* ignore */ } }
+    if (calculator) { try { calculator.updateSettings(themeSettings()); } catch (e) { /* ignore */ } }
   }
   new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 

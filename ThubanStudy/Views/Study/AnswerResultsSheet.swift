@@ -61,7 +61,7 @@ struct AnswerResultsSheet: View {
             }
             Text("seed \(results.seed.prefix(4))")
                 .font(ThubanFont.mono(12))
-                .foregroundStyle(theme.inkFaintColor)
+                .foregroundStyle(theme.inkDimColor)
         }
     }
 
@@ -141,7 +141,7 @@ private struct VerdictRow: View {
             if let canonical = canonicalLine {
                 Text(canonical)
                     .font(ThubanFont.mono(12))
-                    .foregroundStyle(theme.inkFaintColor)
+                    .foregroundStyle(theme.inkDimColor)
                     .lineLimit(2)
                     .truncationMode(.middle)
                     .padding(.leading, 36)

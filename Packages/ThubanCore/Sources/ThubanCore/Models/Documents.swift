@@ -34,6 +34,9 @@ public struct ImportedDocument: Codable, Identifiable, Sendable, Equatable {
     public var classification: DocumentClassification?
     public var questionCount: Int
     public var figureCount: Int
+    /// What the import agent could not do as well as it wanted (rejected templates, empty or failed parts);
+    /// shown next to a finished document.
+    public var warnings: [String]
 
     public init(
         id: DocumentID = .new(),
@@ -48,8 +51,10 @@ public struct ImportedDocument: Codable, Identifiable, Sendable, Equatable {
         modelUsed: String? = nil,
         classification: DocumentClassification? = nil,
         questionCount: Int = 0,
-        figureCount: Int = 0
+        figureCount: Int = 0,
+        warnings: [String] = []
     ) {
+        self.warnings = warnings
         self.id = id
         self.classId = classId
         self.filename = filename

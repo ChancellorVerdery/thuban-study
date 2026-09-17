@@ -67,7 +67,7 @@ struct ImportProgressSheet: View {
                 Spacer()
                 Text("Questions are added to the bank as each file finishes.")
                     .font(ThubanFont.small)
-                    .foregroundStyle(theme.inkFaintColor)
+                    .foregroundStyle(theme.inkDimColor)
             }
         }
     }
@@ -97,6 +97,10 @@ private struct ActivityRow: View {
             Spacer(minLength: 8)
             if let model = activity.model {
                 Chip(model.shortName, kind: model == .opus ? .warn : .neutral)
+            }
+            if !activity.warnings.isEmpty {
+                Chip("\(activity.warnings.count) warning\(activity.warnings.count == 1 ? "" : "s")", kind: .warn)
+                    .help(activity.warnings.joined(separator: "\n"))
             }
             if activity.phase == .done {
                 Chip("\(activity.questionCount) question\(activity.questionCount == 1 ? "" : "s")", kind: .pos)

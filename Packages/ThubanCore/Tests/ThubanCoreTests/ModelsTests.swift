@@ -140,6 +140,17 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(back.chart?.series[1].latex, "2.5x")
     }
 
+    func testStandardChartClampsConfidence() throws {
+        for (raw, expected) in [("1e307", 1.0), ("-2", 0.0), ("0.42", 0.42), ("7", 1.0)] {
+            let json = Data("{\"chartType\":\"line\",\"series\":[],\"confidence\":\(raw)}".utf8)
+            let chart = try JSONDecoder().decode(StandardChart.self, from: json)
+            XCTAssertEqual(chart.confidence, expected, raw)
+        }
+        XCTAssertEqual(StandardChart(chartType: "line", confidence: .infinity).confidence, 0)
+        XCTAssertEqual(StandardChart(chartType: "line", confidence: .nan).confidence, 0)
+        XCTAssertEqual(StandardChart.clampedConfidence(1e307), 1)
+    }
+
     func testTutorMessageRoundTrips() throws {
         let message = TutorMessage(
             id: MessageID(raw: "m-1"),

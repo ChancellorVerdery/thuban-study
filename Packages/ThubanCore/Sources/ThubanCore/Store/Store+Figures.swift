@@ -43,6 +43,21 @@ extension Store: FigureRepository {
             _ = try Figure.deleteOne(db, id: id)
             return paths
         }
-        try removeFiles(ClassFiles(documentPaths: [], figurePaths: paths))
+        removeFiles(ClassFiles(documentPaths: [], figurePaths: paths))
+    }
+
+    /// Removes every figure row of a document (and, with `deleteFiles`, their PNGs), so a rerun of the import
+    /// starts from a clean slate instead of duplicating figures. Returns the number of rows removed.
+    @discardableResult
+    public func deleteFigures(for documentId: DocumentID, deleteFiles: Bool) async throws -> Int {
+        let (paths, count) = try await write { db -> ([String], Int) in
+            let paths = deleteFiles
+                ? try String.fetchAll(db, sql: "SELECT originalPath FROM figures WHERE documentId = ?", arguments: [documentId])
+                : []
+            let count = try Figure.filter(Col.documentId == documentId).deleteAll(db)
+            return (paths, count)
+        }
+        removeFiles(ClassFiles(documentPaths: [], figurePaths: paths))
+        return count
     }
 }

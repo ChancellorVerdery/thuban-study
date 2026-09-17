@@ -57,7 +57,13 @@
       inset: 0;
       width: 100%;
       height: 100%;
+      /* The pane ground: Desmos paints its own paper over this, so a dark theme never shows a white block while
+         the calculator is (re)built or before invertedColors is in effect. */
+      background: var(--panel, #fffdf7);
     }
+    /* Desmos paints white text on its accent buttons; the theme's on-accent ink is legible on every scheme's accent
+       (2D only — the 3D grapher uses Desmos' inverted mode, where the stock white is right). */
+    :root:not([data-graph-mode="3d"]) #calculator .dcg-btn-blue { color: var(--on-accent, #14100a); }
 
     /* Centered overlays: loading status and the failure notice. */
     .overlay {

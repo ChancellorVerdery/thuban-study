@@ -16,6 +16,8 @@ final class WebBridge: NSObject, WKScriptMessageHandler {
 
     private(set) weak var webView: WKWebView?
     private(set) var isReady = false
+    /// True while an attached page has posted `ready` (false again once the hosting view is gone or reloading).
+    var isPageReady: Bool { isReady && webView != nil }
     private var handlers: [String: [(JSONValue) -> Void]] = [:]
     private var queue: [(type: String, payload: JSONValue)] = []
     /// Messages re-sent on every `ready` (one per type), e.g. a page's `config`: the hosting view may be
@@ -35,9 +37,12 @@ final class WebBridge: NSObject, WKScriptMessageHandler {
         self.webView = webView
     }
 
-    /// Called when the page (re)loads: sends are queued again until the next `ready`.
+    /// Called when the page (re)loads: sends are queued again until the next `ready`. Messages queued while the
+    /// page was gone are dropped — they described a page that no longer exists; every controller rebuilds its
+    /// full state in its `ready` handler. Sticky messages and the theme survive.
     func pageWillLoad() {
         isReady = false
+        queue.removeAll()
     }
 
     // MARK: Handlers (JS → Swift)

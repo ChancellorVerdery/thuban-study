@@ -35,7 +35,11 @@ struct GraphPane: View {
             controller?.configure(desmosKey: key)
         }
         .onChange(of: session.graphMode) { _, mode in
-            controller?.setMode(mode)
+            guard let controller else { return }
+            controller.setMode(mode)
+            // The page rebuilds the target calculator from its own per-mode list, which is empty after a page
+            // reload; the session's rows for that mode are the source of truth.
+            Self.pushCurrentMode(to: controller, from: session)
         }
         .onChange(of: session.tutorEditedAt) { _, _ in
             scheduleChipRefresh()
@@ -51,32 +55,42 @@ struct GraphPane: View {
         controller.onReady = { [weak controller] in
             guard let controller else { return }
             controller.setMode(session.graphMode)
-            controller.setExpressions(session.graphExpressions)
+            Self.pushCurrentMode(to: controller, from: session)
         }
-        controller.onExpressionsChanged = { rows in
-            Self.merge(rows: rows, into: session)
+        controller.onExpressionsChanged = { rows, mode in
+            Self.merge(rows: rows, mode: mode, into: session)
         }
         controller.onError = { message in
             ClassSession.logger.error("graph: \(message, privacy: .public)")
         }
         if controller.isPageReady {
-            controller.setExpressions(session.graphExpressions)
+            Self.pushCurrentMode(to: controller, from: session)
         }
         self.controller = controller
         scheduleChipRefresh()
     }
 
-    /// Applies the page's expression list to the session: keeps tutor styling on rows the tutor added, updates
-    /// edited LaTeX, adds new rows as user rows and drops deleted ones.
-    static func merge(rows: [(id: String, latex: String)], into session: ClassSession) {
-        var next: [GraphExpression] = []
-        let existing = Dictionary(session.graphExpressions.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    /// Sends the rows of the mode on screen (the page keeps the other mode's own list) and then the tutor's pending
+    /// viewport.
+    private static func pushCurrentMode(to controller: GraphWebView.Controller, from session: ClassSession) {
+        controller.setExpressions(session.visibleGraphExpressions)
+        if session.graphMode == .twoD, let viewport = session.graphViewport {
+            controller.setViewport(viewport)
+        }
+    }
+
+    /// Applies the page's expression list for one mode to the session: keeps tutor styling on rows the tutor added,
+    /// updates edited LaTeX, adds new rows as user rows and drops deleted ones. Rows of the other mode are kept as
+    /// they are — Desmos only reports the calculator that is on screen.
+    static func merge(rows: [(id: String, latex: String)], mode: GraphMode, into session: ClassSession) {
+        var next: [GraphExpression] = session.graphExpressions.filter { $0.mode != mode }
+        let existing = Dictionary(session.graphExpressions.filter { $0.mode == mode }.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         for row in rows {
             if var known = existing[row.id] {
                 known.latex = row.latex
                 next.append(known)
             } else if !row.latex.trimmingCharacters(in: .whitespaces).isEmpty {
-                next.append(GraphExpression(id: row.id, latex: row.latex))
+                next.append(GraphExpression(id: row.id, latex: row.latex, mode: mode))
             }
         }
         if next != session.graphExpressions {
@@ -116,7 +130,10 @@ struct GraphPane: View {
                     .transition(.opacity)
             }
             Spacer(minLength: 4)
-            Button("Reset view") { controller?.resetView() }
+            Button("Reset view") {
+                session.graphViewport = nil
+                controller?.resetView()
+            }
                 .buttonStyle(GhostButtonStyle(height: 28, horizontalPadding: 8))
                 .fixedSize()
                 .disabled(controller == nil || !app.hasDesmosKey)

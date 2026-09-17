@@ -458,7 +458,7 @@ public actor ImportAgent {
         client: ClaudeClient,
         validator: @escaping TemplateValidator,
         chunkTokenBudget: Int = 12_000,
-        maxTokens: Int = 8192,
+        maxTokens: Int = 32_768,
         maxToolRounds: Int = ImportAgent.defaultToolRounds
     ) {
         self.client = client
@@ -469,15 +469,20 @@ public actor ImportAgent {
     }
 
     /// Runs the whole pipeline for one document. Throws `ThubanError.cancelled` when the task is cancelled.
+    /// `questionsPerChunk` is the Settings › Question bank hint for readings (how many questions an excerpt yields).
     public func run(
         document: ImportedDocument,
         content: DocumentContent,
         classContext: String,
         policy: ModelPolicy,
+        questionsPerChunk: Int = Prompts.defaultQuestionsPerChunk,
         progress: @Sendable (ImportProgress) -> Void
     ) async throws -> ImportResult {
         do {
-            return try await pipeline(document: document, content: content, classContext: classContext, policy: policy, progress: progress)
+            return try await pipeline(
+                document: document, content: content, classContext: classContext, policy: policy,
+                questionsPerChunk: questionsPerChunk, progress: progress
+            )
         } catch {
             throw ClaudeClient.normalize(error)
         }
@@ -497,6 +502,7 @@ public actor ImportAgent {
         content: DocumentContent,
         classContext: String,
         policy: ModelPolicy,
+        questionsPerChunk: Int,
         progress: @Sendable (ImportProgress) -> Void
     ) async throws -> ImportResult {
         var state = RunState(
@@ -513,13 +519,27 @@ public actor ImportAgent {
 
         progress(.classifying)
         let classification = try await classify(first, classContext: classContext, state: &state)
-        let system = Prompts.importSystem(classContext: classContext, classification: classification)
+        let system = Prompts.importSystem(
+            classContext: classContext, classification: classification, questionsPerChunk: questionsPerChunk
+        )
 
+        var failed: [ThubanError] = []
         for chunk in chunks {
             try Task.checkCancellation()
             progress(.chunk(index: chunk.index, count: chunks.count))
-            try await process(chunk, system: system, policy: policy, state: &state, progress: progress)
+            do {
+                try await process(chunk, system: system, policy: policy, state: &state, progress: progress)
+            } catch {
+                // Cancellation and credential problems end the run; any other failure costs only this chunk, so
+                // the questions already extracted from earlier chunks survive.
+                let failure = ClaudeClient.normalize(error)
+                if failure == .cancelled || failure.isCredentialProblem { throw failure }
+                logger.error("Chunk \(chunk.index + 1) of \(chunks.count) failed: \(failure.localizedDescription, privacy: .public)")
+                failed.append(failure)
+                state.warnings.append("Part \(chunk.index + 1) of \(chunks.count) could not be processed: \(failure.localizedDescription)")
+            }
         }
+        if failed.count == chunks.count, let last = failed.last { throw last }
 
         progress(.figures(count: content.figures.count))
         let result = assemble(document: document, content: content, classification: classification, state: state)
@@ -597,7 +617,8 @@ public actor ImportAgent {
             )
             state.usage += response.usage
             let calls = response.parts.compactMap(\.toolUseValue)
-            if calls.isEmpty {
+            let truncated = response.stopReason == "max_tokens"
+            if calls.isEmpty, !truncated {
                 guard drafts.isEmpty, !nudged else { break }
                 nudged = true
                 messages.append(.assistant(Self.assistantParts(response.parts)))
@@ -626,10 +647,25 @@ public actor ImportAgent {
                     results.append(.toolResult(toolUseId: call.id, content: "Unknown tool '\(call.name)'.", isError: true))
                 }
             }
+            if truncated {
+                // The reply hit the output limit; the decoder dropped the cut-off emit_questions block.
+                logger.notice("Chunk \(chunk.index + 1) reply hit the output-token limit (\(self.maxTokens, privacy: .public)); asking for smaller batches")
+                results.append(.text(Self.truncationNote(recorded: drafts.count)))
+                messages.append(.user(results))
+                continue
+            }
             messages.append(.user(results))
             if response.stopReason != "tool_use" { break }
         }
         return .questions(drafts, conversation: messages)
+    }
+
+    static func truncationNote(recorded: Int) -> String {
+        let kept = recorded == 0
+            ? "No questions have been recorded yet."
+            : "\(recorded) question\(recorded == 1 ? " is" : "s are") already recorded; do not repeat \(recorded == 1 ? "it" : "them")."
+        return "Your reply was cut off by the output limit, so the emit_questions call in it was discarded. \(kept) "
+            + "Call emit_questions again for the remaining questions in batches of at most 4 questions per call, using several calls."
     }
 
     // MARK: Validation & repair
@@ -650,11 +686,19 @@ public actor ImportAgent {
         guard !failing.isEmpty else { return out }
 
         let repaired = try await repairTurn(failing.map { (out[$0.index], $0.errors) }, conversation: conversation, system: system, state: &state)
+        // Each re-emitted draft is claimed once: by sourceRef, else by stem, else by position when the model
+        // returned exactly one draft per failing question (it may drop or reorder them).
+        var candidates: [QuestionDraft?] = repaired
+        let countsMatch = repaired.count == failing.count
         for (position, failure) in failing.enumerated() {
             let original = out[failure.index]
-            if position < repaired.count, let fixed = await accept(repaired[position]) {
-                out[failure.index] = fixed
-                continue
+            if let slot = Self.matchRepair(for: original, in: candidates, position: countsMatch ? position : nil),
+               let candidate = candidates[slot] {
+                candidates[slot] = nil
+                if let fixed = await accept(candidate) {
+                    out[failure.index] = fixed
+                    continue
+                }
             }
             out[failure.index] = original.downgradedToStatic()
             let label = original.sourceRef ?? String(original.stem.prefix(60))
@@ -685,6 +729,30 @@ public actor ImportAgent {
         return response.parts.compactMap(\.toolUseValue)
             .filter { $0.name == ImportTools.emitName }
             .flatMap { Self.decodeDrafts($0.input).drafts }
+    }
+
+    /// The slot of the re-emitted draft for `original`, or `nil` when none can be attributed to it.
+    static func matchRepair(for original: QuestionDraft, in candidates: [QuestionDraft?], position: Int?) -> Int? {
+        let ref = normalizedKey(original.sourceRef ?? "")
+        // A candidate whose sourceRef contradicts the original's is never attributed to it.
+        func compatible(_ candidate: QuestionDraft) -> Bool {
+            let candidateRef = normalizedKey(candidate.sourceRef ?? "")
+            return ref.isEmpty || candidateRef.isEmpty || candidateRef == ref
+        }
+        if !ref.isEmpty, let index = candidates.firstIndex(where: { $0.map { normalizedKey($0.sourceRef ?? "") == ref } ?? false }) {
+            return index
+        }
+        let stem = normalizedKey(original.stem)
+        if !stem.isEmpty, let index = candidates.firstIndex(where: { $0.map { compatible($0) && normalizedKey($0.stem) == stem } ?? false }) {
+            return index
+        }
+        if let position, position < candidates.count, let candidate = candidates[position], compatible(candidate) { return position }
+        return nil
+    }
+
+    /// Lower-cased, whitespace-collapsed and capped, so cosmetic changes by the model still match.
+    static func normalizedKey(_ text: String) -> String {
+        String(text.lowercased().split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(120))
     }
 
     /// A repaired draft is accepted when its template now validates, or when it was resubmitted as static.

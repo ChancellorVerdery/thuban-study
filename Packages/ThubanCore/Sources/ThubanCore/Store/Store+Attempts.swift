@@ -3,6 +3,12 @@ import GRDB
 
 extension Store: AttemptRepository {
     public func record(_ attempt: Attempt) async throws {
+        try await record(attempt, masteryStreak: ProgressRules.masteryStreak)
+    }
+
+    /// Stores the attempt and updates progress using `masteryStreak` (the Settings › Question bank threshold)
+    /// as the number of consecutive first-try correct attempts needed for `.mastered`.
+    public func record(_ attempt: Attempt, masteryStreak: Int) async throws {
         try await write { db in
             guard let classId = try ClassID.fetchOne(
                 db, sql: "SELECT classId FROM questions WHERE id = ?", arguments: [attempt.questionId]
@@ -20,6 +26,7 @@ extension Store: AttemptRepository {
                 current: current,
                 verdictScore: attempt.score,
                 isFirstTry: earlierOnSameInstance == 0,
+                masteryStreak: masteryStreak,
                 at: attempt.createdAt
             )
             try ProgressRecord(next, classId: classId).save(db)

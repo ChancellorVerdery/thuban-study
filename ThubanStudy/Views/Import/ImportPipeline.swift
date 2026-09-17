@@ -21,12 +21,24 @@ final class ImportPipeline {
         var phase: Phase = .waiting
         var detail: String = "Waiting"
         var model: ClaudeModel?
+        /// The chunk being generated (0-based) and the chunk count, once the agent reports them.
+        var chunkIndex: Int?
+        var chunkCount: Int?
         var questionCount = 0
         var figureCount = 0
         var chartCount = 0
+        var warnings: [String] = []
         var error: String?
 
         var isFinished: Bool { phase == .done || phase == .failed || phase == .cancelled }
+
+        /// "Generating questions · part 3 of 12 · Opus": phase, chunk and model composed, so no event wipes another's information.
+        var generatingDetail: String {
+            var text = "Generating questions"
+            if let chunkIndex, let chunkCount, chunkCount > 1 { text += " · part \(chunkIndex + 1) of \(chunkCount)" }
+            if let model { text += " · \(model.shortName)" }
+            return text
+        }
     }
 
     /// The agent asked for Opus on a file; the sheet offers to keep it or pin Sonnet for the rest of the run.
@@ -169,14 +181,27 @@ final class ImportPipeline {
                 await engine.validate(template)
             })
             let documentId = document.id
-            let result = try await agent.run(
-                document: document,
-                content: content,
-                classContext: app.classContext(for: classId),
-                policy: policy
-            ) { [weak self] progress in
-                Task { @MainActor [weak self] in self?.handle(progress, for: documentId) }
+            // Progress events go through one stream so they are handled in the order the agent emitted them, and
+            // are fully drained before the final status is written.
+            let (events, continuation) = AsyncStream<ImportProgress>.makeStream()
+            let relay = Task { @MainActor [weak self] in
+                for await progress in events { self?.handle(progress, for: documentId) }
             }
+            let outcome: Result<ImportResult, Error>
+            do {
+                outcome = .success(try await agent.run(
+                    document: document,
+                    content: content,
+                    classContext: app.classContext(for: classId),
+                    policy: policy,
+                    questionsPerChunk: app.questionBankSettings.defaults.questionsPerChunk
+                ) { progress in continuation.yield(progress) })
+            } catch {
+                outcome = .failure(error)
+            }
+            continuation.finish()
+            await relay.value
+            let result = try outcome.get()
 
             // 4. Store questions
             try Task.checkCancellation()
@@ -194,8 +219,10 @@ final class ImportPipeline {
             document.classification = result.classification
             document.questionCount = questions.count
             document.figureCount = content.figures.count
+            document.warnings = result.warnings
             try await store.update(classification: result.classification, questionCount: questions.count,
-                                   figureCount: content.figures.count, for: document.id)
+                                   figureCount: content.figures.count, warnings: result.warnings, for: document.id)
+            update(document.id) { $0.warnings = result.warnings }
             await session.loadQuestions()
 
             // 5. Figure agent
@@ -204,8 +231,9 @@ final class ImportPipeline {
             // 6. Done
             let doneDetail = "Done · \(questions.count) question\(questions.count == 1 ? "" : "s")"
                 + (charts > 0 ? " · \(charts) chart\(charts == 1 ? "" : "s")" : "")
-            document = await setStatus(document, .done, detail: doneDetail, model: document.modelUsed)
+                + (result.warnings.isEmpty ? "" : " · \(result.warnings.count) warning\(result.warnings.count == 1 ? "" : "s")")
             update(document.id) { $0.phase = .done; $0.detail = doneDetail; $0.chartCount = charts }
+            document = await setStatus(document, .done, detail: doneDetail, model: document.modelUsed)
             if !result.warnings.isEmpty {
                 Self.logger.notice("Import warnings for \(document.filename, privacy: .public): \(result.warnings.joined(separator: " | "), privacy: .public)")
             }
@@ -216,28 +244,41 @@ final class ImportPipeline {
         } catch {
             let message = error.localizedDescription
             Self.logger.error("Import failed for \(document.filename, privacy: .public): \(message, privacy: .public)")
-            document = await setStatus(document, .failed, detail: message, model: document.modelUsed)
+            if let thuban = error as? ThubanError, thuban.isCredentialProblem {
+                await session.app.noteCredentialProblem(thuban)
+            }
+            // The model that actually ran (an escalation updates the activity, not the local copy).
+            let model = activity(for: document.id)?.model?.rawValue ?? document.modelUsed
             update(document.id) { $0.phase = .failed; $0.detail = "Failed"; $0.error = message }
+            document = await setStatus(document, .failed, detail: message, model: model)
         }
     }
 
     private func handle(_ progress: ImportProgress, for id: DocumentID) {
+        // Nothing may touch a file after its final status is set (late events cannot resurrect a cancelled row).
+        guard let current = activity(for: id), !current.isFinished else { return }
         switch progress {
         case .classifying:
             update(id) { $0.detail = "Classifying the document" }
             setDetail(id, "Classifying the document")
         case .chunk(let index, let count):
-            let text = count > 1 ? "Generating questions · part \(index + 1) of \(count)" : "Generating questions"
-            update(id) { $0.detail = text }
-            setDetail(id, text)
+            update(id) { $0.chunkIndex = index; $0.chunkCount = count; $0.detail = $0.generatingDetail }
+            setDetail(id, activity(for: id)?.generatingDetail ?? "Generating questions")
         case .generating(let model):
-            update(id) { $0.phase = .generating; $0.model = model; $0.detail = "Generating questions (\(model.shortName))" }
-            Task { try? await session.store.update(status: .generating, detail: "Generating questions (\(model.shortName))", model: model.rawValue, for: id) }
+            // Only the model changes here; the chunk stays in the detail and an escalated file stays escalated.
+            update(id) {
+                $0.model = model
+                if $0.phase != .escalated { $0.phase = .generating }
+                $0.detail = $0.generatingDetail
+            }
+            let detail = activity(for: id)?.generatingDetail ?? "Generating questions"
             if var document = session.importQueue.first(where: { $0.id == id }) {
-                document.status = .generating
-                document.statusDetail = "Generating questions (\(model.shortName))"
+                let status: ImportStatus = document.status == .escalated ? .escalated : .generating
+                document.status = status
+                document.statusDetail = detail
                 document.modelUsed = model.rawValue
                 session.updateDocument(document)
+                persist { [store = session.store] in try await store.update(status: status, detail: detail, model: model.rawValue, for: id) }
             }
         case .escalated(let reason):
             update(id) { $0.phase = .escalated; $0.model = .opus; $0.detail = "Escalated to Opus" }
@@ -246,7 +287,9 @@ final class ImportPipeline {
                 document.statusDetail = "Escalated to Opus"
                 document.modelUsed = ClaudeModel.opus.rawValue
                 session.updateDocument(document)
-                Task { try? await session.store.update(status: .escalated, detail: "Escalated to Opus", model: ClaudeModel.opus.rawValue, for: id) }
+                persist { [store = session.store] in
+                    try await store.update(status: .escalated, detail: "Escalated to Opus", model: ClaudeModel.opus.rawValue, for: id)
+                }
                 if !acknowledgedEscalations.contains(id) {
                     escalationNotice = EscalationNotice(documentId: id, filename: document.filename, reason: reason)
                 }
@@ -262,6 +305,9 @@ final class ImportPipeline {
 
     /// Saves the PNGs under `figures/<docId>/<index>.png` and inserts pending `Figure` rows. Returns index → id.
     private func storeFigures(_ figures: [ExtractedFigure], documentId: DocumentID) async throws -> [Int: FigureID] {
+        // A rerun (after a cancel, a failure or an interrupted run) replaces the figures of the earlier attempt.
+        let stale = try await session.store.deleteFigures(for: documentId, deleteFiles: true)
+        if stale > 0 { Self.logger.notice("Removed \(stale) figure row(s) left by an earlier run of \(documentId.raw, privacy: .public)") }
         guard !figures.isEmpty else { return [:] }
         let directory = AppPaths.figures.appendingPathComponent(documentId.raw, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -322,17 +368,33 @@ final class ImportPipeline {
 
     // MARK: Status plumbing
 
+    /// The tail of the status-write chain: every persisted status goes through `persist`, so writes reach SQLite
+    /// in the order they were requested and a final status can wait for the ones before it.
+    @ObservationIgnored private var writeChain: Task<Void, Never>?
+
+    @discardableResult
+    private func persist(_ write: @escaping @Sendable () async throws -> Void) -> Task<Void, Never> {
+        let previous = writeChain
+        let task = Task {
+            await previous?.value
+            do {
+                try await write()
+            } catch {
+                Self.logger.error("Status update failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        writeChain = task
+        return task
+    }
+
     private func setStatus(_ document: ImportedDocument, _ status: ImportStatus, detail: String?, model: String?) async -> ImportedDocument {
         var updated = document
         updated.status = status
         updated.statusDetail = detail
         updated.modelUsed = model
         session.updateDocument(updated)
-        do {
-            try await session.store.update(status: status, detail: detail, model: model, for: document.id)
-        } catch {
-            Self.logger.error("Status update failed: \(error.localizedDescription, privacy: .public)")
-        }
+        let id = document.id
+        await persist { [store = session.store] in try await store.update(status: status, detail: detail, model: model, for: id) }.value
         return updated
     }
 
@@ -340,12 +402,15 @@ final class ImportPipeline {
         guard var document = session.importQueue.first(where: { $0.id == id }) else { return }
         document.statusDetail = detail
         session.updateDocument(document)
-        Task { try? await session.store.update(status: document.status, detail: detail, model: document.modelUsed, for: id) }
+        let status = document.status, model = document.modelUsed
+        persist { [store = session.store] in try await store.update(status: status, detail: detail, model: model, for: id) }
     }
 
     private func resetToQueued(_ document: ImportedDocument) async {
-        _ = await setStatus(document, .queued, detail: "Cancelled", model: nil)
+        // Finish the activity first so any late progress event is ignored, then queue the reset behind every
+        // pending status write.
         markCancelled(document.id)
+        _ = await setStatus(document, .queued, detail: "Cancelled", model: nil)
     }
 
     private func markCancelled(_ id: DocumentID) {

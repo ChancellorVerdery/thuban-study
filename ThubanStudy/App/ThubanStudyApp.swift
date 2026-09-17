@@ -28,19 +28,26 @@ struct ThubanStudyApp: App {
                     .environment(appModel)
             }
             CommandMenu("Study") {
+                let study = appModel.studySession
                 Button("Toggle Graph") { appModel.perform(.toggleGraph) }
                     .keyboardShortcut("g", modifiers: .command)
+                    .disabled(study == nil)
                 Button("Toggle Calculator") { appModel.perform(.toggleCalculator) }
                     .keyboardShortcut("k", modifiers: .command)
+                    .disabled(study == nil)
                 Button("Toggle Keyboard") { appModel.perform(.toggleKeyboard) }
                     .keyboardShortcut("k", modifiers: [.command, .shift])
+                    .disabled(study == nil)
                 Divider()
                 Button("Check Answers") { appModel.perform(.checkAnswers) }
                     .keyboardShortcut(.return, modifiers: .command)
+                    .disabled(study?.currentInstance == nil)
                 Button("Regenerate Numbers") { appModel.perform(.regenerate) }
                     .keyboardShortcut("r", modifiers: [.command, .shift])
+                    .disabled(study?.canRegenerate != true)
                 Button("Next Question") { appModel.perform(.nextQuestion) }
                     .keyboardShortcut(.rightArrow, modifiers: .command)
+                    .disabled(study == nil)
             }
         }
 
