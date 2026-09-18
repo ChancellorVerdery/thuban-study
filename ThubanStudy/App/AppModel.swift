@@ -136,6 +136,7 @@ final class AppModel {
             tutorMayEditGraph = try await store.get(.tutorMayEditGraph, as: Bool.self) ?? true
             let storedKey = try await store.get(.desmosKey, as: String.self) ?? ""
             desmosKey = storedKey.isEmpty ? (Self.bundledDesmosKey ?? "") : storedKey
+            await migrateCredentialsFromKeychainOnce()
             classes = try await store.allClasses()
             let last = try await store.get(.lastClass, as: ClassID.self)
             selectedClassID = classes.first { $0.id == last }?.id ?? classes.first?.id

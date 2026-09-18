@@ -19,6 +19,8 @@ public struct SettingsKey: RawRepresentable, Hashable, Codable, Sendable, Custom
     public static let modelPolicy: SettingsKey = "modelPolicy"
     /// Desmos API key (String).
     public static let desmosKey: SettingsKey = "desmosKey"
+    /// Bool: credentials were moved out of the login Keychain (or the move was attempted) once.
+    public static let credentialsMigrated: SettingsKey = "credentials.migratedFromKeychain"
     /// Bool: the tutor may add/remove graph expressions.
     public static let tutorMayEditGraph: SettingsKey = "tutorMayEditGraph"
     /// Main window frame as `[Double]` (x, y, w, h).

@@ -33,8 +33,8 @@ struct ClaudeAccountSettings: View {
             SettingsGroup("How sign-in works") {
                 VStack(alignment: .leading, spacing: 8) {
                     explainer("Connecting opens claude.ai in your browser. You sign in there, authorize Thuban Study, and paste the code it shows back here.")
-                    explainer("Tokens and API keys are kept in the macOS Keychain under com.thuban.study, never in the database or the export archive.")
-                    explainer("Access tokens renew themselves a few minutes before they expire. Disconnecting removes them from the Keychain.")
+                    explainer("Tokens and API keys are kept in a private file in the app's data folder (readable by your account only), never in the database or the export archive.")
+                    explainer("Access tokens renew themselves a few minutes before they expire. Disconnecting deletes the file.")
                 }
                 .thubanPanel()
             }
@@ -95,7 +95,7 @@ struct ConnectionStatusCard: View {
                         Chip("Sign-in expired", kind: .warn, dot: true)
                         Chip("Claude account", kind: .neutral)
                     case .keychainDenied:
-                        Chip("Keychain access denied", kind: .warn, dot: true)
+                        Chip("Credentials unreadable", kind: .warn, dot: true)
                     case .notConnected:
                         Chip("Not connected", kind: .neutral, dot: true)
                     }
@@ -153,7 +153,7 @@ struct ConnectionStatusCard: View {
         case .oauth: return "Connected as \(accountLabel)"
         case .oauthExpired: return "Sign in again as \(accountLabel)"
         case .apiKey: return "Using an API key"
-        case .keychainDenied: return "Keychain access denied"
+        case .keychainDenied: return "Credentials unreadable"
         case .notConnected: return "Not connected"
         }
     }
@@ -170,7 +170,7 @@ struct ConnectionStatusCard: View {
         case .apiKey:
             return "Requests are billed to the key's Anthropic organization."
         case .keychainDenied(let detail):
-            return "macOS would not let Thuban Study read its Keychain items (\(detail)). Click Allow when it asks, or connect again to store fresh credentials."
+            return "Thuban Study could not read its credentials file (\(detail)). Connect again to store fresh credentials."
         case .notConnected:
             return "Connect your Claude account, or paste an API key below."
         }
@@ -220,7 +220,7 @@ struct APIKeyDisclosure: View {
                             .buttonStyle(.thubanSecondary)
                             .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
                     }
-                    Text("Create one at console.anthropic.com. The key is stored in the Keychain and only ever sent to api.anthropic.com.")
+                    Text("Create one at console.anthropic.com. The key is stored in the app's private credentials file and only ever sent to api.anthropic.com.")
                         .font(ThubanFont.small)
                         .foregroundStyle(theme.inkDimColor)
                         .fixedSize(horizontal: false, vertical: true)
@@ -242,7 +242,7 @@ struct APIKeyDisclosure: View {
             do {
                 try await app.setAPIKey(trimmed)
                 apiKey = ""
-                note = ("API key saved to the Keychain.", .positive)
+                note = ("API key saved.", .positive)
             } catch {
                 note = (error.localizedDescription, .negative)
             }

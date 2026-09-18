@@ -55,11 +55,11 @@ public actor CredentialStore {
     private var generation = 0
 
     /// - Parameters:
-    ///   - keychain: where secrets live; defaults to the macOS Keychain.
+    ///   - keychain: where secrets live; defaults to the app's private credentials file (`FileCredentialStorage`).
     ///   - refresher: renews OAuth tokens; defaults to `OAuthFlow.refresh`.
     ///   - now: injectable clock.
     public init(
-        keychain: KeychainStorage = SecurityKeychain(),
+        keychain: KeychainStorage = FileCredentialStorage(),
         refresher: Refresher? = nil,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
@@ -123,6 +123,17 @@ public actor CredentialStore {
         refreshTask = nil
         loaded = firstFailure == nil
         if let firstFailure { throw firstFailure }
+    }
+
+    /// Forgets the cached credentials so the next call reads storage again (after an external write, e.g. the
+    /// one-time move out of the Keychain).
+    public func reload() {
+        loaded = false
+        oauthTokens = nil
+        apiKey = nil
+        oauthRejected = false
+        keychainDenial = nil
+        generation += 1
     }
 
     /// Records that the API rejected the current OAuth token (401/403 on a request): the tokens are marked expired

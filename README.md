@@ -41,4 +41,6 @@ Or open `ThubanStudy.xcodeproj` in Xcode and run the `ThubanStudy` scheme. The p
 ## Data
 
 Everything lives under `~/Library/Application Support/Thuban Study` (SQLite database, imported documents,
-clipped figures). Set `THUBAN_HOME` to relocate it. Settings › Data & storage exports a zip.
+clipped figures, and `credentials.json` — the Claude tokens or API key, mode 0600, left out of exports). Set
+`THUBAN_HOME` to relocate it. Settings › Data & storage exports a zip. The login Keychain is not used: an
+ad-hoc-signed build changes identity on every rebuild, so Keychain items would prompt at each launch.

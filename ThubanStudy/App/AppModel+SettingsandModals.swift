@@ -136,8 +136,23 @@ extension AppModel {
         }
     }
 
+    /// Earlier builds kept credentials in the login Keychain, which prompts at every launch of an ad-hoc-signed app.
+    /// The first launch of this build moves them into the credentials file and deletes the Keychain items; the
+    /// attempt is recorded so a refused prompt is never repeated (the student can simply connect again).
+    func migrateCredentialsFromKeychainOnce() async {
+        guard ProcessInfo.processInfo.environment[SmokeHarness.variable] == nil else { return }
+        if (try? await store.get(.credentialsMigrated, as: Bool.self)) == true { return }
+        try? await store.set(.credentialsMigrated, true)
+        let moved = CredentialStore.migrateFromLoginKeychain(into: FileCredentialStorage())
+        if moved {
+            Self.logger.notice("Moved credentials out of the login Keychain into the credentials file.")
+            await credentials.reload()
+            await refreshConnection()
+        }
+    }
+
     /// Removes every class (with its files), every stored setting, and leftover files under the data directory.
-    /// Credentials in the Keychain are left alone; call `disconnect()` separately for those.
+    /// Credentials are left alone; call `disconnect()` separately for those.
     func deleteAllData() async throws {
         for studyClass in classes {
             try await deleteClass(studyClass.id, deleteFiles: true)
