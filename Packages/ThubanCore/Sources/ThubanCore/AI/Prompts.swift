@@ -268,9 +268,17 @@ public enum Prompts {
 
         For a chart, fill `chart` so the app can redraw it in its own style: `chartType` (line | scatter | bar | \
         function | histogram | slopeField), axis labels, every series as `latex` (the equation from the text) or, for \
-        an arbitrary curve, as `points` ([[x, y], …]; for bars, x is the category index starting at 0), \
-        `xRange`/`yRange` as [min, max] matching the picture's window, and `confidence` 0–1 for how faithfully the \
-        redraw would match. Use the text to name axes and series.
+        an arbitrary curve, as `points` ([[x, y], …]; for bars, x is the category index starting at 0), and \
+        `confidence` 0–1 for how faithfully the redraw would match. Use the text to name axes and series.
+
+        # Describe the picture so it can be reproduced
+        The app redraws the figure from your description, so measure the picture: `xRange`/`yRange` exactly as the \
+        axes are labelled (the window, not the extent of the curve), `xStep`/`yStep` as the tick spacing you can \
+        read, each series' `style` (solid, dashed, dotted), and for a field `fieldColumns`/`fieldRows` by counting \
+        the arrows along one row and one column. Put everything else a draughtsman would need in `notes`: marked or \
+        labelled points, where each curve enters and leaves the window, asymptotes, shaded regions, which quadrants \
+        are shown, anything unusual. Be concrete ("the curve enters at (−3.25, −3.08) and leaves at (3.25, 3.08)"), \
+        not impressionistic.
 
         A slope or direction field (a grid of short ticks or arrows showing dy/dx) is `chartType` "slopeField": put the \
         right-hand side of dy/dx = f(x, y) in `slope` as LaTeX — the differential equation the question states, which \

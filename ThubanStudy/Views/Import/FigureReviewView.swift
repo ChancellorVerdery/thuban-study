@@ -185,7 +185,7 @@ struct FigureReviewView: View {
 
     @State private var model: FigureReviewModel
     /// One grapher for the pane's lifetime; the Desmos key is applied from the environment on appear.
-    @State private var graph = GraphWebView.Controller(desmosKey: "", mode: .twoD, showsExpressions: false)
+    @State private var graph = GraphWebView.Controller(desmosKey: "", mode: .twoD, isFigure: true)
 
     init(session: ClassSession, scope: FigureReviewModel.Scope, breadcrumbRoot: String = "Import", onClose: @escaping () -> Void) {
         self.session = session
@@ -266,6 +266,7 @@ struct FigureReviewView: View {
             if let viewport = FigureReviewModel.viewport(for: chart) {
                 graph.setViewport(viewport)
             }
+            graph.setAxes(xStep: chart.xStep, yStep: chart.yStep, xLabel: chart.xLabel, yLabel: chart.yLabel)
         }
     }
 
@@ -319,6 +320,14 @@ private struct FigureReviewPane: View {
             .frame(height: 360)
             if let chart = figure.chart {
                 detectionChips(chart)
+                if let notes = chart.notes?.nilIfEmpty {
+                    Text(notes)
+                        .font(ThubanFont.small)
+                        .foregroundStyle(theme.inkDimColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                        .accessibilityLabel("Reproduction notes: \(notes)")
+                }
                 SeriesTable(chart: chart) { model.isEditingValues = true }
             } else {
                 Text(figure.kind == .unknown

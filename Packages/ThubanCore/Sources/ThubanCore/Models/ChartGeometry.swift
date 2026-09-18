@@ -17,9 +17,14 @@ public enum ChartGeometry {
         public var showsPoints: Bool
         /// Stroke width in px; nil = Desmos default (2.5).
         public var lineWidth: Double?
+        /// Stroke opacity 0–1; nil = Desmos default.
+        public var lineOpacity: Double?
+        /// "SOLID" | "DASHED" | "DOTTED"; nil = solid.
+        public var lineStyle: String?
 
         public init(id: String, latex: String, hidden: Bool = false, fillOpacity: Double? = nil,
-                    parametricDomain: ClosedRange<Double>? = nil, showsPoints: Bool = false, lineWidth: Double? = nil) {
+                    parametricDomain: ClosedRange<Double>? = nil, showsPoints: Bool = false, lineWidth: Double? = nil,
+                    lineOpacity: Double? = nil, lineStyle: String? = nil) {
             self.id = id
             self.latex = latex
             self.hidden = hidden
@@ -27,6 +32,8 @@ public enum ChartGeometry {
             self.parametricDomain = parametricDomain
             self.showsPoints = showsPoints
             self.lineWidth = lineWidth
+            self.lineOpacity = lineOpacity
+            self.lineStyle = lineStyle
         }
     }
 
@@ -133,7 +140,7 @@ public enum ChartGeometry {
         ]
         // Segment: centre ± H·(1, m)/√(1+m²); t ∈ [0, 1] is mapped to [-1, 1].
         let segment = "\\left(\(X)+\(H)\\left(2t-1\\right)\(D),\(Y)+\(H)\\left(2t-1\\right)\(M)\(D)\\right)"
-        out.append(Row(id: "\(idPrefix)-seg", latex: segment, parametricDomain: 0...1, lineWidth: 1.6))
+        out.append(Row(id: "\(idPrefix)-seg", latex: segment, parametricDomain: 0...1, lineWidth: 1.6, lineOpacity: 0.85))
         if arrows {
             // Arrowhead: tip at the segment's end, base 45 % of H back along it, half-width 22 % of H.
             // The unit normal to (1, m)/√(1+m²) is (-m, 1)/√(1+m²).
@@ -142,7 +149,7 @@ public enum ChartGeometry {
             let head = "\\operatorname{polygon}\\left(\\left(\(tipX),\(tipY)\\right),"
                 + "\\left(\(baseX)-0.22\(H)\(M)\(D),\(baseY)+0.22\(H)\(D)\\right),"
                 + "\\left(\(baseX)+0.22\(H)\(M)\(D),\(baseY)-0.22\(H)\(D)\\right)\\right)"
-            out.append(Row(id: "\(idPrefix)-head", latex: head, fillOpacity: 1))
+            out.append(Row(id: "\(idPrefix)-head", latex: head, fillOpacity: 0.85))
         }
         return out
     }

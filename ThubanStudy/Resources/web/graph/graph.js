@@ -30,7 +30,7 @@
   // ---- state ----------------------------------------------------------------------------------------------
 
   var desmosKey = null;          // API key from 'config'
-  var showExpressions = true;    // false for figure panes: paper only, no expression list
+  var isFigure = false;          // figure panes: paper only, no chrome, viewport locked
   var mode = '2d';               // '2d' | '3d'
   var calculator = null;         // the live Desmos instance
   var scriptEl = null;           // the injected <script>
@@ -146,6 +146,7 @@
     }
     if (typeof e.points === 'boolean') out.points = e.points;
     if (typeof e.lineWidth === 'number') out.lineWidth = String(e.lineWidth);
+    if (typeof e.lineOpacity === 'number') out.lineOpacity = String(e.lineOpacity);
     if (e.sliderBounds && typeof e.sliderBounds === 'object') {
       var b = {};
       if (e.sliderBounds.min !== undefined) b.min = String(e.sliderBounds.min);
@@ -253,13 +254,13 @@
       Object.keys(Desmos.Colors).forEach(function (k) { colors[k] = Desmos.Colors[k]; });
     }
     var options = {
-      expressions: showExpressions,
+      expressions: !isFigure,
       keypad: false,
-      settingsMenu: showExpressions,
-      zoomButtons: true,
+      settingsMenu: !isFigure,
+      zoomButtons: !isFigure,
       border: false,
       expressionsCollapsed: false,
-      lockViewport: false,
+      lockViewport: isFigure,
       colors: colors
     };
     var theme = themeSettings();
@@ -367,7 +368,7 @@
 
     config: function (p) {
       if (p.mode) mode = normalizeMode(p.mode);
-      if (typeof p.expressions === 'boolean') showExpressions = p.expressions;
+      if (typeof p.figure === 'boolean') isFigure = p.figure;
       var key = p.desmosKey || p.apiKey || '';
       if (window.Desmos) {
         // Script already present (e.g. the key was re-sent): just (re)build the calculator.
@@ -446,6 +447,18 @@
         modes[mode].expressions.clear();
         try { calculator.setBlank(); } catch (err) { /* ignore */ }
         snapshot();
+      });
+    },
+
+    /** Tick spacing and axis labels for a figure. */
+    setAxes: function (p) {
+      whenReady('setAxes', p, function () {
+        var s = {};
+        if (typeof p.xStep === 'number') s.xAxisStep = p.xStep;
+        if (typeof p.yStep === 'number') s.yAxisStep = p.yStep;
+        if (typeof p.xLabel === 'string') s.xAxisLabel = p.xLabel;
+        if (typeof p.yLabel === 'string') s.yAxisLabel = p.yLabel;
+        try { calculator.updateSettings(s); } catch (err) { console.warn('setAxes failed', err); }
       });
     },
 

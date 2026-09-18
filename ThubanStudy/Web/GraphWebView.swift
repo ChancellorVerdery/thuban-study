@@ -19,6 +19,8 @@ struct GraphExpression: Codable, Identifiable, Hashable, Sendable {
     /// Hex; `nil` = theme accent (or the tutor colors when `fromTutor`).
     var color: String?
     var dashed: Bool = false
+    /// Dotted stroke (wins over `dashed`).
+    var dotted: Bool = false
     var label: String?
     var hidden: Bool = false
     var fromTutor: Bool = false
@@ -33,6 +35,8 @@ struct GraphExpression: Codable, Identifiable, Hashable, Sendable {
     var showsPoints: Bool?
     /// Stroke width in px; nil = Desmos default.
     var lineWidth: Double?
+    /// Stroke opacity 0–1; nil = Desmos default.
+    var lineOpacity: Double?
 
     struct Domain: Codable, Hashable, Sendable {
         var min: Double
@@ -64,7 +68,7 @@ struct GraphExpression: Codable, Identifiable, Hashable, Sendable {
         var object: [String: JSONValue] = ["id": .string(id), "latex": .string(latex)]
         let resolvedColor = color ?? (fromTutor ? (dashed ? theme.accentDeep : theme.signal) : theme.accent)
         object["color"] = .string(resolvedColor)
-        object["lineStyle"] = .string(dashed ? "DASHED" : "SOLID")
+        object["lineStyle"] = .string(dotted ? "DOTTED" : (dashed ? "DASHED" : "SOLID"))
         if let label, !label.isEmpty {
             object["label"] = .string(label)
             object["showLabel"] = .bool(true)
@@ -78,6 +82,7 @@ struct GraphExpression: Codable, Identifiable, Hashable, Sendable {
         }
         if let showsPoints { object["points"] = .bool(showsPoints) }
         if let lineWidth { object["lineWidth"] = .number(lineWidth) }
+        if let lineOpacity { object["lineOpacity"] = .number(lineOpacity) }
         if let sliderBounds {
             var bounds: [String: JSONValue] = [:]
             if let min = sliderBounds.min { bounds["min"] = .number(min) }
@@ -128,14 +133,15 @@ struct GraphWebView: View {
         var onState: ((JSONValue, GraphMode) -> Void)?
         var onReady: (() -> Void)?
 
-        /// False for figure panes: the paper only, no expression list or settings menu.
-        private(set) var showsExpressions = true
+        /// True for figure panes: the paper only — no expression list, settings menu or zoom buttons, and the
+        /// viewport is locked to what the figure shows.
+        private(set) var isFigure = false
 
-        init(desmosKey: String, mode: GraphMode = .twoD, showsExpressions: Bool = true) {
+        init(desmosKey: String, mode: GraphMode = .twoD, isFigure: Bool = false) {
             self.bridge = WebBridge(name: "graph")
             self.desmosKey = desmosKey
             self.mode = mode
-            self.showsExpressions = showsExpressions
+            self.isFigure = isFigure
             bridge.on("ready") { [weak self] _ in
                 self?.onReady?()
             }
@@ -177,7 +183,7 @@ struct GraphWebView: View {
             if let mode { self.mode = mode }
             var payload: [String: JSONValue] = ["desmosKey": .string(desmosKey)]
             payload["mode"] = .string(self.mode.rawValue)
-            payload["expressions"] = .bool(showsExpressions)
+            payload["figure"] = .bool(isFigure)
             // Sticky: the page is reloaded whenever its hosting view is re-created and needs the key again.
             bridge.sendSticky("config", .object(payload))
         }
@@ -203,6 +209,16 @@ struct GraphWebView: View {
 
         func clear() {
             bridge.send("clear")
+        }
+
+        /// Axis presentation for a figure: tick spacing and labels (nil leaves Desmos's choice).
+        func setAxes(xStep: Double?, yStep: Double?, xLabel: String?, yLabel: String?) {
+            var payload: [String: JSONValue] = [:]
+            if let xStep, xStep > 0 { payload["xStep"] = .number(xStep) }
+            if let yStep, yStep > 0 { payload["yStep"] = .number(yStep) }
+            if let xLabel, !xLabel.isEmpty { payload["xLabel"] = .string(xLabel) }
+            if let yLabel, !yLabel.isEmpty { payload["yLabel"] = .string(yLabel) }
+            bridge.send("setAxes", .object(payload))
         }
 
         func setViewport(_ viewport: GraphViewport) {

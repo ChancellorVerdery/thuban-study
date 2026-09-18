@@ -370,12 +370,13 @@ struct StandardChartView: View {
         }
         .onAppear {
             guard controller == nil else { return }
-            let controller = GraphWebView.Controller(desmosKey: app.desmosKey, mode: .twoD, showsExpressions: false)
+            let controller = GraphWebView.Controller(desmosKey: app.desmosKey, mode: .twoD, isFigure: true)
             controller.onReady = { [weak controller] in
                 guard let controller else { return }
                 Task { @MainActor in
                     controller.setExpressions(await ChartRenderer.expressions(for: chart, theme: theme, engine: app.engine))
                     if let viewport = ChartRenderer.viewport(for: chart) { controller.setViewport(viewport) }
+                    controller.setAxes(xStep: chart.xStep, yStep: chart.yStep, xLabel: chart.xLabel, yLabel: chart.yLabel)
                 }
             }
             self.controller = controller

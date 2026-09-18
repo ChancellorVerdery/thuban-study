@@ -20,13 +20,16 @@ public struct ChartSeries: Codable, Sendable, Equatable {
     /// Slope fields: a point `[x0, y0]` the solution curve passes through (the initial condition). The app
     /// integrates `dy/dx = slope` through it, so the curve follows the field exactly.
     public var through: [Double]?
+    /// "solid" (default) | "dashed" | "dotted" — how the curve is drawn in the original.
+    public var style: String?
 
-    public init(name: String, points: [[Double]]? = nil, latex: String? = nil, color: String? = nil, through: [Double]? = nil) {
+    public init(name: String, points: [[Double]]? = nil, latex: String? = nil, color: String? = nil, through: [Double]? = nil, style: String? = nil) {
         self.name = name
         self.points = points
         self.latex = latex
         self.color = color
         self.through = through
+        self.style = style
     }
 
     /// The initial condition as a pair, when well-formed.
@@ -53,6 +56,15 @@ public struct StandardChart: Codable, Sendable, Equatable {
     public var slope: String?
     /// Slope fields only: arrowheads (a direction field) rather than plain ticks. Default true.
     public var arrows: Bool
+    /// Tick / gridline spacing on each axis as the original shows it (nil = let the grapher choose).
+    public var xStep: Double?
+    public var yStep: Double?
+    /// Slope fields only: how many arrows the original draws across (columns) and down (rows).
+    public var fieldColumns: Int?
+    public var fieldRows: Int?
+    /// Anything else needed to reproduce the picture (marked points, where a curve enters and leaves, what is
+    /// dashed, which quadrant is shown …), as the agent saw it.
+    public var notes: String?
 
     public var isSlopeField: Bool { chartType == "slopeField" }
 
@@ -65,7 +77,12 @@ public struct StandardChart: Codable, Sendable, Equatable {
         yRange: [Double]? = nil,
         confidence: Double = 0,
         slope: String? = nil,
-        arrows: Bool = true
+        arrows: Bool = true,
+        xStep: Double? = nil,
+        yStep: Double? = nil,
+        fieldColumns: Int? = nil,
+        fieldRows: Int? = nil,
+        notes: String? = nil
     ) {
         self.chartType = chartType
         self.xLabel = xLabel
@@ -76,6 +93,11 @@ public struct StandardChart: Codable, Sendable, Equatable {
         self.confidence = Self.clampedConfidence(confidence)
         self.slope = slope
         self.arrows = arrows
+        self.xStep = xStep
+        self.yStep = yStep
+        self.fieldColumns = fieldColumns
+        self.fieldRows = fieldRows
+        self.notes = notes
     }
 
     /// Confidence is 0–1; anything else the model (or a stored row) reports is clamped so it can be shown safely.
@@ -84,7 +106,9 @@ public struct StandardChart: Codable, Sendable, Equatable {
         return Swift.min(1, Swift.max(0, value))
     }
 
-    private enum CodingKeys: String, CodingKey { case chartType, xLabel, yLabel, series, xRange, yRange, confidence, slope, arrows }
+    private enum CodingKeys: String, CodingKey {
+        case chartType, xLabel, yLabel, series, xRange, yRange, confidence, slope, arrows, xStep, yStep, fieldColumns, fieldRows, notes
+    }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -97,6 +121,11 @@ public struct StandardChart: Codable, Sendable, Equatable {
         confidence = Self.clampedConfidence(try c.decodeIfPresent(Double.self, forKey: .confidence) ?? 0)
         slope = try c.decodeIfPresent(String.self, forKey: .slope)
         arrows = try c.decodeIfPresent(Bool.self, forKey: .arrows) ?? true
+        xStep = try c.decodeIfPresent(Double.self, forKey: .xStep)
+        yStep = try c.decodeIfPresent(Double.self, forKey: .yStep)
+        fieldColumns = try c.decodeIfPresent(Int.self, forKey: .fieldColumns)
+        fieldRows = try c.decodeIfPresent(Int.self, forKey: .fieldRows)
+        notes = try c.decodeIfPresent(String.self, forKey: .notes)
     }
 }
 

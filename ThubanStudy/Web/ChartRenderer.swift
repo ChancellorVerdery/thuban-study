@@ -11,18 +11,25 @@ enum ChartRenderer {
     /// The rows for a chart. Solution curves given as an initial condition are integrated through `engine`
     /// (RK4 over the chart's x-range); without an engine they are left out.
     static func expressions(for chart: StandardChart, theme: ResolvedTheme, engine: MathEngine? = nil) async -> [GraphExpression] {
-        let palette = [theme.accent, theme.signal, theme.neg, theme.pos, theme.accentDeep]
         var out: [GraphExpression] = []
         let viewport = viewport(for: chart) ?? GraphViewport(xmin: -5, xmax: 5, ymin: -5, ymax: 5)
         let slope = chart.isSlopeField ? chart.slope?.nilIfEmpty : nil
+        // The field is drawn in the theme's signal colour so it reads apart from the (ink) axes and grid; curves on
+        // top take the other palette entries, so no solution curve shares the field's colour.
+        let fieldColor = theme.signal
+        let palette = slope == nil
+            ? [theme.accent, theme.signal, theme.neg, theme.pos, theme.accentDeep]
+            : [theme.accent, theme.neg, theme.pos, theme.accentDeep]
 
         if let slope {
             let rows = ChartGeometry.slopeFieldRows(
                 idPrefix: "f", slope: slope,
                 xRange: viewport.xmin...viewport.xmax, yRange: viewport.ymin...viewport.ymax,
-                columns: fieldColumns, rows: fieldRows, arrows: chart.arrows
+                columns: clampedDensity(chart.fieldColumns, default: fieldColumns),
+                rows: clampedDensity(chart.fieldRows, default: fieldRows),
+                arrows: chart.arrows
             )
-            out += rows.map { expression(from: $0, color: theme.inkDim) }
+            out += rows.map { expression(from: $0, color: fieldColor) }
         }
 
         for (offset, series) in chart.series.enumerated() {
@@ -34,10 +41,25 @@ enum ChartRenderer {
                 let clipped = clip(points, ymin: viewport.ymin, ymax: viewport.ymax)
                 row = ChartGeometry.polylineRow(id: id, points: clipped)
             }
-            guard let row else { continue }
+            guard var row else { continue }
+            row.lineStyle = lineStyle(for: series.style)
             out.append(expression(from: row, color: color))
         }
         return out
+    }
+
+    /// The agent's arrow count, kept within what Desmos draws comfortably.
+    private static func clampedDensity(_ value: Int?, default fallback: Int) -> Int {
+        guard let value, value > 0 else { return fallback }
+        return min(30, max(8, value))
+    }
+
+    private static func lineStyle(for style: String?) -> String? {
+        switch style?.lowercased() {
+        case "dashed": return "DASHED"
+        case "dotted": return "DOTTED"
+        default: return nil
+        }
     }
 
     /// Keeps the run of points around the initial condition that stays within a generous margin of the y-range,
@@ -73,6 +95,9 @@ enum ChartRenderer {
         }
         expression.showsPoints = row.showsPoints
         expression.lineWidth = row.lineWidth
+        expression.lineOpacity = row.lineOpacity
+        if row.lineStyle == "DASHED" { expression.dashed = true }
+        expression.dotted = row.lineStyle == "DOTTED"
         return expression
     }
 

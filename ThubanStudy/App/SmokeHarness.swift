@@ -214,7 +214,9 @@ enum SmokeHarness {
         let field = StandardChart(
             chartType: "slopeField", xLabel: "x", yLabel: "y",
             series: [ChartSeries(name: "Solution through (0, 1)", through: [0, 1])],
-            xRange: [-3, 3], yRange: [-3, 3], confidence: 0.8, slope: "x-y", arrows: true
+            xRange: [-3, 3], yRange: [-3, 3], confidence: 0.8, slope: "x-y", arrows: true,
+            xStep: 1, yStep: 1, fieldColumns: 24, fieldRows: 24,
+            notes: "Window −3…3 on both axes with unit ticks; 24 × 24 arrows; the solution enters at (−3, 2.4), dips to its minimum near (0.7, 0.9) and leaves at (3, 2.1)."
         )
         let cubicPoints: [[Double]] = stride(from: -1.5, through: 4.0, by: 0.5).map { x in
             [x, 0.5 * x * x * x - 2 * x * x + x + 1]
