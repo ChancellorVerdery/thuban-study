@@ -69,9 +69,9 @@ public struct GraphReading: Sendable {
 public enum GraphReader {
     /// Minimum pixels for a colour cluster to count as a curve.
     static let minimumCurvePixels = 40
-    /// A colour cluster whose median column holds more pixels than this is an area (a field of coloured arrows,
-    /// shading), not a curve.
-    static let maximumCurveThickness = 7
+    /// A colour cluster filling more than this fraction of its bounding box is an area (a field of coloured
+    /// arrows, shading), not a curve; a curve, however steep, fills little of its box.
+    static let maximumCurveFill = 0.12
     /// A dark run this fraction of the image's side or longer is an axis or frame line.
     static let axisRunFraction = 0.35
 
@@ -253,7 +253,7 @@ public enum GraphReader {
         for h in horizontals {
             for v in verticals {
                 var xl: [Label] = [], yl: [Label] = []
-                let near = Double(max(bitmap.width, bitmap.height)) * 0.12
+                let near = Double(max(bitmap.width, bitmap.height)) * 0.08
                 for label in labels {
                     let dv = abs(label.column - Double(v.position)), dh = abs(label.row - Double(h.position))
                     // A y label sits beside the y-axis, or outside the plot to its left/right, within the axis's
@@ -262,13 +262,14 @@ public enum GraphReader {
                     let inColumns = label.column >= Double(h.start) - 10 && label.column <= Double(h.end) + 10
                     let outsideH = label.column < Double(h.start) + 4 || label.column > Double(h.end) - 4
                     let outsideV = label.row < Double(v.start) + 4 || label.row > Double(v.end) - 4
-                    // Outside the plot, a label belongs to the axis it runs along; inside, to the nearer axis.
-                    if outsideH, inRows { yl.append(label) }
-                    else if outsideV, inColumns { xl.append(label) }
-                    else if dv <= near, dh <= near {
+                    // Beside an axis line, a label belongs to that axis (the nearer one when beside both); away
+                    // from both, one outside the plot belongs to the axis it runs along.
+                    if dv <= near, dh <= near {
                         if dv / Double(bitmap.width) <= dh / Double(bitmap.height) { yl.append(label) } else { xl.append(label) }
                     } else if dv <= near, inRows { yl.append(label) }
                     else if dh <= near, inColumns { xl.append(label) }
+                    else if outsideH, inRows { yl.append(label) }
+                    else if outsideV, inColumns { xl.append(label) }
                 }
                 xl = signed(xl, crossing: Double(v.position), along: \.column, negativeBelow: true)
                 yl = signed(yl, crossing: Double(h.position), along: \.row, negativeBelow: false)
@@ -276,18 +277,23 @@ public enum GraphReader {
                 // The axes are the lines through the labels' zero: the x-axis sits where the y labels say y = 0,
                 // the y-axis where the x labels say x = 0. Without such a fit, the line nearer the middle of the
                 // image beats a frame line at its edge.
+                // A line more than a few pixels from where the labels put zero is a frame, not an axis, whatever
+                // it scores on labels.
                 var misplacement = 0.0
+                var wrongLine = false
                 if yKept.count >= 2, let fit = leastSquares(yKept.map { ($0.value, $0.row) }) {
                     misplacement += abs(fit.origin - Double(h.position))
+                    if abs(fit.origin - Double(h.position)) > 8 { wrongLine = true }
                 } else {
                     misplacement += abs(Double(h.position) - Double(bitmap.height) / 2) * 0.5
                 }
                 if xKept.count >= 2, let fit = leastSquares(xKept.map { ($0.value, $0.column) }) {
                     misplacement += abs(fit.origin - Double(v.position))
+                    if abs(fit.origin - Double(v.position)) > 8 { wrongLine = true }
                 } else {
                     misplacement += abs(Double(v.position) - Double(bitmap.width) / 2) * 0.5
                 }
-                let score = Double(xKept.count + yKept.count) * 1000 - misplacement
+                let score = Double(xKept.count + yKept.count) * 1000 - misplacement - (wrongLine ? 100_000 : 0)
                 if best == nil || score > best!.score { best = (score, h, v, xl, yl) }
             }
         }
@@ -546,9 +552,14 @@ public enum GraphReader {
             }
             guard total >= minimumCurvePixels else { continue }
             for column in rows.keys { rows[column]!.sort() }
-            let perColumn = rows.values.map(\.count).sorted()
-            let median = perColumn[perColumn.count / 2]
-            guard median <= maximumCurveThickness else { continue }
+            // A curve fills little of its box (the box is at least a tenth of the image tall, so a horizontal
+            // line is not "full") and averages few pixels per column; a field of arrows fails both.
+            let columns = rows.keys.max()! - rows.keys.min()! + 1
+            let top = rows.values.compactMap(\.first).min()!, bottom = rows.values.compactMap(\.last).max()!
+            let boxHeight = max(bottom - top + 1, bitmap.height / 10)
+            let fill = Double(total) / Double(max(1, columns * boxHeight))
+            let perColumn = Double(total) / Double(max(1, rows.count))
+            guard fill <= maximumCurveFill, perColumn <= 14 else { continue }
             let name = hueNames[group[0]]
             curves.append(GraphReading.Curve(color: name, rows: rows, pixelCount: total, points: polyline(rows, reading: reading)))
         }

@@ -32,11 +32,18 @@ final class FigureReanalysisReportTests: XCTestCase {
                 if wanted.contains("failed"), let verification = figure.chart?.verification, !verification.passed { return true }
                 if wanted.contains("nochart"), figure.kind == .chart, figure.chart == nil { return true }
                 if wanted.contains("diagram"), figure.kind == .diagram { return true }
+                if wanted.contains("unverified"), let chart = figure.chart, chart.verification == nil { return true }
                 return false
             }
             let filter: ((Figure) -> Bool)? = only.isEmpty ? nil : selected
-            let outcomes = try await FigureWorkflow.reanalyse(document: document, store: store, agent: agent, engine: engine, only: filter) { done, total in
-                print("  figure \(done) of \(total)")
+            // THUBAN_REANALYSE_OFFLINE=1 reconciles the stored charts against their pictures without the agent.
+            let outcomes: [FigureWorkflow.Outcome]
+            if ProcessInfo.processInfo.environment["THUBAN_REANALYSE_OFFLINE"] != nil {
+                outcomes = try await FigureWorkflow.reconcileStored(document: document, store: store, engine: engine, only: filter)
+            } else {
+                outcomes = try await FigureWorkflow.reanalyse(document: document, store: store, agent: agent, engine: engine, only: filter) { done, total in
+                    print("  figure \(done) of \(total)")
+                }
             }
             for o in outcomes {
                 let v = o.verification.map { ($0.passed ? "PASS " : "FAIL ") + $0.summary } ?? (o.isFigure ? "no chart" : "not a figure")

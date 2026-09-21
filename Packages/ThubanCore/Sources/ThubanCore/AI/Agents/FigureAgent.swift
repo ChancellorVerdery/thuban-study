@@ -269,8 +269,9 @@ public actor FigureAgent {
         for image in results.keys.sorted() {
             guard let analysis = results[image], analysis.isFigure, analysis.kind == .chart else { continue }
             guard let chart = analysis.chart else {
-                // The agent could not describe the chart: the picture alone may still give its curves.
-                results[image]?.chart = await FigureReconciler.chartFromPixels(png: pngs[image - 1])
+                // Called a chart but not described: ask once more, then let the picture alone give its curves.
+                feedback.append((pngs.count > 1 ? "Image \(image): " : "") + "you set kind to \"chart\" but gave no `chart`; fill it in (or set kind to \"diagram\" if it is not a plot).")
+                retry.append(image)
                 continue
             }
             let checked = await Self.check(chart, png: pngs[image - 1], engine: engine)
@@ -280,20 +281,40 @@ public actor FigureAgent {
                 retry.append(image)
             }
         }
-        guard !retry.isEmpty else { return results }
-        try Task.checkCancellation()
-        var second = context
-        second.focus = pngs.count > 1 ? retry : nil
-        second.verificationFeedback = feedback.joined(separator: "\n")
-        let again = try await analyze(pngs: pngs, context: second)
-        for image in retry {
-            guard var analysis = again[image] else { continue }
-            if let chart = analysis.chart {
-                analysis.chart = await Self.check(chart, png: pngs[image - 1], engine: engine)
+        if !retry.isEmpty {
+            try Task.checkCancellation()
+            var second = context
+            second.focus = pngs.count > 1 ? retry : nil
+            second.verificationFeedback = feedback.joined(separator: "\n")
+            let again = try await analyze(pngs: pngs, context: second)
+            for image in retry {
+                guard var analysis = again[image] else { continue }
+                if let chart = analysis.chart {
+                    analysis.chart = await Self.check(chart, png: pngs[image - 1], engine: engine)
+                }
+                results[image] = analysis
+            }
+        }
+        for image in results.keys.sorted() {
+            guard var analysis = results[image], analysis.isFigure, analysis.kind == .chart else { continue }
+            if analysis.chart == nil {
+                analysis.chart = await FigureReconciler.chartFromPixels(png: pngs[image - 1])
+            }
+            // A "chart" that is not a plot — a phase line, a sketch with a couple of points and no equation — in a
+            // picture the reader cannot read either is a diagram: the original image serves the student better.
+            if let chart = analysis.chart, chart.verification == nil, Self.isThin(chart) {
+                analysis.kind = .diagram
+                analysis.chart = nil
             }
             results[image] = analysis
         }
         return results
+    }
+
+    /// No equation, no field, no initial condition, and only a handful of points per series.
+    public static func isThin(_ chart: StandardChart) -> Bool {
+        guard (chart.slope ?? "").isEmpty else { return false }
+        return chart.series.allSatisfy { ($0.latex ?? "").isEmpty && $0.throughPoint == nil && ($0.points?.count ?? 0) < 8 }
     }
 
     /// The picture decides: the chart reconciled against its pixels (`FigureReconciler`) when the picture can be
@@ -331,7 +352,16 @@ public actor FigureAgent {
             } catch let error as ThubanError where error == .cancelled || error.isCredentialProblem {
                 throw error
             } catch {
-                // One bad call (a timeout, an overloaded reply) leaves this figure pending; the rest go on.
+                // One bad call (a timeout, an overloaded reply) must not leave this figure pending: wait, then
+                // try twice more before giving up on it and going on with the rest.
+                for pause in [3.0, 8.0] {
+                    try? await Task.sleep(nanoseconds: UInt64(pause * 1_000_000_000))
+                    if let again = try? await analyzeVerified(pngs: [png], context: one, engine: engine)[1] { analysis = again; break }
+                }
+            }
+            if analysis == nil {
+                // An empty answer (no entry for the image) gets the same second chance.
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
                 analysis = try? await analyzeVerified(pngs: [png], context: one, engine: engine)[1]
             }
             guard let analysis else { continue }

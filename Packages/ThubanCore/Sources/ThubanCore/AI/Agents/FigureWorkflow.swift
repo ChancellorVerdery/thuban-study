@@ -61,6 +61,32 @@ public enum FigureWorkflow {
         return groups
     }
 
+    // MARK: Checking stored charts against their pictures
+
+    /// Reconciles every stored chart of a document against its picture (`FigureAgent.check`) without calling the
+    /// agent, and writes the result back — for charts analysed before the reader existed, or whose agent call
+    /// never came back. Returns one outcome per chart.
+    public static func reconcileStored(document: ImportedDocument, store: Store, engine: MathEngine,
+                                       only: ((Figure) -> Bool)? = nil) async throws -> [Outcome] {
+        var outcomes: [Outcome] = []
+        for var figure in try await store.figures(for: document.id) where figure.chart != nil && (only?(figure) ?? true) {
+            guard let chart = figure.chart, let png = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)), !png.isEmpty else { continue }
+            let checked = await FigureAgent.check(chart, png: png, engine: engine)
+            if checked.verification == nil, FigureAgent.isThin(checked) {
+                // Not a plot after all (a phase line drawn as two points): keep the original image.
+                figure.kind = .diagram
+                figure.chart = nil
+                figure.status = .keptOriginal
+            } else {
+                figure.chart = checked
+            }
+            try await store.update(figure)
+            outcomes.append(Outcome(figureId: figure.id, index: figure.pageOrIndex, kind: figure.kind, isFigure: true,
+                                    verification: figure.chart?.verification, caption: figure.caption, definition: figure.chart?.definition))
+        }
+        return outcomes
+    }
+
     // MARK: Re-analysis of a stored document
 
     public struct Outcome: Sendable {
