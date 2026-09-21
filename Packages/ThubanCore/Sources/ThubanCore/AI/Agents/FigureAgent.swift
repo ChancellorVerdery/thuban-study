@@ -20,8 +20,9 @@ public struct FigureAnalysis: Codable, Sendable, Equatable {
 
 /// Classifies extracted figures and, for charts, produces a `StandardChart` the app can redraw in its own style.
 ///
-/// The workflow is per question: every figure under a question goes in one call so the agent can tell the field
-/// from the sketches and pair each sketch with its part; it must find the function or slope field in the question
+/// The workflow is per question: the agent sees the question's figures one at a time, in document order, and is
+/// told what the earlier ones turned out to be (`describeInSequence`) — several near-identical sketches in one
+/// message get mixed up, one at a time they do not; it must find the function or slope field in the question
 /// text, read check points off the picture so the app can verify the match (`FigureVerifier`), and only trace an
 /// arbitrary curve as points when nothing in the question defines it.
 public actor FigureAgent {
@@ -132,10 +133,13 @@ public actor FigureAgent {
         /// What the app found when it checked the previous pass against the picture (`FigureVerifier`), so the
         /// agent can pick another candidate or fall back to tracing.
         public var verificationFeedback: String?
+        /// The question's other figures, one line each ("Image 2 of 4: … — part (a) y(−2) = 1"), so this one is
+        /// paired with a part or choice none of them already took.
+        public var siblingNotes: [String]
 
         public init(nearbyText: String = "", questionTexts: [String] = [], previousCaption: String? = nil,
                     otherQuestionTexts: [String] = [], positionNote: String? = nil, imageCount: Int = 1,
-                    focus: [Int]? = nil, verificationFeedback: String? = nil) {
+                    focus: [Int]? = nil, verificationFeedback: String? = nil, siblingNotes: [String] = []) {
             self.nearbyText = nearbyText
             self.questionTexts = questionTexts
             self.previousCaption = previousCaption
@@ -144,6 +148,7 @@ public actor FigureAgent {
             self.imageCount = imageCount
             self.focus = focus
             self.verificationFeedback = verificationFeedback
+            self.siblingNotes = siblingNotes
         }
 
         /// The text block sent with the images.
@@ -166,6 +171,13 @@ public actor FigureAgent {
             }
             if let positionNote = positionNote?.trimmingCharacters(in: .whitespacesAndNewlines), !positionNote.isEmpty {
                 parts.append(positionNote)
+            }
+            let siblings = siblingNotes.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            if !siblings.isEmpty {
+                parts.append("The other figures under this question, and what they turned out to be:\n"
+                    + siblings.prefix(12).map { "• " + $0.prefix(400) }.joined(separator: "\n")
+                    + "\nEach sketch answers a different part or choice, so do not give this image a part, choice or initial "
+                    + "condition already taken above unless its curve plainly is the same one; read this picture's own curve and test the remaining candidates against it.")
             }
             let nearby = nearbyText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !nearby.isEmpty {
@@ -269,6 +281,48 @@ public actor FigureAgent {
             results[image] = analysis
         }
         return results
+    }
+
+    /// The per-question workflow: the figures under one question, one call each in document order, each verified
+    /// (`analyzeVerified`) and each told what the earlier figures turned out to be, so a sketch is never given a
+    /// part another sketch already has and no image is ever confused with its neighbour. `siblingNotes` in
+    /// `context` seeds the list (figures described earlier, e.g. on a re-analyse). Keyed by image number, 1-based.
+    public func describeInSequence(pngs: [Data], context: FigureContext, engine: MathEngine,
+                                   progress: ((Int) -> Void)? = nil) async throws -> [Int: FigureAnalysis] {
+        var results: [Int: FigureAnalysis] = [:]
+        var notes = context.siblingNotes
+        for (offset, png) in pngs.enumerated() {
+            try Task.checkCancellation()
+            progress?(offset + 1)
+            var one = context
+            one.imageCount = 1
+            one.focus = nil
+            one.siblingNotes = notes
+            if pngs.count > 1 {
+                one.positionNote = "This is image \(offset + 1) of \(pngs.count) under this question, in document order."
+            }
+            let analysis = try await analyzeVerified(pngs: [png], context: one, engine: engine)[1]
+            guard let analysis else { continue }
+            results[offset + 1] = analysis
+            if pngs.count > 1, let note = Self.siblingNote(analysis, image: offset + 1, of: pngs.count) { notes.append(note) }
+        }
+        return results
+    }
+
+    /// One line about an already-described figure for the next one's context.
+    public static func siblingNote(_ analysis: FigureAnalysis, image: Int, of count: Int) -> String? {
+        guard analysis.isFigure else { return nil }
+        var line = "Image \(image) of \(count): \(analysis.caption ?? analysis.kind.rawValue)"
+        if let chart = analysis.chart {
+            if let definition = chart.definition?.trimmingCharacters(in: .whitespacesAndNewlines), !definition.isEmpty {
+                line += " — \(definition)"
+            } else if chart.isTraced {
+                line += " — traced from points (no definition in the question)"
+            }
+            let conditions = chart.series.compactMap(\.throughPoint).map { "(\(ChartGeometry.number($0.x)), \(ChartGeometry.number($0.y)))" }
+            if !conditions.isEmpty { line += " — solution through \(conditions.joined(separator: ", "))" }
+        }
+        return line
     }
 
     /// Lenient decoding of the tool input: every entry with a usable image number.

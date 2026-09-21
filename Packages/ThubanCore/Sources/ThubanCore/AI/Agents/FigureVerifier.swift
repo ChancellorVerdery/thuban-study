@@ -24,6 +24,12 @@ public enum FigureVerifier {
     public static func verify(_ chart: StandardChart, engine: MathEngine) async -> ChartVerification? {
         guard !chart.isTraced else { return nil }
         let checks = (chart.checks ?? []).filter { $0.count >= 2 && $0.allSatisfy(\.isFinite) }
+        // A field with a solution curve drawn on it is only right if the curve is: the arrows are the same in
+        // every sketch of the same equation, so points along the curve are the check that tells sketches apart.
+        if chart.isSlopeField, !(chart.slope ?? "").isEmpty, chart.series.contains(where: { $0.throughPoint != nil }),
+           checks.filter({ $0.count == 2 }).count < minimumChecks {
+            return ChartVerification(passed: false, summary: "Unverified: no points were read along the drawn solution curve, so its initial condition could not be checked against the picture. Read at least two [x, y] points on the curve.")
+        }
         guard checks.count >= minimumChecks else { return nil }
         if chart.isSlopeField { return await verifyField(chart, checks: checks, engine: engine) }
         return await verifyCurves(chart, checks: checks, engine: engine)

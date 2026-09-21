@@ -675,6 +675,57 @@ final class AIAgentTests: XCTestCase {
         await XCTAssertThrowsErrorAsync(try await agent.analyze(pngs: Array(repeating: Data([1]), count: 9), context: context))
     }
 
+    func testDescribeInSequenceSendsOneImageAtATimeWithTheEarlierOnesSummarised() async throws {
+        // Three sketches of the same field: each call carries one image, and each later call is told what the
+        // earlier images turned out to be so no two sketches take the same part.
+        func sketch(_ part: String, through: [Double], checks: [[Double]]) -> JSONValue {
+            let start = JSONValue.array(through.map { .number($0) })
+            let read = JSONValue.array(checks.map { .array($0.map { .number($0) }) })
+            let definition = JSONValue.string("part \(part): y(\(Int(through[0]))) = \(Int(through[1]))")
+            return ["figures": [["image": 1, "isFigure": true, "kind": "chart", "caption": .string("Solution for part \(part)."),
+                "chart": ["chartType": "slopeField", "slope": "x-y", "series": [["name": .string(part), "through": start]], "xRange": [-3, 3], "yRange": [-3, 3],
+                          "confidence": 0.9, "provenance": "stated", "definition": definition, "checks": read]]]]
+        }
+        // y = x − 1 + 2e^{−x} through (0, 1); y = x − 1 + e^{−x} through (0, 0).
+        let transport = MockTransport([
+            .sse(SSE.toolUse(id: "f1", name: "describe_figures", input: sketch("(a)", through: [0, 1], checks: [[0, 1], [2, 1.27], [-1, 3.44]]))),
+            .sse(SSE.toolUse(id: "f2", name: "describe_figures", input: ["figures": [["image": 1, "isFigure": false, "kind": "unknown", "caption": "An equation."]]])),
+            .sse(SSE.toolUse(id: "f3", name: "describe_figures", input: sketch("(d)", through: [0, 0], checks: [[0, 0], [2, 1.135], [-1, 0.72]]))),
+        ])
+        let agent = FigureAgent(client: .mock(transport))
+        var seen: [Int] = []
+        let results = try await agent.describeInSequence(pngs: [Data([1]), Data([2]), Data([3])], context: FigureAgent.FigureContext(questionTexts: ["dy/dx = x - y"]),
+                                                         engine: MathEngine()) { seen.append($0) }
+        XCTAssertEqual(seen, [1, 2, 3])
+        XCTAssertEqual(results.count, 3)
+        XCTAssertEqual(results[1]?.chart?.series.first?.through, [0, 1])
+        XCTAssertEqual(results[1]?.chart?.verification?.passed, true)
+        XCTAssertEqual(results[2]?.isFigure, false)
+        XCTAssertEqual(results[3]?.chart?.verification?.passed, true)
+        XCTAssertEqual(transport.requests.count, 3, "one call per image, none needed a retry")
+
+        for index in 0..<3 {
+            let content = try XCTUnwrap(transport.body(index)["messages"]?[0]?["content"]?.arrayValue)
+            XCTAssertEqual(content.count, 2, "one image and one text block")
+            XCTAssertEqual(content[0]["source"]?["data"], .string(Data([UInt8(index + 1)]).base64EncodedString()))
+            let text = try XCTUnwrap(content[1]["text"]?.stringValue)
+            XCTAssertTrue(text.contains("This is image \(index + 1) of 3 under this question, in document order."), text)
+            XCTAssertFalse(text.contains("Attached are"))
+        }
+        let second = try XCTUnwrap(transport.body(1)["messages"]?[0]?["content"]?[1]?["text"]?.stringValue)
+        XCTAssertTrue(second.contains("The other figures under this question, and what they turned out to be:\n• Image 1 of 3: Solution for part (a). — part (a): y(0) = 1 — solution through (0, 1)"), second)
+        XCTAssertTrue(second.contains("do not give this image a part, choice or initial condition already taken"))
+        let third = try XCTUnwrap(transport.body(2)["messages"]?[0]?["content"]?[1]?["text"]?.stringValue)
+        XCTAssertTrue(third.contains("• Image 1 of 3:"), third)
+        XCTAssertFalse(third.contains("• Image 2 of 3"), "a non-figure is not listed")
+        let first = try transport.body(0)["messages"]?[0]?["content"]?[1]?["text"]?.stringValue
+        XCTAssertFalse(first?.contains("other figures") ?? true, "nothing described yet before the first")
+
+        XCTAssertNil(FigureAgent.siblingNote(FigureAnalysis(kind: .unknown, isFigure: false), image: 1, of: 2))
+        let traced = FigureAnalysis(kind: .chart, chart: StandardChart(chartType: "line", series: [ChartSeries(name: "f", points: [[0, 0]])], confidence: 0.5, provenance: StandardChart.traced), caption: "A sketch.")
+        XCTAssertEqual(FigureAgent.siblingNote(traced, image: 2, of: 2), "Image 2 of 2: A sketch. — traced from points (no definition in the question)")
+    }
+
     func testAnalyzeVerifiedRetriesAMismatchedDefinitionOnce() async throws {
         // First pass: the agent claims y = x² − 1 but reads points from y = x² + 1. The app rejects it and asks
         // again; the second pass picks the right candidate and passes.

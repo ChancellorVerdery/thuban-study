@@ -390,9 +390,10 @@ final class ImportPipeline {
         return groups
     }
 
-    /// Runs the figure workflow over the extracted figures, one call per question (`figureGroups`): the agent sees
-    /// every figure under the question, finds the definition in its text, and the app verifies the definition
-    /// against the points the agent read (`FigureAgent.analyzeVerified`). Charts become `.reviewing`, everything
+    /// Runs the figure workflow over the extracted figures question by question (`figureGroups`): the agent sees
+    /// the question's figures one at a time, told what the earlier ones were, finds the definition in the question
+    /// text, and the app verifies the definition against the points the agent read
+    /// (`FigureAgent.describeInSequence`). Charts become `.reviewing`, everything
     /// else keeps its original (`.keptOriginal`), and images the agent says are not figures at all (equation
     /// fragments, symbols, icons) are deleted again, including from the questions that cited them. Returns the
     /// number of charts found, the number of images dropped, and a warning per chart whose definition did not
@@ -414,9 +415,14 @@ final class ImportPipeline {
         var done = 0
         for group in groups {
             if Task.isCancelled { break }
-            let label = "Analysing figures (\(done + 1) of \(batch.count))"
-            update(document.id) { $0.detail = label }
-            setDetail(document.id, label)
+            let started = done
+            let documentId = document.id
+            let announce: (Int) -> Void = { [weak self] image in
+                let label = "Analysing figures (\(started + image) of \(batch.count))"
+                self?.update(documentId) { $0.detail = label }
+                self?.setDetail(documentId, label)
+            }
+            announce(1)
             done += group.figures.count
             do {
                 // The agent gets the problem, not just the pixels: every figure under the question, the question's
@@ -432,7 +438,8 @@ final class ImportPipeline {
                     nearbyText: around, questionTexts: citing, otherQuestionTexts: others,
                     positionNote: group.figures.count == 1 ? Self.positionNote(of: group.figures[0].id, in: group.questions) : nil
                 )
-                let analyses = try await agent.analyzeVerified(pngs: group.figures.map(\.extracted.pngData), context: context, engine: session.engine)
+                let analyses = try await agent.describeInSequence(pngs: group.figures.map(\.extracted.pngData), context: context,
+                                                                  engine: session.engine, progress: announce)
                 for (offset, member) in group.figures.enumerated() {
                     guard var figure = try? await session.store.figure(id: member.id) else { continue }
                     guard let analysis = analyses[offset + 1] else {

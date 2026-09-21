@@ -106,33 +106,31 @@ final class FigureReviewModel {
         defer { isReanalysing = false }
         let agent = FigureAgent(client: session.app.claudeClient, model: session.app.modelPolicy.pinned ?? .sonnet)
         do {
-            // The same workflow the import runs: every figure under the citing question goes along (this one in
-            // focus), with the question's text, the document text around the figures and the earlier caption; the
-            // app then verifies the definition against the points the agent read.
+            // The same workflow the import runs: this image alone, with the question's text, the document text
+            // around it, the earlier caption, and one line on each of the question's other figures (what they were
+            // found to show), so this one is not given a part another sketch already has; the app then verifies
+            // the definition against the points the agent read.
             let all = (try? await session.store.questions(in: session.classId, filter: nil)) ?? []
             let citingQuestions = all.filter { $0.figureIds.contains(figure.id) }
             let sameDocument = figure.documentId.map { id in all.filter { $0.documentId == id } } ?? []
             let siblings = await Self.siblings(of: figure, in: citingQuestions, store: session.store)
-            guard !siblings.isEmpty else { throw ThubanError.parse("The clipped image is missing.") }
-            let pngs = siblings.map(\.png)
-            let focus = siblings.firstIndex(where: { $0.figure.id == figure.id }).map { $0 + 1 } ?? 1
-            let sourceDocument = document(for: figure)
-            var around: [String] = []
-            for (offset, sibling) in siblings.enumerated() {
-                let text = await Self.textAround(sibling.figure, png: sibling.png, in: sourceDocument)
-                guard !text.isEmpty else { continue }
-                around.append(siblings.count > 1 ? "Around image \(offset + 1):\n\(text.prefix(1500))" : text)
+            guard let mine = siblings.first(where: { $0.figure.id == figure.id }) else { throw ThubanError.parse("The clipped image is missing.") }
+            let position = siblings.firstIndex(where: { $0.figure.id == figure.id }).map { $0 + 1 } ?? 1
+            let notes = siblings.enumerated().compactMap { offset, sibling -> String? in
+                guard sibling.figure.id != figure.id else { return nil }
+                return FigureAgent.siblingNote(FigureAnalysis(kind: sibling.figure.kind, chart: sibling.figure.chart, caption: sibling.figure.caption),
+                                               image: offset + 1, of: siblings.count)
             }
             let context = FigureAgent.FigureContext(
-                nearbyText: around.joined(separator: "\n\n"),
+                nearbyText: await Self.textAround(figure, png: mine.png, in: document(for: figure)),
                 questionTexts: citingQuestions.map(ImportPipeline.questionText),
                 previousCaption: figure.caption,
                 otherQuestionTexts: citingQuestions.isEmpty ? sameDocument.map(\.stem) : [],
-                positionNote: siblings.count == 1 ? ImportPipeline.positionNote(of: figure.id, in: citingQuestions) : nil,
-                focus: siblings.count > 1 ? [focus] : nil
+                positionNote: siblings.count > 1 ? "This is image \(position) of \(siblings.count) under this question, in document order." : nil,
+                siblingNotes: notes
             )
-            let analyses = try await agent.analyzeVerified(pngs: pngs, context: context, engine: session.engine)
-            guard let analysis = analyses[focus] else { throw ThubanError.parse("The figure agent did not describe this figure.") }
+            let analyses = try await agent.analyzeVerified(pngs: [mine.png], context: context, engine: session.engine)
+            guard let analysis = analyses[1] else { throw ThubanError.parse("The figure agent did not describe this figure.") }
             figure.kind = analysis.isFigure ? analysis.kind : .unknown
             figure.chart = analysis.isFigure ? analysis.chart : nil
             if let caption = analysis.caption, !caption.isEmpty { figure.caption = caption }

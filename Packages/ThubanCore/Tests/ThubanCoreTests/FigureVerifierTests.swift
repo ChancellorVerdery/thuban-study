@@ -94,6 +94,18 @@ final class FigureVerifierTests: XCTestCase {
         XCTAssertFalse(off.passed)
         XCTAssertTrue(off.summary.contains("the solution curve gives"), off.summary)
 
+        // A drawn solution curve with no points read along it cannot pass: the arrows alone are the same in every
+        // sketch of the field, so they cannot tell the sketches apart.
+        var arrowsOnly = field
+        arrowsOnly.checks = [[0, 0, 0], [1, 0, 1], [0, 1, -1]]
+        let unread = await verify(arrowsOnly)
+        XCTAssertEqual(unread?.passed, false)
+        XCTAssertTrue(unread?.summary.contains("no points were read along the drawn solution curve") ?? false, unread?.summary ?? "nil")
+        var noChecks = field
+        noChecks.checks = nil
+        let none = await verify(noChecks)
+        XCTAssertEqual(none?.passed, false, "a solution curve with no checks at all is unverified, not unchecked")
+
         // A field with only [x, y] checks and no solution curve has nothing testable.
         var bare = field
         bare.series = []
