@@ -101,24 +101,38 @@ final class FigureReviewModel {
     func reanalyse() async {
         guard var figure = current, !isReanalysing else { return }
         guard session.app.isConnected else { error = "Connect your Claude account in Settings to re-analyse figures."; return }
-        guard let png = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)) else { error = "The clipped image is missing."; return }
+        guard FileManager.default.fileExists(atPath: AppPaths.figureURL(figure.originalPath).path) else { error = "The clipped image is missing."; return }
         isReanalysing = true
         defer { isReanalysing = false }
         let agent = FigureAgent(client: session.app.claudeClient, model: session.app.modelPolicy.pinned ?? .sonnet)
         do {
-            // The same context the import gives: the questions citing this figure (or, failing that, the document's
-            // other problems), the document text around the figure, and the earlier caption.
+            // The same workflow the import runs: every figure under the citing question goes along (this one in
+            // focus), with the question's text, the document text around the figures and the earlier caption; the
+            // app then verifies the definition against the points the agent read.
             let all = (try? await session.store.questions(in: session.classId, filter: nil)) ?? []
             let citingQuestions = all.filter { $0.figureIds.contains(figure.id) }
             let sameDocument = figure.documentId.map { id in all.filter { $0.documentId == id } } ?? []
+            let siblings = await Self.siblings(of: figure, in: citingQuestions, store: session.store)
+            guard !siblings.isEmpty else { throw ThubanError.parse("The clipped image is missing.") }
+            let pngs = siblings.map(\.png)
+            let focus = siblings.firstIndex(where: { $0.figure.id == figure.id }).map { $0 + 1 } ?? 1
+            let sourceDocument = document(for: figure)
+            var around: [String] = []
+            for (offset, sibling) in siblings.enumerated() {
+                let text = await Self.textAround(sibling.figure, png: sibling.png, in: sourceDocument)
+                guard !text.isEmpty else { continue }
+                around.append(siblings.count > 1 ? "Around image \(offset + 1):\n\(text.prefix(1500))" : text)
+            }
             let context = FigureAgent.FigureContext(
-                nearbyText: await Self.textAround(figure, png: png, in: document(for: figure)),
+                nearbyText: around.joined(separator: "\n\n"),
                 questionTexts: citingQuestions.map(ImportPipeline.questionText),
                 previousCaption: figure.caption,
                 otherQuestionTexts: citingQuestions.isEmpty ? sameDocument.map(\.stem) : [],
-                positionNote: ImportPipeline.positionNote(of: figure.id, in: citingQuestions)
+                positionNote: siblings.count == 1 ? ImportPipeline.positionNote(of: figure.id, in: citingQuestions) : nil,
+                focus: siblings.count > 1 ? [focus] : nil
             )
-            let analysis = try await agent.analyze(png: png, context: context)
+            let analyses = try await agent.analyzeVerified(pngs: pngs, context: context, engine: session.engine)
+            guard let analysis = analyses[focus] else { throw ThubanError.parse("The figure agent did not describe this figure.") }
             figure.kind = analysis.isFigure ? analysis.kind : .unknown
             figure.chart = analysis.isFigure ? analysis.chart : nil
             if let caption = analysis.caption, !caption.isEmpty { figure.caption = caption }
@@ -127,6 +141,23 @@ final class FigureReviewModel {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    /// Every figure under the question that cites `figure` (the first citing question's figures, in its order),
+    /// with their images; just `figure` when no question cites it or an image is missing.
+    nonisolated static func siblings(of figure: Figure, in citingQuestions: [Question], store: Store) async -> [(figure: Figure, png: Data)] {
+        var members: [(figure: Figure, png: Data)] = []
+        let ids = citingQuestions.first?.figureIds ?? []
+        for id in ids.prefix(FigureAgent.maxImagesPerCall) {
+            guard let sibling = try? await store.figure(id: id),
+                  let data = try? Data(contentsOf: AppPaths.figureURL(sibling.originalPath)), !data.isEmpty else { continue }
+            members.append((sibling, data))
+        }
+        if !members.contains(where: { $0.figure.id == figure.id }) {
+            guard let data = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)), !data.isEmpty else { return [] }
+            members = [(figure, data)]
+        }
+        return members
     }
 
     /// Re-parses the stored document and returns the text around this figure, found by its PNG bytes (the stored
@@ -320,6 +351,21 @@ private struct FigureReviewPane: View {
             .frame(height: 360)
             if let chart = figure.chart {
                 detectionChips(chart)
+                if let definition = chart.definition?.nilIfEmpty, chart.isStated {
+                    Text("Defined in the question: \(definition)")
+                        .font(ThubanFont.small)
+                        .foregroundStyle(theme.inkDimColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+                if let verification = chart.verification {
+                    Text(verification.summary)
+                        .font(ThubanFont.small)
+                        .foregroundStyle(verification.passed ? theme.inkDimColor : theme.negColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                        .accessibilityLabel("\(verification.passed ? "Verified" : "Unverified"): \(verification.summary)")
+                }
                 if let notes = chart.notes?.nilIfEmpty {
                     Text(notes)
                         .font(ThubanFont.small)
@@ -421,6 +467,14 @@ private struct FigureReviewPane: View {
             }
             Chip("Axes: \(chart.xLabel?.nilIfEmpty ?? "x") / \(chart.yLabel?.nilIfEmpty ?? "y")", kind: .neutral)
             Chip("\(chart.series.count) series", kind: .neutral)
+            if chart.isTraced {
+                Chip("Traced", kind: .neutral).help("No definition in the question; the curve was read off the picture as points")
+            } else if chart.isStated {
+                Chip("Stated", kind: .neutral).help("The definition was found in the question text")
+            }
+            if let verification = chart.verification {
+                Chip(verification.passed ? "Verified" : "Unverified", kind: verification.passed ? .pos : .warn)
+            }
             Chip("Confidence \(Int((StandardChart.clampedConfidence(chart.confidence) * 100).rounded()))%", kind: chart.confidence >= 0.7 ? .pos : .warn)
             Spacer()
             FigureStatusChip(status: figure.status)

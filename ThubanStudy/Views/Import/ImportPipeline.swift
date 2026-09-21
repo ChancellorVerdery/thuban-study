@@ -246,13 +246,15 @@ final class ImportPipeline {
             await session.loadQuestions()
 
             // 5. Figure agent (may reject images the size gate let through; those leave the bank again)
-            let (charts, dropped) = await analyseFigures(content.figures, figureIds: figureIds, content: content, questions: questions, document: &document)
-            if dropped > 0 {
+            let (charts, dropped, figureWarnings) = await analyseFigures(content.figures, figureIds: figureIds, content: content, questions: questions, document: &document)
+            if dropped > 0 || !figureWarnings.isEmpty {
                 let remaining = max(0, content.figures.count - dropped)
+                warnings.append(contentsOf: figureWarnings)
                 document.figureCount = remaining
+                document.warnings = warnings
                 try await store.update(classification: result.classification, questionCount: questions.count,
                                        figureCount: remaining, warnings: warnings, for: document.id)
-                update(document.id) { $0.figureCount = remaining }
+                update(document.id) { $0.figureCount = remaining; $0.warnings = warnings }
                 session.updateDocument(document)
                 await session.loadQuestions()
             }
@@ -359,55 +361,105 @@ final class ImportPipeline {
         return ids
     }
 
-    /// Runs the FigureAgent over the extracted figures; charts become `.reviewing`, everything else keeps its
-    /// original (`.keptOriginal`), and images the agent says are not figures at all (equation fragments, symbols,
-    /// icons) are deleted again, including from the questions that cited them. Returns the number of charts found
-    /// and the number of images dropped. Failures leave figures pending.
+    /// One call to the figure agent: every figure under one question (or one figure no question cites).
+    struct FigureGroup {
+        var questions: [Question]
+        var figures: [(extracted: ExtractedFigure, id: FigureID)]
+    }
+
+    /// Groups the analysed figures by the question they sit under, in question order, then every uncited figure
+    /// on its own. A figure cited by two questions goes with the first and both questions' texts come along.
+    static func figureGroups(_ figures: [ExtractedFigure], figureIds: [Int: FigureID], questions: [Question]) -> [FigureGroup] {
+        let byId = Dictionary(figures.compactMap { f in figureIds[f.index].map { ($0, f) } }, uniquingKeysWith: { first, _ in first })
+        var seen: Set<FigureID> = []
+        var groups: [FigureGroup] = []
+        for question in questions {
+            let members = question.figureIds.filter { !seen.contains($0) }.compactMap { id in byId[id].map { ($0, id) } }
+            guard !members.isEmpty else { continue }
+            members.forEach { seen.insert($0.1) }
+            let ids = Set(members.map(\.1))
+            let citing = questions.filter { $0.id == question.id || $0.figureIds.contains(where: ids.contains) }
+            for slice in stride(from: 0, to: members.count, by: FigureAgent.maxImagesPerCall) {
+                groups.append(FigureGroup(questions: citing, figures: Array(members[slice..<min(members.count, slice + FigureAgent.maxImagesPerCall)])))
+            }
+        }
+        for figure in figures {
+            guard let id = figureIds[figure.index], !seen.contains(id) else { continue }
+            groups.append(FigureGroup(questions: [], figures: [(figure, id)]))
+        }
+        return groups
+    }
+
+    /// Runs the figure workflow over the extracted figures, one call per question (`figureGroups`): the agent sees
+    /// every figure under the question, finds the definition in its text, and the app verifies the definition
+    /// against the points the agent read (`FigureAgent.analyzeVerified`). Charts become `.reviewing`, everything
+    /// else keeps its original (`.keptOriginal`), and images the agent says are not figures at all (equation
+    /// fragments, symbols, icons) are deleted again, including from the questions that cited them. Returns the
+    /// number of charts found, the number of images dropped, and a warning per chart whose definition did not
+    /// match the picture. Failures leave figures pending.
     private func analyseFigures(
         _ figures: [ExtractedFigure], figureIds: [Int: FigureID], content: DocumentContent, questions: [Question],
         document: inout ImportedDocument
-    ) async -> (charts: Int, dropped: Int) {
-        guard !figures.isEmpty, session.app.isConnected else { return (0, 0) }
+    ) async -> (charts: Int, dropped: Int, warnings: [String]) {
+        guard !figures.isEmpty, session.app.isConnected else { return (0, 0, []) }
         let agent = FigureAgent(client: session.app.claudeClient, model: runPolicy.pinned ?? .sonnet)
-        let batch = figures.prefix(Self.maxAnalysedFigures)
+        let batch = Array(figures.prefix(Self.maxAnalysedFigures))
+        let groups = Self.figureGroups(batch, figureIds: figureIds, questions: questions)
         var charts = 0
         var rejected: [FigureID] = []
+        var warnings: [String] = []
         let filename = document.filename
         document = await setStatus(document, .extractingFigures, detail: "Analysing figures (0 of \(batch.count))", model: document.modelUsed)
         update(document.id) { $0.phase = .analysingFigures; $0.detail = "Analysing figures" }
-        for (offset, extracted) in batch.enumerated() {
+        var done = 0
+        for group in groups {
             if Task.isCancelled { break }
-            guard let id = figureIds[extracted.index], var figure = try? await session.store.figure(id: id) else { continue }
-            let label = "Analysing figures (\(offset + 1) of \(batch.count))"
+            let label = "Analysing figures (\(done + 1) of \(batch.count))"
             update(document.id) { $0.detail = label }
             setDetail(document.id, label)
+            done += group.figures.count
             do {
-                // The agent gets the problem, not just the pixels: the questions citing this figure and the text around it.
-                let citingQuestions = questions.filter { $0.figureIds.contains(id) }
-                let citing = citingQuestions.map(Self.questionText)
-                let others = citingQuestions.isEmpty ? questions.map(\.stem) : []
-                let around = content.text(aroundFigure: extracted.index)
+                // The agent gets the problem, not just the pixels: every figure under the question, the question's
+                // text, and the document text around each figure.
+                let citing = group.questions.map(Self.questionText)
+                let others = group.questions.isEmpty ? questions.map(\.stem) : []
+                let around = group.figures.map { member -> String in
+                    let text = content.text(aroundFigure: member.extracted.index)
+                    let chosen = text.isEmpty ? member.extracted.nearbyText : text
+                    return group.figures.count > 1 ? "Around image \(group.figures.firstIndex(where: { $0.id == member.id }).map { $0 + 1 } ?? 0):\n\(chosen.prefix(1500))" : chosen
+                }.filter { !$0.isEmpty }.joined(separator: "\n\n")
                 let context = FigureAgent.FigureContext(
-                    nearbyText: around.isEmpty ? extracted.nearbyText : around, questionTexts: citing,
-                    otherQuestionTexts: others, positionNote: Self.positionNote(of: id, in: citingQuestions)
+                    nearbyText: around, questionTexts: citing, otherQuestionTexts: others,
+                    positionNote: group.figures.count == 1 ? Self.positionNote(of: group.figures[0].id, in: group.questions) : nil
                 )
-                let analysis = try await agent.analyze(png: extracted.pngData, context: context)
-                if !analysis.isFigure {
-                    Self.logger.notice("Dropping non-figure image \(extracted.index) of \(filename, privacy: .public): \(analysis.caption ?? "", privacy: .public)")
-                    try await session.store.delete(figure.id, deleteFile: true)
-                    rejected.append(figure.id)
-                    continue
+                let analyses = try await agent.analyzeVerified(pngs: group.figures.map(\.extracted.pngData), context: context, engine: session.engine)
+                for (offset, member) in group.figures.enumerated() {
+                    guard var figure = try? await session.store.figure(id: member.id) else { continue }
+                    guard let analysis = analyses[offset + 1] else {
+                        Self.logger.notice("The figure agent left image \(offset + 1) of a group undescribed in \(filename, privacy: .public)")
+                        continue
+                    }
+                    if !analysis.isFigure {
+                        Self.logger.notice("Dropping non-figure image \(member.extracted.index) of \(filename, privacy: .public): \(analysis.caption ?? "", privacy: .public)")
+                        try await session.store.delete(figure.id, deleteFile: true)
+                        rejected.append(figure.id)
+                        continue
+                    }
+                    figure.kind = analysis.kind
+                    figure.chart = analysis.chart
+                    if let caption = analysis.caption, !caption.isEmpty { figure.caption = caption }
+                    if analysis.kind == .chart, let chart = analysis.chart {
+                        figure.status = .reviewing
+                        charts += 1
+                        if let verdict = chart.verification, !verdict.passed {
+                            let owner = group.questions.first?.sourceRef?.nilIfEmpty ?? group.questions.first.map { "“\($0.stem.prefix(40))…”" } ?? "no question"
+                            warnings.append("Figure \(member.extracted.index + 1) (\(owner)): the definition does not match the picture — \(verdict.summary) Check it under Figures.")
+                        }
+                    } else {
+                        figure.status = .keptOriginal
+                    }
+                    try await session.store.update(figure)
                 }
-                figure.kind = analysis.kind
-                figure.chart = analysis.chart
-                if let caption = analysis.caption, !caption.isEmpty { figure.caption = caption }
-                if analysis.kind == .chart, analysis.chart != nil {
-                    figure.status = .reviewing
-                    charts += 1
-                } else {
-                    figure.status = .keptOriginal
-                }
-                try await session.store.update(figure)
             } catch is CancellationError {
                 break
             } catch {
@@ -415,7 +467,7 @@ final class ImportPipeline {
             }
         }
         if !rejected.isEmpty { await stripFigures(rejected, from: document.id) }
-        return (charts, rejected.count)
+        return (charts, rejected.count, warnings)
     }
 
     /// A question as text for the figure agent: stem, then each part's prompt.

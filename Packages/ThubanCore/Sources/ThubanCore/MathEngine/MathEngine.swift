@@ -109,6 +109,29 @@ public actor MathEngine {
         }
     }
 
+    /// `latex` sampled at `points`. A bare expression or "y = f(x)" is `explicit`: each value is f(x, y) itself.
+    /// Any other equation "lhs = rhs" is implicit: each value is the residual lhs − rhs (0 on the curve) and
+    /// `scales` holds the larger side's magnitude, for a relative comparison. A value is nil where the expression
+    /// is undefined or complex.
+    public struct Samples: Sendable, Equatable {
+        public var values: [Double?]
+        public var scales: [Double?]
+        public var explicit: Bool
+    }
+
+    public func samples(of latex: String, at points: [(x: Double, y: Double)]) async throws -> Samples {
+        struct Point: Encodable { var x: Double; var y: Double }
+        struct Request: Encodable { var latex: String; var points: [Point] }
+        struct Result: Decodable { var values: [Double?]; var scales: [Double?]; var explicit: Bool }
+        do {
+            let request = Request(latex: latex, points: points.map { Point(x: $0.x, y: $0.y) })
+            let result = try loadedRuntime().call("evaluateAt", request, as: Result.self)
+            return Samples(values: result.values, scales: result.scales, explicit: result.explicit)
+        } catch ThubanError.engine(let detail) where detail == "unparseable" {
+            throw ThubanError.parse("'\(latex)' is not a valid expression.")
+        }
+    }
+
     private func latexCall(_ function: String, _ latex: String) throws -> String {
         do {
             return try loadedRuntime().call(function, LatexRequest(latex: latex), as: LatexResult.self).latex

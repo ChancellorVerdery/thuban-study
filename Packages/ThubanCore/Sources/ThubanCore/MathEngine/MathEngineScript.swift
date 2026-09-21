@@ -1172,6 +1172,43 @@ var thubanMath = (function () {
     return { points: back.concat([[x0, y0]], fwd) };
   }
 
+  // Values of `latex` at each of `points` ([{x, y}, …]). A bare expression is evaluated as given; "y = f(x)"
+  // (or "f(x) = …") gives f(x) so the value compares directly with a y read off a picture; any other equation
+  // "lhs = rhs" gives the residual lhs − rhs (0 on the curve) with the larger side's magnitude as `scales[i]`.
+  function evaluateAt(r) {
+    var latex = String(r.latex);
+    var eq = latex.indexOf('=');
+    var explicit = true, expr, lhsExpr = null, rhsExpr = null;
+    if (eq >= 0) {
+      var lhs = latex.slice(0, eq).trim(), rhs = latex.slice(eq + 1).trim();
+      if (/^(y|[a-zA-Z](\\left)?\(x(\\right)?\))$/.test(lhs)) {
+        expr = ce.parse(rhs);
+      } else {
+        explicit = false;
+        lhsExpr = ce.parse(lhs); rhsExpr = ce.parse(rhs);
+        if (!lhsExpr.isValid || !rhsExpr.isValid) return { error: 'unparseable' };
+        expr = lhsExpr;
+      }
+    } else {
+      expr = ce.parse(latex);
+    }
+    if (!expr.isValid) return { error: 'unparseable' };
+    var values = [], scales = [];
+    (r.points || []).forEach(function (p) {
+      var at = { x: Number(p.x), y: Number(p.y) };
+      if (explicit) {
+        var v = numericValue(expr, at);
+        var re = v && Math.abs(v.im) < 1e-9 ? v.re : null;
+        values.push(re); scales.push(re === null ? null : Math.max(Math.abs(re), Math.abs(at.y)));
+      } else {
+        var a = numericValue(lhsExpr, at), b = numericValue(rhsExpr, at);
+        if (!a || !b || Math.abs(a.im) > 1e-9 || Math.abs(b.im) > 1e-9) { values.push(null); scales.push(null); }
+        else { values.push(a.re - b.re); scales.push(Math.max(Math.abs(a.re), Math.abs(b.re))); }
+      }
+    });
+    return { values: values, scales: scales, explicit: explicit };
+  }
+
   function evaluate(latex) {
     var expr = ce.parse(String(latex));
     if (!expr.isValid) return { error: 'unparseable' };
@@ -1279,6 +1316,7 @@ var thubanMath = (function () {
     grade: wrap(grade),
     evaluate: wrap(function (r) { return evaluate(r.latex); }),
     integrateSlope: wrap(integrateSlope),
+    evaluateAt: wrap(evaluateAt),
     simplify: wrap(function (r) { return simplify(r.latex); }),
     checkConstraints: wrap(checkConstraints),
     instantiateAnswer: wrap(instantiateAnswer),

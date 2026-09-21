@@ -39,9 +39,27 @@ public struct ChartSeries: Codable, Sendable, Equatable {
     }
 }
 
+/// The app's check of a chart's stated equation against the points the agent read off the picture
+/// (`FigureVerifier`).
+public struct ChartVerification: Codable, Sendable, Equatable {
+    public var passed: Bool
+    /// One or two sentences a student can read: what was checked and, on a mismatch, where it went wrong.
+    public var summary: String
+
+    public init(passed: Bool, summary: String) {
+        self.passed = passed
+        self.summary = summary
+    }
+}
+
 /// Standardized chart: everything needed to redraw the figure in the app's own graph style (Desmos expressions or
 /// a table of series). This is the "one graph style across the app" representation.
 public struct StandardChart: Codable, Sendable, Equatable {
+    /// `provenance` value: the equation was found in the question text.
+    public static let stated = "stated"
+    /// `provenance` value: nothing in the question defines the curve, so it was read off the picture as points.
+    public static let traced = "traced"
+
     /// "line" | "scatter" | "bar" | "function" | "histogram" | "slopeField"
     public var chartType: String
     public var xLabel: String?
@@ -65,8 +83,20 @@ public struct StandardChart: Codable, Sendable, Equatable {
     /// Anything else needed to reproduce the picture (marked points, where a curve enters and leaves, what is
     /// dashed, which quadrant is shown …), as the agent saw it.
     public var notes: String?
+    /// Where the equation came from: `StandardChart.stated` (found in the question) or `StandardChart.traced`
+    /// (no definition anywhere in the question; the curve is a series of points read off the picture).
+    public var provenance: String?
+    /// The definition as the question states it, quoted ("part (b): dy/dx = x − y, y(0) = 1"). Empty when traced.
+    public var definition: String?
+    /// Points the agent read off the picture to test the stated equation: `[x, y]` on a curve, `[x, y, m]` for the
+    /// slope `m` of the arrow at `(x, y)` in a field. The app evaluates the equation at each (`FigureVerifier`).
+    public var checks: [[Double]]?
+    /// The app's verdict on `checks` against the stated equation; nil when there was nothing to check.
+    public var verification: ChartVerification?
 
     public var isSlopeField: Bool { chartType == "slopeField" }
+    public var isStated: Bool { provenance == Self.stated }
+    public var isTraced: Bool { provenance == Self.traced }
 
     public init(
         chartType: String,
@@ -82,7 +112,11 @@ public struct StandardChart: Codable, Sendable, Equatable {
         yStep: Double? = nil,
         fieldColumns: Int? = nil,
         fieldRows: Int? = nil,
-        notes: String? = nil
+        notes: String? = nil,
+        provenance: String? = nil,
+        definition: String? = nil,
+        checks: [[Double]]? = nil,
+        verification: ChartVerification? = nil
     ) {
         self.chartType = chartType
         self.xLabel = xLabel
@@ -98,6 +132,10 @@ public struct StandardChart: Codable, Sendable, Equatable {
         self.fieldColumns = fieldColumns
         self.fieldRows = fieldRows
         self.notes = notes
+        self.provenance = provenance
+        self.definition = definition
+        self.checks = checks
+        self.verification = verification
     }
 
     /// Confidence is 0–1; anything else the model (or a stored row) reports is clamped so it can be shown safely.
@@ -108,6 +146,7 @@ public struct StandardChart: Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case chartType, xLabel, yLabel, series, xRange, yRange, confidence, slope, arrows, xStep, yStep, fieldColumns, fieldRows, notes
+        case provenance, definition, checks, verification
     }
 
     public init(from decoder: Decoder) throws {
@@ -126,6 +165,10 @@ public struct StandardChart: Codable, Sendable, Equatable {
         fieldColumns = try c.decodeIfPresent(Int.self, forKey: .fieldColumns)
         fieldRows = try c.decodeIfPresent(Int.self, forKey: .fieldRows)
         notes = try c.decodeIfPresent(String.self, forKey: .notes)
+        provenance = try c.decodeIfPresent(String.self, forKey: .provenance)
+        definition = try c.decodeIfPresent(String.self, forKey: .definition)
+        checks = try c.decodeIfPresent([[Double]].self, forKey: .checks)
+        verification = try c.decodeIfPresent(ChartVerification.self, forKey: .verification)
     }
 }
 

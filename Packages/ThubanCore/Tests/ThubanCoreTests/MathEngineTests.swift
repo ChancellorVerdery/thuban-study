@@ -369,6 +369,35 @@ final class MathEngineTests: XCTestCase {
         }
     }
 
+    func testSamplesEvaluateExplicitFormsAndImplicitResiduals() async throws {
+        let bare = try await Self.engine.samples(of: "x^2-1", at: [(1, 0), (3, 0)])
+        XCTAssertTrue(bare.explicit)
+        XCTAssertEqual(bare.values, [0, 8])
+
+        let explicit = try await Self.engine.samples(of: "y=2x+1", at: [(1, 99), (-1, 0)])
+        XCTAssertTrue(explicit.explicit, "y = f(x) samples f, ignoring the y given")
+        XCTAssertEqual(explicit.values, [3, -1])
+        XCTAssertEqual(explicit.scales, [99, 1])
+        let named = try await Self.engine.samples(of: "f\\left(x\\right)=x+1", at: [(2, 0)])
+        XCTAssertTrue(named.explicit)
+        XCTAssertEqual(named.values, [3])
+
+        let circle = try await Self.engine.samples(of: "x^2+y^2=4", at: [(0, 2), (1, 1)])
+        XCTAssertFalse(circle.explicit)
+        XCTAssertEqual(circle.values, [0, -2])
+        XCTAssertEqual(circle.scales, [4, 4])
+
+        let undefined = try await Self.engine.samples(of: "\\sqrt{x}", at: [(-1, 0), (4, 0)])
+        XCTAssertEqual(undefined.values, [nil, 2], "complex results are nil")
+
+        do {
+            _ = try await Self.engine.samples(of: "\\frac{", at: [(0, 0)])
+            XCTFail("expected a parse error")
+        } catch let error as ThubanError {
+            guard case .parse = error else { return XCTFail("unexpected error \(error)") }
+        }
+    }
+
     func testEvaluateRejectsInvalidLatex() async {
         do {
             _ = try await Self.engine.evaluate("\\frac{")

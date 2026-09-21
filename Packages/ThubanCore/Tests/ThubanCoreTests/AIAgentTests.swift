@@ -575,7 +575,8 @@ final class AIAgentTests: XCTestCase {
     }
 
     func testFigureAgentDecodesChart() async throws {
-        let transport = MockTransport([.sse(SSE.toolUse(id: "f1", name: "describe_figure", input: [
+        let transport = MockTransport([.sse(SSE.toolUse(id: "f1", name: "describe_figures", input: ["figures": [[
+            "image": 1,
             "kind": "chart",
             "caption": "Velocity against time.",
             "chart": [
@@ -583,7 +584,7 @@ final class AIAgentTests: XCTestCase {
                 "series": [["name": "v", "points": [[0, 0], [1, 2], [2, 4]]]],
                 "xRange": [0, 2], "yRange": [0, 4], "confidence": 0.8,
             ],
-        ]))])
+        ]]]))])
         let agent = FigureAgent(client: .mock(transport))
         let analysis = try await agent.analyze(png: Data([0x89, 0x50, 0x4E, 0x47]), nearbyText: "Figure 2: velocity")
         XCTAssertEqual(analysis.kind, .chart)
@@ -591,13 +592,16 @@ final class AIAgentTests: XCTestCase {
         XCTAssertEqual(analysis.chart?.chartType, "line")
         XCTAssertEqual(analysis.chart?.series.first?.points, [[0, 0], [1, 2], [2, 4]])
         XCTAssertEqual(analysis.chart?.confidence, 0.8)
+        XCTAssertEqual(analysis.chart?.provenance, StandardChart.traced, "points and no equation: traced by default")
 
         let body = try transport.body(0)
-        XCTAssertEqual(body["tool_choice"], ["type": "tool", "name": "describe_figure"])
+        XCTAssertEqual(body["tool_choice"], ["type": "tool", "name": "describe_figures"])
         XCTAssertEqual(body["messages"]?[0]?["content"]?[0]?["source"]?["data"], .string(Data([0x89, 0x50, 0x4E, 0x47]).base64EncodedString()))
         XCTAssertTrue(body["messages"]?[0]?["content"]?[1]?["text"]?.stringValue?.contains("Figure 2: velocity") ?? false)
+        XCTAssertFalse(body["messages"]?[0]?["content"]?[1]?["text"]?.stringValue?.contains("Attached are") ?? true, "one image needs no numbering note")
 
         XCTAssertEqual(FigureAgent.analysis(from: ["kind": "photo", "caption": "", "chart": ["chartType": "bar"]]), FigureAnalysis(kind: .photo))
+        XCTAssertEqual(FigureAgent.analysis(from: ["kind": "chart", "caption": "", "chart": ["chartType": "function", "series": [["name": "f", "latex": "x^2"]], "confidence": 1]]).chart?.provenance, StandardChart.stated)
         await XCTAssertThrowsErrorAsync(try await agent.analyze(png: Data(), nearbyText: ""))
 
         // The richer context puts the citing questions first, then the surrounding text, then any earlier caption.
@@ -605,7 +609,7 @@ final class AIAgentTests: XCTestCase {
             nearbyText: "Before [figure here] after", questionTexts: ["Solve $y' = x - y$, $y(0) = 1$.", ""], previousCaption: "A field."
         )
         let rendered = context.rendered
-        XCTAssertTrue(rendered.hasPrefix("The question(s) this figure belongs to"))
+        XCTAssertTrue(rendered.hasPrefix("The question(s) the figure belongs to"))
         XCTAssertTrue(rendered.contains("Question 1:\nSolve $y' = x - y$"))
         XCTAssertFalse(rendered.contains("Question 2:"), "blank question texts are dropped")
         XCTAssertTrue(rendered.contains("Text around the figure"))
@@ -615,5 +619,98 @@ final class AIAgentTests: XCTestCase {
         XCTAssertTrue(uncited.rendered.hasPrefix("This is image 2 of 8"))
         XCTAssertTrue(uncited.rendered.contains("Other problems in the same document"))
         XCTAssertTrue(uncited.rendered.contains("• Consider $y' = x^2 - y^2$."))
+    }
+
+    func testFigureAgentDescribesAQuestionsFiguresTogether() async throws {
+        // Three images under one question: the field, a sketch, and an equation render that is not a figure.
+        // The agent answers out of order and leaves nothing out.
+        let transport = MockTransport([.sse(SSE.toolUse(id: "f1", name: "describe_figures", input: ["figures": [
+            ["image": 3, "isFigure": false, "kind": "unknown", "caption": "A rendered equation."],
+            ["image": 1, "isFigure": true, "kind": "chart", "caption": "The direction field of dy/dx = x − y.",
+             "chart": ["chartType": "slopeField", "slope": "x-y", "series": [], "confidence": 0.9, "provenance": "stated",
+                       "definition": "stem: dy/dx = x - y", "checks": [[0, 0, 0], [1, 0, 1]]]],
+            ["image": 2, "isFigure": true, "kind": "chart", "caption": "The solution with y(0) = 2, part (c).",
+             "chart": ["chartType": "slopeField", "slope": "x-y", "series": [["name": "y(0) = 2", "through": [0, 2]]], "confidence": 0.8,
+                       "provenance": "stated", "definition": "part (c): y(0) = 2"]],
+        ]]))])
+        let agent = FigureAgent(client: .mock(transport))
+        let pngs = [Data([1]), Data([2]), Data([3])]
+        let context = FigureAgent.FigureContext(nearbyText: "Around image 1:\nfield", questionTexts: ["Consider $dy/dx = x - y$. (c) $y(0) = 2$"])
+        let results = try await agent.analyze(pngs: pngs, context: context)
+        XCTAssertEqual(results.count, 3)
+        XCTAssertEqual(results[3]?.isFigure, false)
+        XCTAssertEqual(results[1]?.chart?.slope, "x-y")
+        XCTAssertEqual(results[1]?.chart?.definition, "stem: dy/dx = x - y")
+        XCTAssertEqual(results[1]?.chart?.checks, [[0, 0, 0], [1, 0, 1]])
+        XCTAssertEqual(results[2]?.chart?.series.first?.through, [0, 2])
+        XCTAssertNil(results[2]?.chart?.verification, "analyze alone does not verify")
+
+        // Every image goes in the one message, numbered, with the text after them.
+        let content = try XCTUnwrap(transport.body(0)["messages"]?[0]?["content"]?.arrayValue)
+        XCTAssertEqual(content.count, 7)
+        XCTAssertEqual(content[0]["text"], "Image 1:")
+        XCTAssertEqual(content[1]["source"]?["data"], .string(Data([1]).base64EncodedString()))
+        XCTAssertEqual(content[4]["text"], "Image 3:")
+        let text = try XCTUnwrap(content[6]["text"]?.stringValue)
+        XCTAssertTrue(text.hasPrefix("Attached are 3 images: every figure under this question"))
+        XCTAssertTrue(text.contains("Describe every image, one entry each"))
+        XCTAssertTrue(text.contains("look here first for the function or slope field"))
+
+        // Focus and verification feedback are spelled out.
+        var retry = context
+        retry.imageCount = 3
+        retry.focus = [2]
+        retry.verificationFeedback = "Image 2: Mismatch: 2 of 3 points disagree with dy/dx = x-y."
+        XCTAssertTrue(retry.rendered.contains("Describe only image 2; the others are attached"))
+        XCTAssertTrue(retry.rendered.contains("it did not match:\nImage 2: Mismatch"))
+        XCTAssertTrue(retry.rendered.hasSuffix("give the curve as 12–40 `points` instead of an equation."))
+
+        // Lenient decoding: out-of-range or duplicate image numbers are ignored, a missing number means "in order".
+        let decoded = FigureAgent.analyses(from: ["figures": [
+            ["image": 9, "kind": "photo", "caption": "x"], ["kind": "table", "caption": "y"], ["image": 2, "kind": "photo", "caption": "z"],
+        ]], imageCount: 2)
+        XCTAssertEqual(decoded.keys.sorted(), [2])
+        XCTAssertEqual(decoded[2]?.kind, .table, "the unnumbered entry took slot 2 in order; the later explicit 2 is a duplicate")
+        XCTAssertEqual(FigureAgent.analyses(from: ["figures": [["kind": "table", "caption": "y"]]], imageCount: 1)[1]?.kind, .table)
+        await XCTAssertThrowsErrorAsync(try await agent.analyze(pngs: Array(repeating: Data([1]), count: 9), context: context))
+    }
+
+    func testAnalyzeVerifiedRetriesAMismatchedDefinitionOnce() async throws {
+        // First pass: the agent claims y = x² − 1 but reads points from y = x² + 1. The app rejects it and asks
+        // again; the second pass picks the right candidate and passes.
+        let wrong: JSONValue = ["figures": [["image": 1, "isFigure": true, "kind": "chart", "caption": "The graph of part (a).",
+            "chart": ["chartType": "function", "series": [["name": "f", "latex": "x^2-1"]], "xRange": [-3, 3], "yRange": [-2, 10], "confidence": 0.9,
+                      "provenance": "stated", "definition": "part (a): y = x^2 - 1", "checks": [[-2, 5], [0, 1], [2, 5]]]]]]
+        let right: JSONValue = ["figures": [["image": 1, "isFigure": true, "kind": "chart", "caption": "The graph of part (b).",
+            "chart": ["chartType": "function", "series": [["name": "f", "latex": "x^2+1"]], "xRange": [-3, 3], "yRange": [-2, 10], "confidence": 0.9,
+                      "provenance": "stated", "definition": "part (b): y = x^2 + 1", "checks": [[-2, 5], [0, 1], [2, 5]]]]]]
+        let transport = MockTransport([.sse(SSE.toolUse(id: "f1", name: "describe_figures", input: wrong)),
+                                       .sse(SSE.toolUse(id: "f2", name: "describe_figures", input: right))])
+        let agent = FigureAgent(client: .mock(transport))
+        let engine = MathEngine()
+        let results = try await agent.analyzeVerified(pngs: [Data([1])], context: FigureAgent.FigureContext(questionTexts: ["(a) y = x^2 - 1 (b) y = x^2 + 1"]), engine: engine)
+        let chart = try XCTUnwrap(results[1]?.chart)
+        XCTAssertEqual(chart.series.first?.latex, "x^2+1")
+        XCTAssertEqual(chart.verification?.passed, true)
+        XCTAssertTrue(chart.verification?.summary.hasPrefix("Verified: 3 of 3") ?? false)
+        XCTAssertEqual(transport.requests.count, 2)
+        let secondText = try XCTUnwrap(transport.body(1)["messages"]?[0]?["content"]?[1]?["text"]?.stringValue)
+        XCTAssertTrue(secondText.contains("it did not match:\nMismatch: 3 of 3 points disagree with y = x^2-1"), secondText)
+        XCTAssertFalse(secondText.contains("Describe only image"), "a single image has no focus note")
+
+        // A definition that still fails after the retry is kept, flagged as unverified, so the review page can say so.
+        let stubborn = MockTransport([.sse(SSE.toolUse(id: "f1", name: "describe_figures", input: wrong)),
+                                      .sse(SSE.toolUse(id: "f2", name: "describe_figures", input: wrong))])
+        let stubbornResults = try await FigureAgent(client: .mock(stubborn)).analyzeVerified(pngs: [Data([1])], context: FigureAgent.FigureContext(), engine: engine)
+        XCTAssertEqual(stubbornResults[1]?.chart?.series.first?.latex, "x^2-1")
+        XCTAssertEqual(stubbornResults[1]?.chart?.verification?.passed, false)
+        XCTAssertEqual(stubborn.requests.count, 2, "one retry, not a loop")
+
+        // Nothing to verify: one call.
+        let traced = MockTransport([.sse(SSE.toolUse(id: "f1", name: "describe_figures", input: ["figures": [["image": 1, "isFigure": true, "kind": "chart", "caption": "Sketch.",
+            "chart": ["chartType": "line", "series": [["name": "f", "points": [[0, 0], [1, 1]]]], "confidence": 0.5, "provenance": "traced"]]]]))])
+        let tracedResults = try await FigureAgent(client: .mock(traced)).analyzeVerified(pngs: [Data([1])], context: FigureAgent.FigureContext(), engine: engine)
+        XCTAssertNil(tracedResults[1]?.chart?.verification)
+        XCTAssertEqual(traced.requests.count, 1)
     }
 }
