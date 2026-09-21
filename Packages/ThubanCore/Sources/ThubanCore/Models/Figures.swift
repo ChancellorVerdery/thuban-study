@@ -52,6 +52,20 @@ public struct ChartVerification: Codable, Sendable, Equatable {
     }
 }
 
+/// One initial condition the question offers for a slope field's solution curve, so the app can test each
+/// against the drawn curve (`FigureReconciler`).
+public struct ChartCandidate: Codable, Sendable, Equatable {
+    public var label: String
+    public var x: Double
+    public var y: Double
+
+    public init(label: String, x: Double, y: Double) {
+        self.label = label
+        self.x = x
+        self.y = y
+    }
+}
+
 /// Standardized chart: everything needed to redraw the figure in the app's own graph style (Desmos expressions or
 /// a table of series). This is the "one graph style across the app" representation.
 public struct StandardChart: Codable, Sendable, Equatable {
@@ -93,6 +107,13 @@ public struct StandardChart: Codable, Sendable, Equatable {
     public var checks: [[Double]]?
     /// The app's verdict on `checks` against the stated equation; nil when there was nothing to check.
     public var verification: ChartVerification?
+    /// The numeric tick labels printed along each axis, in order (x: left to right; y: top to bottom), so the app
+    /// can pair them with the tick marks it finds in the pixels (`GraphReader`).
+    public var xTicks: [Double]?
+    public var yTicks: [Double]?
+    /// Slope fields: every initial condition the question offers (each part's or choice's), tested by the app
+    /// against the drawn curve.
+    public var candidates: [ChartCandidate]?
 
     public var isSlopeField: Bool { chartType == "slopeField" }
     public var isStated: Bool { provenance == Self.stated }
@@ -116,7 +137,10 @@ public struct StandardChart: Codable, Sendable, Equatable {
         provenance: String? = nil,
         definition: String? = nil,
         checks: [[Double]]? = nil,
-        verification: ChartVerification? = nil
+        verification: ChartVerification? = nil,
+        xTicks: [Double]? = nil,
+        yTicks: [Double]? = nil,
+        candidates: [ChartCandidate]? = nil
     ) {
         self.chartType = chartType
         self.xLabel = xLabel
@@ -136,6 +160,9 @@ public struct StandardChart: Codable, Sendable, Equatable {
         self.definition = definition
         self.checks = checks
         self.verification = verification
+        self.xTicks = xTicks
+        self.yTicks = yTicks
+        self.candidates = candidates
     }
 
     /// Confidence is 0–1; anything else the model (or a stored row) reports is clamped so it can be shown safely.
@@ -146,7 +173,7 @@ public struct StandardChart: Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case chartType, xLabel, yLabel, series, xRange, yRange, confidence, slope, arrows, xStep, yStep, fieldColumns, fieldRows, notes
-        case provenance, definition, checks, verification
+        case provenance, definition, checks, verification, xTicks, yTicks, candidates
     }
 
     public init(from decoder: Decoder) throws {
@@ -169,6 +196,9 @@ public struct StandardChart: Codable, Sendable, Equatable {
         definition = try c.decodeIfPresent(String.self, forKey: .definition)
         checks = try c.decodeIfPresent([[Double]].self, forKey: .checks)
         verification = try c.decodeIfPresent(ChartVerification.self, forKey: .verification)
+        xTicks = try c.decodeIfPresent([Double].self, forKey: .xTicks)
+        yTicks = try c.decodeIfPresent([Double].self, forKey: .yTicks)
+        candidates = try c.decodeIfPresent([ChartCandidate].self, forKey: .candidates)
     }
 }
 

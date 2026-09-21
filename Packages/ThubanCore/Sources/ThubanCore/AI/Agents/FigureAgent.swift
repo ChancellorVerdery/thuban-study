@@ -45,9 +45,16 @@ public actor FigureAgent {
                 "description": "Stated charts only: 3–6 points you read off the picture to test the definition, spread across the window and including any marked points and axis crossings. For a curve [x, y]. For a slope field [x, y, m] with m the slope of the arrow at (x, y) (pick arrows whose direction is clear), plus [x, y] points along any solution curve drawn over it. The app evaluates the equation at these and rejects a mismatch.",
             ],
             "slope": ["type": "string", "description": "slopeField only: the right-hand side of dy/dx = f(x, y) in LaTeX, e.g. \"x-y\" or \"\\\\sin(x)+y^{2}\"."],
+            "candidates": [
+                "type": "array",
+                "items": ["type": "object", "properties": ["label": ["type": "string"], "x": ["type": "number"], "y": ["type": "number"]], "required": ["label", "x", "y"]],
+                "description": "slopeField only: every initial condition the question offers for a solution curve — each part's and each answer choice's — as {label: \"part (a) y(-2) = 1\", x: -2, y: 1}, whether or not you think this picture shows it. The app draws each one and keeps the one that fits the drawn curve.",
+            ],
             "arrows": ["type": "boolean", "description": "slopeField only: true when the field is drawn with arrowheads (a direction field), false for plain ticks."],
             "fieldColumns": ["type": "integer", "description": "slopeField only: how many arrows across one row of the original."],
             "fieldRows": ["type": "integer", "description": "slopeField only: how many arrows down one column of the original."],
+            "xTicks": ["type": "array", "items": ["type": "number"], "description": "Every numeric label printed along the x-axis, left to right, exactly as printed (e.g. [-3, -2, -1, 1, 2, 3]); omit symbolic labels like c."],
+            "yTicks": ["type": "array", "items": ["type": "number"], "description": "Every numeric label printed along the y-axis, top to bottom, exactly as printed (e.g. [1.7, 0.5, -2.2])."],
             "xStep": ["type": "number", "description": "Spacing of the x-axis ticks/gridlines in the original (e.g. 1, 0.5, 5)."],
             "yStep": ["type": "number", "description": "Spacing of the y-axis ticks/gridlines in the original."],
             "notes": ["type": "string", "description": "Everything else needed to reproduce the picture: marked points and labels, where each curve enters and leaves the window, dashed or dotted parts, asymptotes, shading, which quadrants are shown."],
@@ -260,9 +267,10 @@ public actor FigureAgent {
         var feedback: [String] = []
         var retry: [Int] = []
         for image in results.keys.sorted() {
-            guard let chart = results[image]?.chart, let verdict = await FigureVerifier.verify(chart, engine: engine) else { continue }
-            results[image]?.chart?.verification = verdict
-            if !verdict.passed {
+            guard let chart = results[image]?.chart else { continue }
+            let checked = await Self.check(chart, png: pngs[image - 1], engine: engine)
+            results[image]?.chart = checked
+            if let verdict = checked.verification, !verdict.passed {
                 feedback.append((pngs.count > 1 ? "Image \(image): " : "") + verdict.summary)
                 retry.append(image)
             }
@@ -275,12 +283,21 @@ public actor FigureAgent {
         let again = try await analyze(pngs: pngs, context: second)
         for image in retry {
             guard var analysis = again[image] else { continue }
-            if let chart = analysis.chart, let verdict = await FigureVerifier.verify(chart, engine: engine) {
-                analysis.chart?.verification = verdict
+            if let chart = analysis.chart {
+                analysis.chart = await Self.check(chart, png: pngs[image - 1], engine: engine)
             }
             results[image] = analysis
         }
         return results
+    }
+
+    /// The picture decides: the chart reconciled against its pixels (`FigureReconciler`) when the picture can be
+    /// read, else checked against the agent's own read points (`FigureVerifier`).
+    public static func check(_ chart: StandardChart, png: Data, engine: MathEngine) async -> StandardChart {
+        if let reconciled = await FigureReconciler.reconcile(chart, png: png, engine: engine) { return reconciled }
+        var checked = chart
+        checked.verification = await FigureVerifier.verify(chart, engine: engine)
+        return checked
     }
 
     /// The per-question workflow: the figures under one question, one call each in document order, each verified
@@ -301,7 +318,17 @@ public actor FigureAgent {
             if pngs.count > 1 {
                 one.positionNote = "This is image \(offset + 1) of \(pngs.count) under this question, in document order."
             }
-            let analysis = try await analyzeVerified(pngs: [png], context: one, engine: engine)[1]
+            var analysis: FigureAnalysis?
+            do {
+                analysis = try await analyzeVerified(pngs: [png], context: one, engine: engine)[1]
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as ThubanError where error == .cancelled || error.isCredentialProblem {
+                throw error
+            } catch {
+                // One bad call (a timeout, an overloaded reply) leaves this figure pending; the rest go on.
+                analysis = try? await analyzeVerified(pngs: [png], context: one, engine: engine)[1]
+            }
             guard let analysis else { continue }
             results[offset + 1] = analysis
             if pngs.count > 1, let note = Self.siblingNote(analysis, image: offset + 1, of: pngs.count) { notes.append(note) }

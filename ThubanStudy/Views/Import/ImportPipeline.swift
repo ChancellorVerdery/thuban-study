@@ -12,7 +12,7 @@ import os
 final class ImportPipeline {
     private static let logger = Logger(subsystem: "com.thuban.study", category: "import")
     /// Figures analysed per document; the rest stay `.pending` and can be reviewed as originals.
-    static let maxAnalysedFigures = 24
+    static let maxAnalysedFigures = 400
 
     /// Per-file progress shown in the activity list.
     struct FileActivity: Identifiable, Equatable {
@@ -367,27 +367,10 @@ final class ImportPipeline {
         var figures: [(extracted: ExtractedFigure, id: FigureID)]
     }
 
-    /// Groups the analysed figures by the question they sit under, in question order, then every uncited figure
-    /// on its own. A figure cited by two questions goes with the first and both questions' texts come along.
+    /// Groups the analysed figures by the question they sit under (`FigureWorkflow.groups`).
     static func figureGroups(_ figures: [ExtractedFigure], figureIds: [Int: FigureID], questions: [Question]) -> [FigureGroup] {
-        let byId = Dictionary(figures.compactMap { f in figureIds[f.index].map { ($0, f) } }, uniquingKeysWith: { first, _ in first })
-        var seen: Set<FigureID> = []
-        var groups: [FigureGroup] = []
-        for question in questions {
-            let members = question.figureIds.filter { !seen.contains($0) }.compactMap { id in byId[id].map { ($0, id) } }
-            guard !members.isEmpty else { continue }
-            members.forEach { seen.insert($0.1) }
-            let ids = Set(members.map(\.1))
-            let citing = questions.filter { $0.id == question.id || $0.figureIds.contains(where: ids.contains) }
-            for slice in stride(from: 0, to: members.count, by: FigureAgent.maxImagesPerCall) {
-                groups.append(FigureGroup(questions: citing, figures: Array(members[slice..<min(members.count, slice + FigureAgent.maxImagesPerCall)])))
-            }
-        }
-        for figure in figures {
-            guard let id = figureIds[figure.index], !seen.contains(id) else { continue }
-            groups.append(FigureGroup(questions: [], figures: [(figure, id)]))
-        }
-        return groups
+        let items = figures.compactMap { figure in figureIds[figure.index].map { (extracted: figure, id: $0) } }
+        return FigureWorkflow.groups(items, id: \.id, questions: questions).map { FigureGroup(questions: $0.questions, figures: $0.items) }
     }
 
     /// Runs the figure workflow over the extracted figures question by question (`figureGroups`): the agent sees
@@ -477,37 +460,11 @@ final class ImportPipeline {
         return (charts, rejected.count, warnings)
     }
 
-    /// A question as text for the figure agent: stem, then each part's prompt.
-    static func questionText(_ question: Question) -> String {
-        var lines = [question.stem]
-        if let ref = question.sourceRef, !ref.isEmpty { lines.insert("[\(ref)]", at: 0) }
-        var listedChoices = false
-        for part in question.parts {
-            var line = "(\(part.id)) \(part.prompt)"
-            // Choice parts of "pick the sketch" problems describe each candidate curve; list them once, and say
-            // which one answers each part so a sketch can be paired with its initial condition.
-            if let choices = part.choices, !choices.isEmpty, !listedChoices {
-                listedChoices = true
-                line += "\n  Choices:\n" + choices.enumerated().map { "    \($0.offset + 1). \($0.element)" }.joined(separator: "\n")
-            }
-            if part.answerKind == .choice, let answer = part.answer.text, !answer.isEmpty {
-                if let index = part.choices?.firstIndex(of: answer) { line += "\n  Answer: choice \(index + 1)" }
-                else { line += "\n  Answer: \(answer)" }
-            }
-            lines.append(line)
-        }
-        return lines.joined(separator: "\n")
-    }
+    /// A question as text for the figure agent (`FigureWorkflow.questionText`).
+    static func questionText(_ question: Question) -> String { FigureWorkflow.questionText(question) }
 
-    /// "Image k of n the question refers to, in document order."
-    static func positionNote(of id: FigureID, in questions: [Question]) -> String? {
-        for question in questions {
-            if let index = question.figureIds.firstIndex(of: id), question.figureIds.count > 1 {
-                return "This is image \(index + 1) of \(question.figureIds.count) the question refers to, in document order."
-            }
-        }
-        return nil
-    }
+    /// "Image k of n the question refers to, in document order." (`FigureWorkflow.positionNote`)
+    static func positionNote(of id: FigureID, in questions: [Question]) -> String? { FigureWorkflow.positionNote(of: id, in: questions) }
 
     /// Removes deleted figure ids from the document's questions so nothing points at a missing image.
     private func stripFigures(_ ids: [FigureID], from documentId: DocumentID) async {

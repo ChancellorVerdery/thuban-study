@@ -98,8 +98,27 @@ final class FigureReviewModel {
     /// Runs the figure agent again on the stored image (e.g. after the chart schema improved, or a bad read).
     private(set) var isReanalysing = false
 
-    func reanalyse() async {
-        guard var figure = current, !isReanalysing else { return }
+    /// Runs the figure workflow over every figure in this review, in order (pending ones included), so a bank
+    /// analysed by an earlier build catches up without a re-import.
+    private(set) var isReanalysingAll = false
+    private(set) var reanalyseAllProgress: (done: Int, total: Int)?
+
+    func reanalyseAll() async {
+        guard !isReanalysingAll, !isReanalysing else { return }
+        isReanalysingAll = true
+        defer { isReanalysingAll = false; reanalyseAllProgress = nil }
+        let ids = figures.map(\.id)
+        for (offset, id) in ids.enumerated() {
+            if Task.isCancelled { break }
+            reanalyseAllProgress = (offset, ids.count)
+            guard let target = figures.first(where: { $0.id == id }) else { continue }
+            await reanalyse(target)
+            if error != nil, !session.app.isConnected { break }
+        }
+    }
+
+    func reanalyse(_ target: Figure? = nil) async {
+        guard var figure = target ?? current, !isReanalysing else { return }
         guard session.app.isConnected else { error = "Connect your Claude account in Settings to re-analyse figures."; return }
         guard FileManager.default.fileExists(atPath: AppPaths.figureURL(figure.originalPath).path) else { error = "The clipped image is missing."; return }
         isReanalysing = true
@@ -495,9 +514,18 @@ private struct FigureReviewPane: View {
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
             }
+            if let progress = model.reanalyseAllProgress {
+                Text("Re-analysing \(progress.done + 1) of \(progress.total)…")
+                    .font(ThubanFont.small)
+                    .foregroundStyle(theme.inkDimColor)
+            }
+            Button("Re-analyse all") { Task { await model.reanalyseAll() } }
+                .buttonStyle(GhostButtonStyle(height: 28, tinted: false))
+                .disabled(model.isReanalysing || model.isReanalysingAll)
+                .help("Run the figure agent on every figure in this list, pending ones included")
             Button(model.isReanalysing ? "Re-analysing…" : "Re-analyse") { Task { await model.reanalyse() } }
                 .buttonStyle(GhostButtonStyle(height: 28, tinted: true))
-                .disabled(model.isReanalysing)
+                .disabled(model.isReanalysing || model.isReanalysingAll)
                 .help("Run the figure agent on this image again")
         }
     }

@@ -267,7 +267,9 @@ public enum Prompts {
            F(x, y) = c, a curve given parametrically, or a family of solutions with initial conditions. Quote what \
            you found and where in `definition` and set `provenance` to "stated". Use that equation exactly — as \
            `latex` for a curve (an equation with "=" is fine; the app plots relations too) or as `slope` for a field; \
-           for a solution curve drawn on a field give `through` = its initial condition and let the app integrate it. \
+           for a solution curve drawn on a field give `through` = its initial condition and let the app integrate it, \
+           and list every initial condition the question offers — all parts, all choices — in `candidates`, because \
+           the app draws each of them over the picture and keeps the one that matches the drawn curve. \
            Do not estimate coordinates from the pixels when the text gives you the formula.
 
         3. Verify that the definition actually matches the picture. Read 3–6 points off the picture — spread across \
@@ -294,7 +296,9 @@ public enum Prompts {
 
         # Describe the picture so it can be reproduced
         The app redraws the figure from your description, so measure the picture: `xRange`/`yRange` exactly as the \
-        axes are labelled (the window, not the extent of the curve), `xStep`/`yStep` as the tick spacing you can \
+        axes are labelled (the window, not the extent of the curve), `xTicks`/`yTicks` as every numeric label \
+        printed along each axis in order (these calibrate the app's own reading of the picture, so copy them \
+        exactly, including ones like 1.7 or −2.2), `xStep`/`yStep` as the tick spacing you can \
         read, each series' `style` (solid, dashed, dotted), and for a field `fieldColumns`/`fieldRows` by counting \
         the arrows along one row and one column. Put everything else a draughtsman would need in `notes`: marked or \
         labelled points, where each curve enters and leaves the window, asymptotes, shaded regions, which quadrants \
