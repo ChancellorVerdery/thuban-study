@@ -248,7 +248,8 @@ public enum Prompts {
 
         Decide the kind: "chart" for anything with axes or plotted data (line/scatter/bar/histogram/function plots, \
         slope and direction fields), \
-        "diagram" for geometric figures, circuits, flowcharts and labelled sketches, "table" for tabular data rendered \
+        "diagram" for geometric figures, circuits, flowcharts, labelled sketches, and phase lines or phase portraits \
+        (a single vertical line with arrows and critical values — not a chart), "table" for tabular data rendered \
         as an image, "photo" for photographs and screenshots without data, "unknown" if you cannot tell.
 
         # The workflow for every chart

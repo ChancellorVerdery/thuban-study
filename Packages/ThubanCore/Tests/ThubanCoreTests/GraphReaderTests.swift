@@ -176,7 +176,7 @@ final class GraphReaderTests: XCTestCase {
         XCTAssertEqual(result.series[0].latex, "\\frac{x^2}{4}-1", "a stated function that matches is kept")
         XCTAssertNil(result.series[1].latex, "a stated function the picture does not show is replaced by the drawn curve")
         XCTAssertGreaterThan(result.series[1].points?.count ?? 0, 10)
-        XCTAssertEqual(result.verification?.passed, false)
+        XCTAssertEqual(result.verification?.passed, true, "the corrected chart matches the picture")
         XCTAssertTrue(result.verification?.summary.contains("y = 0.5x+1 is not what is drawn; the red curve was traced") ?? false, result.verification?.summary ?? "")
 
         // A traced chart: the agent's rough points are replaced by the pixels, and a curve it missed is added.

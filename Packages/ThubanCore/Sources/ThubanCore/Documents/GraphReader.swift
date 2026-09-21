@@ -179,8 +179,12 @@ public enum GraphReader {
 
         // Tick marks on the axis, or gridlines across the plot, paired in order with the tick values the agent
         // read, calibrate an axis whose labels the recogniser could not read.
-        let xMarks = bestTicks(horizontals.map { tickPositions(bitmap, along: $0, horizontal: true) }), xGrid = gridLines(bitmap, horizontal: false)
-        let yMarks = bestTicks(verticals.map { tickPositions(bitmap, along: $0, horizontal: false) }), yGrid = gridLines(bitmap, horizontal: true)
+        // Gridlines and dashed/solid coloured lines across the plot (an asymptote at y = 1 sits exactly at the
+        // level its label names) are where labels snap to, alongside tick marks.
+        let xMarks = bestTicks(horizontals.map { tickPositions(bitmap, along: $0, horizontal: true) })
+        let yMarks = bestTicks(verticals.map { tickPositions(bitmap, along: $0, horizontal: false) })
+        let xGrid = gridLines(bitmap, horizontal: false) + colouredLines(bitmap, horizontal: false)
+        let yGrid = gridLines(bitmap, horizontal: true) + colouredLines(bitmap, horizontal: true)
         let xTicks = paired(values: hints?.xTicks, positions: xMarks, gridlines: xGrid, ascending: true)
         let yTicks = paired(values: hints?.yTicks, positions: yMarks, gridlines: yGrid, ascending: false)
         // A label is printed beside its tick, not on it: snap each to the nearest mark or gridline.
@@ -391,6 +395,27 @@ public enum GraphReader {
         return positions
     }
 
+    /// Rows (or columns) where one colour runs across at least a third of the plot: a drawn horizontal (or
+    /// vertical) line such as a dashed asymptote, as positions.
+    static func colouredLines(_ bitmap: Bitmap, horizontal: Bool) -> [Double] {
+        let outer = horizontal ? bitmap.height : bitmap.width
+        let inner = horizontal ? bitmap.width : bitmap.height
+        var positions: [Double] = []
+        var run: [Int] = []
+        for p in 0..<outer {
+            var bins = [Int](repeating: 0, count: 12)
+            for q in 0..<inner {
+                if let bin = horizontal ? bitmap.hueBin(q, p) : bitmap.hueBin(p, q) { bins[bin] += 1 }
+            }
+            if Double(bins.max() ?? 0) >= Double(inner) * 0.2 {
+                if let last = run.last, p - last > 1 { positions.append(Double(run.reduce(0, +)) / Double(run.count)); run = [] }
+                run.append(p)
+            }
+        }
+        if !run.isEmpty { positions.append(Double(run.reduce(0, +)) / Double(run.count)) }
+        return positions
+    }
+
     /// Pairs the agent's tick values (in printed order) with detected tick marks or gridlines when the counts
     /// agree; nil otherwise.
     static func paired(values: [Double]?, positions: [Double], gridlines: [Double], ascending: Bool) -> [(value: Double, pixel: Double)]? {
@@ -458,7 +483,7 @@ public enum GraphReader {
         guard !marks.isEmpty else { return labels }
         return labels.map { label in
             var moved = label
-            if let nearest = marks.min(by: { abs($0 - label[keyPath: key]) < abs($1 - label[keyPath: key]) }), abs(nearest - label[keyPath: key]) <= 12 {
+            if let nearest = marks.min(by: { abs($0 - label[keyPath: key]) < abs($1 - label[keyPath: key]) }), abs(nearest - label[keyPath: key]) <= 18 {
                 moved[keyPath: key] = nearest
             }
             return moved

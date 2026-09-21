@@ -267,7 +267,12 @@ public actor FigureAgent {
         var feedback: [String] = []
         var retry: [Int] = []
         for image in results.keys.sorted() {
-            guard let chart = results[image]?.chart else { continue }
+            guard let analysis = results[image], analysis.isFigure, analysis.kind == .chart else { continue }
+            guard let chart = analysis.chart else {
+                // The agent could not describe the chart: the picture alone may still give its curves.
+                results[image]?.chart = await FigureReconciler.chartFromPixels(png: pngs[image - 1])
+                continue
+            }
             let checked = await Self.check(chart, png: pngs[image - 1], engine: engine)
             results[image]?.chart = checked
             if let verdict = checked.verification, !verdict.passed {

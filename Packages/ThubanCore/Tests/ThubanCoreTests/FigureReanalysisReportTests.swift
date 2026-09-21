@@ -23,7 +23,19 @@ final class FigureReanalysisReportTests: XCTestCase {
         let started = Date()
         for document in documents {
             print("REANALYSE \(document.filename)")
-            let outcomes = try await FigureWorkflow.reanalyse(document: document, store: store, agent: agent, engine: engine) { done, total in
+            // THUBAN_REANALYSE_ONLY: comma-separated subset — pending, failed (verification did not pass), nochart
+            // (called a chart but no data), diagram; default everything.
+            let only = (ProcessInfo.processInfo.environment["THUBAN_REANALYSE_ONLY"] ?? "").split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            let wanted = Set(only)
+            func selected(_ figure: Figure) -> Bool {
+                if wanted.contains("pending"), figure.status == .pending { return true }
+                if wanted.contains("failed"), let verification = figure.chart?.verification, !verification.passed { return true }
+                if wanted.contains("nochart"), figure.kind == .chart, figure.chart == nil { return true }
+                if wanted.contains("diagram"), figure.kind == .diagram { return true }
+                return false
+            }
+            let filter: ((Figure) -> Bool)? = only.isEmpty ? nil : selected
+            let outcomes = try await FigureWorkflow.reanalyse(document: document, store: store, agent: agent, engine: engine, only: filter) { done, total in
                 print("  figure \(done) of \(total)")
             }
             for o in outcomes {

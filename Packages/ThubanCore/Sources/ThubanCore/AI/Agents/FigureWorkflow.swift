@@ -79,9 +79,10 @@ public enum FigureWorkflow {
     /// per figure the agent described.
     public static func reanalyse(
         document: ImportedDocument, store: Store, agent: FigureAgent, engine: MathEngine,
+        only: ((Figure) -> Bool)? = nil,
         progress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> [Outcome] {
-        let figures = try await store.figures(for: document.id)
+        let figures = try await store.figures(for: document.id).filter { only?($0) ?? true }
         let questions = try await store.questions(in: document.classId, filter: QuestionFilter(documentIds: [document.id]))
         let content = try? await DocumentParserRegistry.parse(url: AppPaths.documentURL(document.storedPath))
         var pngs: [FigureID: Data] = [:]

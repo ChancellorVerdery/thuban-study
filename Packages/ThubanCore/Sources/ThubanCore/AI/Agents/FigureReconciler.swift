@@ -41,6 +41,8 @@ public enum FigureReconciler {
         guard chart.chartType != "scatter", chart.chartType != "bar", chart.chartType != "histogram" else { return nil }
         guard let reading = await GraphReader.read(png: png, hints: chart) else { return nil }
         var result = chart
+        // A series with nothing to draw (no equation, no points, no initial condition) is noise.
+        result.series = chart.series.filter { !($0.latex ?? "").isEmpty || !($0.points ?? []).isEmpty || $0.throughPoint != nil }
         if reading.isCalibratedFromLabels {
             result.xRange = [round3(reading.x.range.lowerBound), round3(reading.x.range.upperBound)]
             result.yRange = [round3(reading.y.range.lowerBound), round3(reading.y.range.upperBound)]
@@ -54,6 +56,27 @@ public enum FigureReconciler {
             return await reconcileField(result, slope: slope, reading: reading, curves: curves, engine: engine)
         }
         return await reconcileCurves(result, reading: reading, curves: curves, engine: engine)
+    }
+
+    /// A chart built from the picture alone, for a figure the agent called a chart but could not describe: every
+    /// drawn curve as a traced series, the window from the axes. Nil when the picture cannot be read or shows
+    /// no curve.
+    public static func chartFromPixels(png: Data, hints: StandardChart? = nil) async -> StandardChart? {
+        guard let reading = await GraphReader.read(png: png, hints: hints) else { return nil }
+        let curves = reading.curves.filter { curve in
+            guard let span = curve.columns else { return false }
+            return curve.pixelCount >= minimumUnclaimedPixels && Double(span.count) >= minimumUnclaimedSpan * Double(reading.width) && curve.points.count >= 4
+        }
+        guard !curves.isEmpty else { return nil }
+        var chart = StandardChart(
+            chartType: "line", xLabel: hints?.xLabel, yLabel: hints?.yLabel,
+            series: curves.map { ChartSeries(name: "\($0.color) curve", points: $0.points) },
+            xRange: [round3(reading.x.range.lowerBound), round3(reading.x.range.upperBound)],
+            yRange: [round3(reading.y.range.lowerBound), round3(reading.y.range.upperBound)],
+            confidence: reading.isCalibratedFromLabels ? 0.8 : 0.5, provenance: StandardChart.traced
+        )
+        chart.verification = ChartVerification(passed: true, summary: "Read from the picture: \(curves.count) curve\(curves.count == 1 ? "" : "s") traced from the pixels" + (reading.isCalibratedFromLabels ? "." : " (axes not labelled; scale approximate)."))
+        return chart
     }
 
     // MARK: Slope fields
@@ -169,40 +192,50 @@ public enum FigureReconciler {
         let step = (reading.x.range.upperBound - reading.x.range.lowerBound) / Double(max(100, reading.width))
         let columns = stride(from: reading.x.range.lowerBound, through: reading.x.range.upperBound, by: step).map { $0 }
 
-        // First pass: stated functions that the picture shows, and traced series re-read from the nearest curve.
+        // First pass: stated functions that the picture shows claim their curves.
         var unmatched: [(offset: Int, latex: String, sampled: [[Double]])] = []
         for (offset, original) in chart.series.enumerated() {
-            if let latex = original.latex?.trimmingCharacters(in: .whitespacesAndNewlines), !latex.isEmpty {
-                var sampledPoints: [[Double]] = []
-                if let sampled = try? await engine.samples(of: latex, at: columns.map { (x: $0, y: 0) }), sampled.explicit {
-                    sampledPoints = zip(columns, sampled.values).compactMap { x, y -> [Double]? in y.map { [x, $0] } }
+            guard let latex = original.latex?.trimmingCharacters(in: .whitespacesAndNewlines), !latex.isEmpty else { continue }
+            var sampledPoints: [[Double]] = []
+            if let sampled = try? await engine.samples(of: latex, at: columns.map { (x: $0, y: 0) }), sampled.explicit {
+                sampledPoints = zip(columns, sampled.values).compactMap { x, y -> [Double]? in y.map { [x, $0] } }
+            }
+            var best: (index: Int, fit: Double, coverage: Double)?
+            for (index, curve) in curves.enumerated() where !consumed.contains(index) && !sampledPoints.isEmpty {
+                let score = GraphReader.match(sampledPoints, to: curve, in: reading)
+                if best == nil || score.fit * 0.7 + score.coverage * 0.3 > best!.fit * 0.7 + best!.coverage * 0.3 {
+                    best = (index, score.fit, score.coverage)
                 }
-                var best: (index: Int, fit: Double, coverage: Double)?
-                for (index, curve) in curves.enumerated() where !consumed.contains(index) && !sampledPoints.isEmpty {
-                    let score = GraphReader.match(sampledPoints, to: curve, in: reading)
-                    if best == nil || score.fit * 0.7 + score.coverage * 0.3 > best!.fit * 0.7 + best!.coverage * 0.3 {
-                        best = (index, score.fit, score.coverage)
-                    }
-                }
-                if let best, best.fit >= minimumFit, best.coverage >= minimumCoverage {
-                    consumed.insert(best.index)
-                    series[offset] = original
-                    notes.append("\(display(latex)) follows the \(curves[best.index].color) curve (fit \(percent(best.fit)))")
-                } else {
-                    unmatched.append((offset, latex, sampledPoints))
-                }
-            } else if let points = original.points, !points.isEmpty {
-                let nearest = curves.enumerated().filter { !consumed.contains($0.offset) }
-                    .min(by: { distance(points, $0.element) < distance(points, $1.element) })
-                if let nearest, distance(points, nearest.element) < 0.15 * (reading.y.range.upperBound - reading.y.range.lowerBound) {
-                    consumed.insert(nearest.offset)
-                    var traced = original
-                    traced.points = nearest.element.points
-                    series[offset] = traced
-                    notes.append("\(original.name.blankToNil ?? "a traced curve") re-read from the picture")
-                } else {
-                    series[offset] = original
-                }
+            }
+            if let best, best.fit >= minimumFit, best.coverage >= minimumCoverage {
+                consumed.insert(best.index)
+                series[offset] = original
+                notes.append("\(display(latex)) follows the \(curves[best.index].color) curve (fit \(percent(best.fit)))")
+            } else {
+                unmatched.append((offset, latex, sampledPoints))
+            }
+        }
+
+        // Traced series are re-read from the nearest drawn curve; one that lands on a curve a stated function
+        // already claimed is the same curve twice and is dropped.
+        for (offset, original) in chart.series.enumerated() where series[offset] == nil && !unmatched.contains(where: { $0.offset == offset }) {
+            guard let points = original.points, !points.isEmpty else { series[offset] = original; continue }
+            let nearestAny = curves.enumerated().min(by: { distance(points, $0.element) < distance(points, $1.element) })
+            let span = reading.y.range.upperBound - reading.y.range.lowerBound
+            if let nearestAny, consumed.contains(nearestAny.offset), distance(points, nearestAny.element) < 0.15 * span {
+                notes.append("\(original.name.blankToNil ?? "a traced curve") is the \(nearestAny.element.color) curve already drawn; dropped")
+                continue
+            }
+            let nearest = curves.enumerated().filter { !consumed.contains($0.offset) }
+                .min(by: { distance(points, $0.element) < distance(points, $1.element) })
+            let unclaimedCount = curves.indices.filter { !consumed.contains($0) }.count
+            let tracedCount = chart.series.filter { ($0.latex ?? "").isEmpty && !($0.points ?? []).isEmpty }.count
+            if let nearest, distance(points, nearest.element) < 0.3 * span || (unclaimedCount == 1 && tracedCount == 1) {
+                consumed.insert(nearest.offset)
+                var traced = original
+                traced.points = nearest.element.points
+                series[offset] = traced
+                notes.append("\(original.name.blankToNil ?? "a traced curve") re-read from the picture")
             } else {
                 series[offset] = original
             }
@@ -213,14 +246,17 @@ public enum FigureReconciler {
         for failed in unmatched {
             let remaining = curves.enumerated().filter { !consumed.contains($0.offset) && $0.element.points.count >= 4 }
             let replacement = remaining.min(by: { distance(failed.sampled, $0.element) < distance(failed.sampled, $1.element) })
-            if reading.isCalibratedFromLabels, let replacement {
+            if reading.x.labelCount >= 1 || reading.y.labelCount >= 1, let replacement {
                 consumed.insert(replacement.offset)
                 var traced = chart.series[failed.offset]
                 traced.latex = nil
                 traced.points = replacement.element.points
                 series[failed.offset] = traced
-                passed = false
                 notes.append("\(display(failed.latex)) is not what is drawn; the \(replacement.element.color) curve was traced from the picture instead")
+            } else if reading.x.labelCount >= 1 || reading.y.labelCount >= 1, !curves.isEmpty {
+                // Every drawn curve is accounted for and this one is not among them: the picture does not show it.
+                series[failed.offset] = nil
+                notes.append("\(display(failed.latex)) is not drawn in the picture; removed")
             } else {
                 series[failed.offset] = chart.series[failed.offset]
                 passed = false
@@ -242,7 +278,7 @@ public enum FigureReconciler {
         if all.allSatisfy({ ($0.latex ?? "").isEmpty }) { result.provenance = StandardChart.traced }
         result.verification = ChartVerification(
             passed: passed,
-            summary: (passed ? "Verified against the picture: " : "Mismatch: ") + notes.joined(separator: "; ") + "."
+            summary: (passed ? "Verified against the picture: " : "Unverified: ") + notes.joined(separator: "; ") + "."
         )
         return result
     }
