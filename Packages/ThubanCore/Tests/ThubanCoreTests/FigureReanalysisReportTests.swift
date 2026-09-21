@@ -33,6 +33,7 @@ final class FigureReanalysisReportTests: XCTestCase {
                 if wanted.contains("nochart"), figure.kind == .chart, figure.chart == nil { return true }
                 if wanted.contains("diagram"), figure.kind == .diagram { return true }
                 if wanted.contains("unverified"), let chart = figure.chart, chart.verification == nil { return true }
+                if wanted.contains("field"), let chart = figure.chart, chart.isSlopeField { return true }
                 return false
             }
             let filter: ((Figure) -> Bool)? = only.isEmpty ? nil : selected

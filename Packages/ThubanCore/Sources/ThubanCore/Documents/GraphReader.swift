@@ -49,6 +49,10 @@ public struct GraphReading: Sendable {
     public var x: AxisMap
     public var y: AxisMap
     public var curves: [Curve]
+    /// How many arrows a drawn slope field has across and down, measured from the periodic pattern of the arrow
+    /// ink along each axis; nil when the picture has no such pattern.
+    public var fieldColumns: Int?
+    public var fieldRows: Int?
 
     /// Column and row of the data origin.
     public var originColumn: Double { x.pixel(0) }
@@ -102,7 +106,21 @@ public enum GraphReader {
         if let axes = chooseAxes(horizontals: horizontals, verticals: verticals, labels: labels, bitmap: bitmap) {
             chosen = "x-axis row \(axes.0.position), y-axis col \(axes.1.position), x labels \(axes.2.map { "\($0.value)@\(Int($0.column))" }), y labels \(axes.3.map { "\($0.value)@\(Int($0.row))" })"
         }
-        return "horizontal: \(h.joined(separator: ", ")) | vertical: \(v.joined(separator: ", ")) | labels: \(l.joined(separator: " ")) | \(g) | chosen: \(chosen)"
+        var field = "field: none"
+        if let reading = read(bitmap: bitmap, horizontals: horizontals, verticals: verticals, labels: labels, hints: nil) {
+            let x0 = Int(reading.x.extent.lowerBound), x1 = Int(reading.x.extent.upperBound)
+            let y0 = Int(reading.y.extent.lowerBound), y1 = Int(reading.y.extent.upperBound)
+            var columnProfile = [Double](repeating: 0, count: max(1, x1 - x0 + 1)), rowProfile = [Double](repeating: 0, count: max(1, y1 - y0 + 1))
+            for row in max(0, y0)...min(bitmap.height - 1, y1) { for column in max(0, x0)...min(bitmap.width - 1, x1) where bitmap.isArrow(column, row) { columnProfile[column - x0] += 1; rowProfile[row - y0] += 1 } }
+            func peaks(_ profile: [Double]) -> Int {
+                let mean = profile.reduce(0, +) / Double(profile.count)
+                var count = 0, last = -10
+                for i in 1..<(profile.count - 1) where profile[i] > mean && profile[i] >= profile[i - 1] && profile[i] >= profile[i + 1] && i - last >= 4 { count += 1; last = i }
+                return count
+            }
+            field = "field: \(reading.fieldColumns.map(String.init) ?? "-")x\(reading.fieldRows.map(String.init) ?? "-") periods x \(period(of: columnProfile).map { String(format: "%.1f", $0) } ?? "-") y \(period(of: rowProfile).map { String(format: "%.1f", $0) } ?? "-") peaks x \(peaks(columnProfile)) y \(peaks(rowProfile)) extent \(x1 - x0 + 1)x\(y1 - y0 + 1)"
+        }
+        return "horizontal: \(h.joined(separator: ", ")) | vertical: \(v.joined(separator: ", ")) | labels: \(l.joined(separator: " ")) | \(g) | chosen: \(chosen) | \(field)"
     }
 
     // MARK: - Pixels
@@ -139,6 +157,15 @@ public enum GraphReader {
             let p = rgb(column, row)
             let hi = max(p.r, p.g, p.b), lo = min(p.r, p.g, p.b)
             return hi < 110 && hi - lo < 60
+        }
+
+        /// Arrow ink of a drawn field: mid grey (WebAssign) or any saturated colour (textbook fields), but not
+        /// the near-black of axes and labels, the light grey of gridlines, or white.
+        @inline(__always) func isArrow(_ column: Int, _ row: Int) -> Bool {
+            let p = rgb(column, row)
+            let hi = max(p.r, p.g, p.b), lo = min(p.r, p.g, p.b)
+            if hi - lo > 60 { return hi > 70 }
+            return hi >= 70 && hi <= 210
         }
 
         /// Light grey (a gridline), neither white nor ink nor colour.
@@ -206,7 +233,82 @@ public enum GraphReader {
         guard let x, let y else { return nil }
         let reading = GraphReading(width: bitmap.width, height: bitmap.height, x: x, y: y, curves: [])
         let curves = extractCurves(bitmap, reading: reading)
-        return GraphReading(width: bitmap.width, height: bitmap.height, x: x, y: y, curves: curves)
+        let grid = fieldGrid(bitmap, reading: reading)
+        return GraphReading(width: bitmap.width, height: bitmap.height, x: x, y: y, curves: curves, fieldColumns: grid?.columns, fieldRows: grid?.rows)
+    }
+
+    // MARK: - Slope-field density
+
+    /// The number of arrows across and down a drawn field: the arrow ink (grey, or a colour that fills an area
+    /// rather than a curve) projected onto each axis is periodic, and the period found by autocorrelation
+    /// divides the axis extent into that many cells. Nil when no clear period exists.
+    static func fieldGrid(_ bitmap: Bitmap, reading: GraphReading) -> (columns: Int, rows: Int)? {
+        let x0 = Int(reading.x.extent.lowerBound), x1 = Int(reading.x.extent.upperBound)
+        let y0 = Int(reading.y.extent.lowerBound), y1 = Int(reading.y.extent.upperBound)
+        guard x1 - x0 > 40, y1 - y0 > 40 else { return nil }
+        // Curve pixels are not arrows; everything else that is grey or coloured inside the plot is.
+        var curvePixels: Set<Int> = []
+        for curve in reading.curves { for (column, list) in curve.rows { for row in list { curvePixels.insert(row * bitmap.width + column) } } }
+        var columnProfile = [Double](repeating: 0, count: x1 - x0 + 1)
+        var rowProfile = [Double](repeating: 0, count: y1 - y0 + 1)
+        var total = 0
+        for row in max(0, y0)...min(bitmap.height - 1, y1) {
+            for column in max(0, x0)...min(bitmap.width - 1, x1) where bitmap.isArrow(column, row) && !curvePixels.contains(row * bitmap.width + column) {
+                columnProfile[column - x0] += 1
+                rowProfile[row - y0] += 1
+                total += 1
+            }
+        }
+        // Too little ink to be a field (a few stray grey pixels), or so much that it is shading.
+        let area = Double((x1 - x0 + 1) * (y1 - y0 + 1))
+        guard Double(total) >= area * 0.01, Double(total) <= area * 0.5 else { return nil }
+        guard let columnPeriod = period(of: columnProfile), let rowPeriod = period(of: rowProfile) else { return nil }
+        // The arrows may stop short of the axis ends (a margin inside the frame): count cells over the span of the
+        // arrow ink, first arrow to last, plus one.
+        guard let columnSpan = inkSpan(columnProfile), let rowSpan = inkSpan(rowProfile) else { return nil }
+        let columns = Int((columnSpan / columnPeriod).rounded()) + 1
+        let rows = Int((rowSpan / rowPeriod).rounded()) + 1
+        guard columns >= 4, rows >= 4, columns <= 60, rows <= 60 else { return nil }
+        return (columns, rows)
+    }
+
+    /// Distance from the first to the last position where the profile is at least 15 % of its maximum.
+    static func inkSpan(_ profile: [Double]) -> Double? {
+        guard let peak = profile.max(), peak > 0 else { return nil }
+        let threshold = peak * 0.15
+        guard let first = profile.firstIndex(where: { $0 >= threshold }), let last = profile.lastIndex(where: { $0 >= threshold }), last > first else { return nil }
+        return Double(last - first)
+    }
+
+    /// The dominant period of a profile (pixels): the autocorrelation's first peak after its first dip, over lags
+    /// from 2 px to a fifth of the length; nil when no lag correlates clearly.
+    static func period(of profile: [Double]) -> Double? {
+        let n = profile.count
+        guard n >= 40 else { return nil }
+        let mean = profile.reduce(0, +) / Double(n)
+        let centred = profile.map { $0 - mean }
+        let variance = centred.reduce(0) { $0 + $1 * $1 }
+        guard variance > 0 else { return nil }
+        let maxLag = n / 5
+        guard maxLag >= 6 else { return nil }
+        var values = [Double](repeating: 0, count: maxLag + 1)
+        for lag in 1...maxLag {
+            var sum = 0.0
+            for i in 0..<(n - lag) { sum += centred[i] * centred[i + lag] }
+            values[lag] = sum / variance
+        }
+        // Past the first dip, the highest correlation is the period (later peaks are its multiples and lower).
+        var dip = 2
+        while dip < maxLag, values[dip + 1] < values[dip] { dip += 1 }
+        guard dip < maxLag else { return nil }
+        var best: (lag: Int, value: Double)?
+        for lag in dip...maxLag where best == nil || values[lag] > best!.value { best = (lag, values[lag]) }
+        guard let best, best.value >= 0.25, best.lag >= 3 else { return nil }
+        // Refine the lag to a fraction of a pixel with a parabola through the neighbouring correlations.
+        let a = values[best.lag - 1], b = best.value, c = best.lag + 1 <= maxLag ? values[best.lag + 1] : 0
+        let denominator = a - 2 * b + c
+        let offset = abs(denominator) > 1e-9 ? 0.5 * (a - c) / denominator : 0
+        return Double(best.lag) + max(-0.5, min(0.5, offset))
     }
 
     /// Rows (or columns) holding an ink run at least `axisRunFraction` of the image; adjacent ones merge into one

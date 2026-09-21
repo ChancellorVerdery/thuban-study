@@ -112,6 +112,52 @@ final class GraphReaderTests: XCTestCase {
         XCTAssertEqual(reading.curves.count, 1)
     }
 
+    func testAFieldsArrowGridIsCounted() async throws {
+        // Grey ticks on a 12 × 9 grid inside the −4…4 window (the axes and labels as usual).
+        let png: Data = {
+            let size = 400
+            let context = ImageCodec.rgbaContext(width: size, height: size)!
+            func px(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: 200 + 45 * x, y: 200 + 45 * y) }
+            context.setStrokeColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
+            context.setLineWidth(2)
+            context.move(to: px(-4.2, 0)); context.addLine(to: px(4.2, 0)); context.strokePath()
+            context.move(to: px(0, -4.2)); context.addLine(to: px(0, 4.2)); context.strokePath()
+            for v in [-3.0, -2, -1, 1, 2, 3] {
+                context.move(to: px(v, -0.1)); context.addLine(to: px(v, 0.1)); context.strokePath()
+                context.move(to: px(-0.1, v)); context.addLine(to: px(0.1, v)); context.strokePath()
+                Self.draw(text: Self.label(v), at: CGPoint(x: px(v, 0).x - 6, y: px(v, 0).y - 20), in: context)
+                Self.draw(text: Self.label(v), at: CGPoint(x: px(0, v).x - 26, y: px(0, v).y - 5), in: context)
+            }
+            context.setStrokeColor(CGColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1))
+            context.setLineWidth(1.5)
+            for i in 0..<12 {
+                for j in 0..<9 {
+                    let x = -4.0 + (Double(i) + 0.5) * 8.0 / 12, y = -4.0 + (Double(j) + 0.5) * 8.0 / 9
+                    let m = x - y, d = 1 / (1 + m * m).squareRoot()
+                    context.move(to: px(x - 0.2 * d, y - 0.2 * m * d)); context.addLine(to: px(x + 0.2 * d, y + 0.2 * m * d)); context.strokePath()
+                }
+            }
+            return ImageCodec.png(from: context.makeImage()!)!
+        }()
+        let readingOptional = await GraphReader.read(png: png)
+        let reading = try XCTUnwrap(readingOptional)
+        XCTAssertEqual(reading.fieldColumns, 12)
+        XCTAssertEqual(reading.fieldRows, 9)
+        XCTAssertTrue(reading.curves.isEmpty, "grey ticks are not curves")
+
+        // The reconciler carries the count into the chart.
+        let chart = StandardChart(chartType: "slopeField", series: [], xRange: [-4, 4], yRange: [-4, 4], confidence: 0.8, slope: "x-y",
+                                  fieldColumns: 30, fieldRows: 30, provenance: StandardChart.stated)
+        let resultOptional = await FigureReconciler.reconcile(chart, png: png, engine: Self.engine)
+        let result = try XCTUnwrap(resultOptional)
+        XCTAssertEqual(result.fieldColumns, 12)
+        XCTAssertEqual(result.fieldRows, 9)
+
+        // A plain plot has no field.
+        let plainOptional = await GraphReader.read(png: Self.plot(curves: [(Self.blue, Self.samples { sin($0) })]))
+        XCTAssertNil(try XCTUnwrap(plainOptional).fieldColumns)
+    }
+
     func testNothingToReadGivesNil() async {
         let blank = ImageCodec.png(from: ImageCodec.rgbaContext(width: 120, height: 120)!.makeImage()!)!
         let reading = await GraphReader.read(png: blank)

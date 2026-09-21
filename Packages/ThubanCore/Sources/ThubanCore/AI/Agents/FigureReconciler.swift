@@ -83,6 +83,11 @@ public enum FigureReconciler {
 
     static func reconcileField(_ chart: StandardChart, slope: String, reading: GraphReading, curves: [GraphReading.Curve], engine: MathEngine) async -> StandardChart? {
         var result = chart
+        // The field is redrawn with as many arrows across and down as the picture has.
+        if let columns = reading.fieldColumns, let rows = reading.fieldRows {
+            result.fieldColumns = columns
+            result.fieldRows = rows
+        }
         let claimed = chart.series.compactMap(\.throughPoint)
         guard !curves.isEmpty else {
             // Nothing drawn in colour: a bare field is right as it is; a claimed curve cannot be checked here.

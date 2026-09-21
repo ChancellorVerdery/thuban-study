@@ -21,6 +21,7 @@ final class GraphReaderReportTests: XCTestCase {
             var line = "\(file): \(reading.width)x\(reading.height) origin(col \(Int(reading.originColumn)), row \(Int(reading.originRow)))"
             line += " x[\(fmt(xr.lowerBound))…\(fmt(xr.upperBound))] labels \(reading.x.labelCount)"
             line += " y[\(fmt(yr.lowerBound))…\(fmt(yr.upperBound))] labels \(reading.y.labelCount)"
+            if let c = reading.fieldColumns, let r = reading.fieldRows { line += " field \(c)x\(r)" }
             line += " curves: " + reading.curves.map { "\($0.color)(\($0.pixelCount)px, \($0.points.count)pts, x \(fmt($0.points.first?[0] ?? .nan))…\(fmt($0.points.last?[0] ?? .nan)), y@0 \(fmt(yAtZero($0)))" }.joined(separator: "; ")
             if ProcessInfo.processInfo.environment["THUBAN_FIGURE_DIAGNOSE"] != nil { line += "\n    " + (await GraphReader.diagnose(png: data)) }
             lines.append(line)

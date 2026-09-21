@@ -51,7 +51,7 @@ enum ChartRenderer {
     /// The agent's arrow count, kept within what Desmos draws comfortably.
     private static func clampedDensity(_ value: Int?, default fallback: Int) -> Int {
         guard let value, value > 0 else { return fallback }
-        return min(30, max(8, value))
+        return min(40, max(6, value))
     }
 
     private static func lineStyle(for style: String?) -> String? {
