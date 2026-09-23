@@ -143,6 +143,9 @@ public actor FigureAgent {
         /// The question's other figures, one line each ("Image 2 of 4: … — part (a) y(−2) = 1"), so this one is
         /// paired with a part or choice none of them already took.
         public var siblingNotes: [String]
+        /// A slope field already read from another figure of the same question (its equation, window and
+        /// candidates), so a sketch the agent cannot describe still gets the field and its curve from the pixels.
+        public var siblingField: StandardChart?
 
         public init(nearbyText: String = "", questionTexts: [String] = [], previousCaption: String? = nil,
                     otherQuestionTexts: [String] = [], positionNote: String? = nil, imageCount: Int = 1,
@@ -298,7 +301,7 @@ public actor FigureAgent {
         for image in results.keys.sorted() {
             guard var analysis = results[image], analysis.isFigure, analysis.kind == .chart else { continue }
             if analysis.chart == nil {
-                analysis.chart = await FigureReconciler.chartFromPixels(png: pngs[image - 1])
+                analysis.chart = await FigureReconciler.chartFromPixels(png: pngs[image - 1], hints: context.siblingField, engine: engine)
             }
             // A "chart" that is not a plot — a phase line, a sketch with a couple of points and no equation — in a
             // picture the reader cannot read either is a diagram: the original image serves the student better.
@@ -341,6 +344,7 @@ public actor FigureAgent {
             one.imageCount = 1
             one.focus = nil
             one.siblingNotes = notes
+            if let field = results.values.compactMap(\.chart).last(where: { $0.isSlopeField && !($0.slope ?? "").isEmpty }) { one.siblingField = field }
             if pngs.count > 1 {
                 one.positionNote = "This is image \(offset + 1) of \(pngs.count) under this question, in document order."
             }

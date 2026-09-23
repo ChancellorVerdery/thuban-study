@@ -61,7 +61,17 @@ public enum FigureReconciler {
     /// A chart built from the picture alone, for a figure the agent called a chart but could not describe: every
     /// drawn curve as a traced series, the window from the axes. Nil when the picture cannot be read or shows
     /// no curve.
-    public static func chartFromPixels(png: Data, hints: StandardChart? = nil) async -> StandardChart? {
+    public static func chartFromPixels(png: Data, hints: StandardChart? = nil, engine: MathEngine? = nil) async -> StandardChart? {
+        // A sibling's slope field: the same field with this picture's own curve found by the reconciler.
+        if let hints, hints.isSlopeField, let slope = hints.slope, !slope.isEmpty, let engine {
+            var field = StandardChart(chartType: "slopeField", xLabel: hints.xLabel, yLabel: hints.yLabel, series: [],
+                                      xRange: hints.xRange, yRange: hints.yRange, confidence: 0.7, slope: slope, arrows: hints.arrows,
+                                      xStep: hints.xStep, yStep: hints.yStep, fieldColumns: hints.fieldColumns, fieldRows: hints.fieldRows,
+                                      provenance: StandardChart.stated, definition: hints.definition, xTicks: hints.xTicks, yTicks: hints.yTicks,
+                                      candidates: hints.candidates)
+            field.definition = nil
+            if let reconciled = await reconcile(field, png: png, engine: engine) { return reconciled }
+        }
         guard let reading = await GraphReader.read(png: png, hints: hints) else { return nil }
         let curves = reading.curves.filter { curve in
             guard let span = curve.columns else { return false }
@@ -117,7 +127,7 @@ public enum FigureReconciler {
         let window = reading.x.range
         var matches: [Match] = []
         for candidate in candidates {
-            guard let points = try? await engine.integrateSlope(slope, through: candidate.point, xRange: window, steps: max(400, reading.width * 3)) else { continue }
+            guard let points = try? await engine.integrateSlope(slope, through: candidate.point, xRange: window, yRange: reading.y.range, steps: max(400, reading.width * 3)) else { continue }
             for (index, curve) in curves.enumerated() {
                 let score = GraphReader.match(points, to: curve, in: reading)
                 matches.append(Match(label: candidate.label, through: candidate.point, latex: nil, curveIndex: index, fit: score.fit, coverage: score.coverage, stated: candidate.stated))

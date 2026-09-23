@@ -673,22 +673,48 @@ public enum GraphReader {
     static func polyline(_ rows: [Int: [Int]], reading: GraphReading) -> [[Double]] {
         let columns = rows.keys.sorted()
         guard !columns.isEmpty else { return [] }
+        // A run of columns where the ink is tall is a steep stretch: it is one segment from where the curve
+        // enters it (the end nearest the column before) to where it leaves (the end nearest the column after),
+        // not a zigzag between the top and bottom of every column.
         var pixels: [(Double, Double)] = []
-        var previous: Double?
-        for column in columns {
+        var index = 0
+        while index < columns.count {
+            let column = columns[index]
             let list = rows[column]!
-            let top = Double(list.first!), bottom = Double(list.last!)
-            if bottom - top > 10 {
-                let first = (previous ?? top) - top <= abs((previous ?? top) - bottom) ? top : bottom
-                let second = first == top ? bottom : top
-                pixels.append((Double(column), first))
-                pixels.append((Double(column), second))
-                previous = second
-            } else {
-                let mid = Double(list[list.count / 2])
-                pixels.append((Double(column), mid))
-                previous = mid
+            let tall = Double(list.last!) - Double(list.first!) > 10
+            if !tall {
+                pixels.append((Double(column), Double(list[list.count / 2])))
+                index += 1
+                continue
             }
+            var end = index
+            while end + 1 < columns.count, columns[end + 1] - columns[end] <= 2,
+                  Double(rows[columns[end + 1]]!.last!) - Double(rows[columns[end + 1]]!.first!) > 10 { end += 1 }
+            let firstList = rows[columns[index]]!, lastList = rows[columns[end]]!
+            let before = pixels.last?.1
+            let after: Double? = end + 1 < columns.count ? Double(rows[columns[end + 1]]!.count > 0 ? rows[columns[end + 1]]![rows[columns[end + 1]]!.count / 2] : 0) : nil
+            func nearer(_ list: [Int], to row: Double?) -> Double {
+                let top = Double(list.first!), bottom = Double(list.last!)
+                guard let row else { return (top + bottom) / 2 }
+                return abs(row - top) <= abs(row - bottom) ? top : bottom
+            }
+            func opposite(_ list: [Int], of row: Double) -> Double {
+                abs(row - Double(list.first!)) <= abs(row - Double(list.last!)) ? Double(list.last!) : Double(list.first!)
+            }
+            let entry: Double, exit: Double
+            switch (before, after) {
+            case (.some, .some):
+                entry = nearer(firstList, to: before); exit = nearer(lastList, to: after)
+            case (.some, .none):
+                entry = nearer(firstList, to: before); exit = opposite(lastList, of: entry)
+            case (.none, .some):
+                exit = nearer(lastList, to: after); entry = opposite(firstList, of: exit)
+            case (.none, .none):
+                entry = Double(firstList.first!); exit = Double(lastList.last!)
+            }
+            pixels.append((Double(columns[index]), entry))
+            if end > index || abs(exit - entry) > 1 { pixels.append((Double(columns[end]), exit)) }
+            index = end + 1
         }
         let stride = max(1, pixels.count / 80)
         var kept: [(Double, Double)] = []

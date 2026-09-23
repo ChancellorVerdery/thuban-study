@@ -158,6 +158,22 @@ final class GraphReaderTests: XCTestCase {
         XCTAssertNil(try XCTUnwrap(plainOptional).fieldColumns)
     }
 
+    func testASteepCurveIsTracedWithoutZigzags() async throws {
+        // A cubic that climbs almost vertically near x = 2.5: its polyline must keep moving in one direction
+        // through the steep stretch, never back up a column.
+        let png = Self.plot(curves: [(Self.blue, Self.samples { 0.4 * pow($0 - 2.2, 3) - 1.5 })])
+        let readingOptional = await GraphReader.read(png: png)
+        let reading = try XCTUnwrap(readingOptional)
+        let curve = try XCTUnwrap(reading.curves.first)
+        let ys = curve.points.map { $0[1] }
+        var reversals = 0
+        for i in 2..<ys.count where (ys[i] - ys[i - 1]) * (ys[i - 1] - ys[i - 2]) < -0.01 { reversals += 1 }
+        XCTAssertLessThanOrEqual(reversals, 1, "a monotone curve has at most a stray reversal, not a zigzag: \(ys.suffix(12))")
+        for point in curve.points where abs(point[0]) < 3.5 && abs(point[1]) < 3.8 {
+            XCTAssertEqual(point[1], 0.4 * pow(point[0] - 2.2, 3) - 1.5, accuracy: 0.35, "at x = \(point[0])")
+        }
+    }
+
     func testNothingToReadGivesNil() async {
         let blank = ImageCodec.png(from: ImageCodec.rgbaContext(width: 120, height: 120)!.makeImage()!)!
         let reading = await GraphReader.read(png: blank)

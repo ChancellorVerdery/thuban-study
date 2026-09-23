@@ -1143,6 +1143,9 @@ var thubanMath = (function () {
     var x0 = Number(r.x0), y0 = Number(r.y0), xmin = Number(r.xmin), xmax = Number(r.xmax);
     var steps = Math.max(20, Math.min(2000, Number(r.steps) || 400));
     var yLimit = Number(r.yLimit) || 1e6;
+    // Where the slope is steep a step is split so y moves at most maxDy per sub-step: a solution that shoots
+    // off to the window's edge is followed there instead of jumping past it.
+    var maxDy = Number(r.maxDy) || (yLimit < 1e5 ? yLimit / 200 : 1);
     if (!isFinite(x0) || !isFinite(y0) || !(xmin < xmax)) return { error: 'bad range' };
     function f(x, y) {
       var v = numericValue(expr, { x: x, y: y });
@@ -1153,16 +1156,30 @@ var thubanMath = (function () {
       var n = Math.max(1, Math.round(steps * Math.abs(end - x0) / (xmax - xmin)));
       var h = (end - x0) / n;
       var pts = [];
-      var x = x0, y = y0;
-      for (var i = 0; i < n; i++) {
-        var k1 = f(x, y);
-        var k2 = f(x + h / 2, y + h * k1 / 2);
-        var k3 = f(x + h / 2, y + h * k2 / 2);
-        var k4 = f(x + h, y + h * k3);
-        var next = y + h * (k1 + 2 * k2 + 2 * k3 + k4) / 6;
-        if (!isFinite(next) || Math.abs(next) > yLimit) break;
-        x += h; y = next;
-        pts.push([x, y]);
+      var x = x0, y = y0, lastY = y0;
+      var budget = 3000;
+      outer: for (var i = 0; i < n; i++) {
+        // Each sub-step is sized from the slope where it starts, so y moves about maxDy per sub-step even where
+        // the slope grows quickly; a steep stretch is followed to the edge of the window, not jumped past.
+        var xEnd = x + h;
+        var iterations = 0;
+        while ((h > 0 ? x < xEnd - 1e-12 : x > xEnd + 1e-12) && iterations < 200) {
+          iterations++;
+          var k = Math.abs(f(x, y));
+          var hs = h;
+          // A budget of sub-steps per march keeps a wildly steep field from stalling the grapher.
+          if (isFinite(k) && k > 0 && budget > 0) { hs = (h > 0 ? 1 : -1) * Math.min(Math.abs(h), maxDy / k); if (Math.abs(hs) < Math.abs(h)) budget--; }
+          if (Math.abs(hs) > Math.abs(xEnd - x)) hs = xEnd - x;
+          var k1 = f(x, y);
+          var k2 = f(x + hs / 2, y + hs * k1 / 2);
+          var k3 = f(x + hs / 2, y + hs * k2 / 2);
+          var k4 = f(x + hs, y + hs * k3);
+          var next = y + hs * (k1 + 2 * k2 + 2 * k3 + k4) / 6;
+          if (!isFinite(next) || Math.abs(next) > yLimit) { if (y !== lastY) pts.push([x, y]); break outer; }
+          x += hs; y = next;
+          if (Math.abs(y - lastY) >= maxDy) { pts.push([x, y]); lastY = y; }
+        }
+        if (y !== lastY || pts.length === 0 || pts[pts.length - 1][0] !== x) { pts.push([x, y]); lastY = y; }
       }
       return pts;
     }

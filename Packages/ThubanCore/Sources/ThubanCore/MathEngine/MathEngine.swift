@@ -98,11 +98,18 @@ public actor MathEngine {
 
     /// The solution curve of `dy/dx = slope(x, y)` through `(x0, y0)` over `xRange`, as `[[x, y], …]` sampled by
     /// RK4 (about `steps` points across the range). Either direction stops early where the solution blows up.
-    public func integrateSlope(_ slope: String, through point: (x: Double, y: Double), xRange: ClosedRange<Double>, steps: Int = 400) async throws -> [[Double]] {
-        struct Request: Encodable { var latex: String; var x0: Double; var y0: Double; var xmin: Double; var xmax: Double; var steps: Int }
+    /// `yRange`, when given, bounds the march: it stops a little beyond the window instead of at ±10⁶, and steep
+    /// stretches are sub-stepped so the curve is followed to the edge rather than jumped past it.
+    public func integrateSlope(_ slope: String, through point: (x: Double, y: Double), xRange: ClosedRange<Double>, yRange: ClosedRange<Double>? = nil, steps: Int = 400) async throws -> [[Double]] {
+        struct Request: Encodable { var latex: String; var x0: Double; var y0: Double; var xmin: Double; var xmax: Double; var steps: Int; var yLimit: Double?; var maxDy: Double? }
         struct Result: Decodable { var points: [[Double]] }
         do {
-            let request = Request(latex: slope, x0: point.x, y0: point.y, xmin: xRange.lowerBound, xmax: xRange.upperBound, steps: steps)
+            var request = Request(latex: slope, x0: point.x, y0: point.y, xmin: xRange.lowerBound, xmax: xRange.upperBound, steps: steps, yLimit: nil, maxDy: nil)
+            if let yRange {
+                let span = max(1e-9, yRange.upperBound - yRange.lowerBound)
+                request.yLimit = max(abs(yRange.lowerBound), abs(yRange.upperBound)) + span
+                request.maxDy = span / 150
+            }
             return try loadedRuntime().call("integrateSlope", request, as: Result.self).points
         } catch ThubanError.engine(let detail) where detail == "unparseable" {
             throw ThubanError.parse("'\(slope)' is not a valid expression.")

@@ -140,7 +140,7 @@ final class FigureReviewModel {
                 return FigureAgent.siblingNote(FigureAnalysis(kind: sibling.figure.kind, chart: sibling.figure.chart, caption: sibling.figure.caption),
                                                image: offset + 1, of: siblings.count)
             }
-            let context = FigureAgent.FigureContext(
+            var context = FigureAgent.FigureContext(
                 nearbyText: await Self.textAround(figure, png: mine.png, in: document(for: figure)),
                 questionTexts: citingQuestions.map(ImportPipeline.questionText),
                 previousCaption: figure.caption,
@@ -148,6 +148,7 @@ final class FigureReviewModel {
                 positionNote: siblings.count > 1 ? "This is image \(position) of \(siblings.count) under this question, in document order." : nil,
                 siblingNotes: notes
             )
+            context.siblingField = siblings.first { $0.figure.id != figure.id && ($0.figure.chart?.isSlopeField ?? false) && !($0.figure.chart?.slope ?? "").isEmpty }?.figure.chart
             let analyses = try await agent.analyzeVerified(pngs: [mine.png], context: context, engine: session.engine)
             guard let analysis = analyses[1] else { throw ThubanError.parse("The figure agent did not describe this figure.") }
             figure.kind = analysis.isFigure ? analysis.kind : .unknown
@@ -253,13 +254,16 @@ struct FigureReviewView: View {
                 ProgressView().controlSize(.small)
                 Spacer()
             } else if let figure = model.current {
-                HStack(alignment: .top, spacing: 16) {
-                    ScrollView {
-                        FigureReviewPane(model: model, figure: figure, graph: graph)
-                            .padding(.bottom, 20)
+                GeometryReader { proxy in
+                    HStack(alignment: .top, spacing: 16) {
+                        ScrollView {
+                            FigureReviewPane(model: model, figure: figure, graph: graph,
+                                             availableWidth: max(0, proxy.size.width - 260 - 16), availableHeight: proxy.size.height)
+                                .padding(.bottom, 20)
+                        }
+                        FigureRail(model: model)
+                            .frame(width: 260)
                     }
-                    FigureRail(model: model)
-                        .frame(width: 260)
                 }
                 .padding(.horizontal, 24)
             } else {
@@ -358,14 +362,37 @@ private struct FigureReviewPane: View {
     var model: FigureReviewModel
     var figure: Figure
     var graph: GraphWebView.Controller
+    /// Size of the page area the panes may use (they take the full width and up to ~70 % of the height).
+    var availableWidth: CGFloat = 900
+    var availableHeight: CGFloat = 600
+
+    /// Width ÷ height of the original image (1 when unknown); the standardized graph is drawn at the same
+    /// proportions so nothing stretches.
+    private var aspect: CGFloat {
+        guard let image = model.image(for: figure), image.size.height > 0 else { return 1 }
+        return max(0.4, min(3, image.size.width / image.size.height))
+    }
+
+    /// The largest size at which two panes of the original's proportions fit side by side in the page.
+    private var paneSize: CGSize {
+        let chrome: CGFloat = 14 * 2 + 12 * 2 + 20 + 8 + 40 // panel padding, image padding, header, caption
+        let width = max(180, (availableWidth - 16) / 2 - 14 * 2 - 12 * 2)
+        let maxHeight = max(220, availableHeight * 0.7 - chrome)
+        var height = width / aspect
+        var fitted = width
+        if height > maxHeight { height = maxHeight; fitted = height * aspect }
+        return CGSize(width: fitted, height: height)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 16) {
+                Spacer(minLength: 0)
                 originalPanel
                 standardizedPanel
+                Spacer(minLength: 0)
             }
-            .frame(height: 360)
+            .frame(maxWidth: .infinity)
             if let chart = figure.chart {
                 detectionChips(chart)
                 if let definition = chart.definition?.nilIfEmpty, chart.isStated {
@@ -424,7 +451,7 @@ private struct FigureReviewPane: View {
                         .foregroundStyle(theme.inkFaintColor)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: paneSize.width, height: paneSize.height)
             .padding(12)
             .background(theme.panel2Color, in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
             if let caption = figure.caption, !caption.isEmpty {
@@ -432,9 +459,9 @@ private struct FigureReviewPane: View {
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
                     .lineLimit(2)
+                    .frame(width: paneSize.width + 24, alignment: .leading)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .thubanPanel(padding: 14)
     }
 
@@ -466,13 +493,13 @@ private struct FigureReviewPane: View {
                         .foregroundStyle(theme.inkFaintColor)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: paneSize.width + 24, height: paneSize.height + 24)
             .background(theme.panel2Color, in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
             Text("Standardized with the app's graph style")
                 .font(ThubanFont.small)
                 .foregroundStyle(theme.inkFaintColor)
+                .frame(width: paneSize.width + 24, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .thubanPanel(padding: 14)
     }
 

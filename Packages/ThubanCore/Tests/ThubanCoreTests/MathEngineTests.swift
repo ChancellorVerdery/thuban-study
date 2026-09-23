@@ -369,6 +369,18 @@ final class MathEngineTests: XCTestCase {
         }
     }
 
+    func testIntegrateSlopeFollowsASteepSolutionToTheWindowEdge() async throws {
+        // dy/dx = e^{−0.01xy²} through (−4, 0): going left the slope explodes, and the curve must reach the bottom of
+        // the −10…10 window instead of jumping from −7 to −10⁶ in one step.
+        let bounded = try await Self.engine.integrateSlope("e^{-0.01xy^{2}}", through: (-4, 0), xRange: -10...10, yRange: -10...10, steps: 400)
+        let lowest = try XCTUnwrap(bounded.map { $0[1] }.min())
+        XCTAssertLessThanOrEqual(lowest, -9.5, "the march reaches the window's edge")
+        XCTAssertGreaterThanOrEqual(lowest, -31, "and stops a little beyond it, not at ±10⁶")
+        let gaps = zip(bounded, bounded.dropFirst()).map { abs($1[1] - $0[1]) }
+        XCTAssertLessThanOrEqual(gaps.max() ?? 0, 1.0, "no step jumps more than a fraction of the window")
+        XCTAssertTrue(bounded.contains { $0 == [-4, 0] })
+    }
+
     func testSamplesEvaluateExplicitFormsAndImplicitResiduals() async throws {
         let bare = try await Self.engine.samples(of: "x^2-1", at: [(1, 0), (3, 0)])
         XCTAssertTrue(bare.explicit)

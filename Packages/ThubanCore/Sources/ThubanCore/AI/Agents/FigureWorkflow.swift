@@ -134,12 +134,17 @@ public enum FigureWorkflow {
                 guard !text.isEmpty else { return nil }
                 return members.count > 1 ? "Around image \(offset + 1):\n\(text.prefix(1500))" : text
             }.joined(separator: "\n\n")
-            let context = FigureAgent.FigureContext(
+            // A field already stored for the same question, for a sketch the agent cannot describe.
+            let questionFigureIds = Set(group.questions.flatMap(\.figureIds))
+            let storedField = (try? await store.figures(for: document.id))?
+                .first { questionFigureIds.contains($0.id) && ($0.chart?.isSlopeField ?? false) && !($0.chart?.slope ?? "").isEmpty }?.chart
+            var context = FigureAgent.FigureContext(
                 nearbyText: around,
                 questionTexts: group.questions.map(questionText),
                 otherQuestionTexts: group.questions.isEmpty ? questions.map(\.stem) : [],
                 positionNote: members.count == 1 ? positionNote(of: members[0].id, in: group.questions) : nil
             )
+            context.siblingField = storedField
             let started = done
             let analyses = try await agent.describeInSequence(pngs: members.map { pngs[$0.id]! }, context: context, engine: engine) { image in
                 progress?(started + image, total)

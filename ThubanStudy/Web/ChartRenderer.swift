@@ -37,7 +37,8 @@ enum ChartRenderer {
             let id = "series-\(offset)"
             var row = row(id: id, series: series, chart: chart)
             if row == nil, let slope, let engine, let start = series.throughPoint {
-                let points = (try? await engine.integrateSlope(slope, through: start, xRange: viewport.xmin...viewport.xmax)) ?? []
+                let points = (try? await engine.integrateSlope(slope, through: start, xRange: viewport.xmin...viewport.xmax,
+                                                               yRange: viewport.ymin...viewport.ymax, steps: 800)) ?? []
                 let clipped = clip(points, ymin: viewport.ymin, ymax: viewport.ymax)
                 row = ChartGeometry.polylineRow(id: id, points: clipped)
             }
