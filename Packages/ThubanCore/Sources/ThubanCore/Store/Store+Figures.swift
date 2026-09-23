@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import GRDB
 
@@ -43,6 +44,52 @@ extension Store: FigureRepository {
     /// One figure, or `nil` when it does not exist.
     public func figure(id: FigureID) async throws -> Figure? {
         try await read { db in try Figure.fetchOne(db, id: id) }
+    }
+
+    /// Merges figures whose image files are byte-for-byte identical (the same sketch offered under several parts
+    /// or questions) into one: the earliest keeps its row and file, every question that cited a duplicate cites
+    /// the kept figure instead, and the duplicates' rows and files go. Returns how many were merged.
+    @discardableResult
+    public func dedupeFigures(in classId: ClassID) async throws -> Int {
+        let figures = try await figures(in: classId)
+        var keptByHash: [Data: FigureID] = [:]
+        var replacement: [FigureID: FigureID] = [:]
+        for figure in figures.sorted(by: { ($0.documentId?.raw ?? "", $0.pageOrIndex, $0.id.raw) < ($1.documentId?.raw ?? "", $1.pageOrIndex, $1.id.raw) }) {
+            guard let data = try? Data(contentsOf: locations.figures.appendingPathComponent(figure.originalPath)), !data.isEmpty else { continue }
+            let hash = Self.digest(data)
+            if let kept = keptByHash[hash] {
+                // Prefer to keep a figure that has already been analysed over a pending duplicate.
+                replacement[figure.id] = kept
+            } else {
+                keptByHash[hash] = figure.id
+            }
+        }
+        guard !replacement.isEmpty else { return 0 }
+        // A kept figure that is still pending inherits an analysed duplicate's reading.
+        let byId = Dictionary(figures.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for (duplicate, kept) in replacement {
+            guard var keptFigure = byId[kept], keptFigure.chart == nil, let duplicateFigure = byId[duplicate], duplicateFigure.chart != nil else { continue }
+            keptFigure.chart = duplicateFigure.chart
+            keptFigure.kind = duplicateFigure.kind
+            keptFigure.caption = duplicateFigure.caption
+            keptFigure.status = duplicateFigure.status
+            try await update(keptFigure)
+        }
+        let questions = try await self.questions(in: classId, filter: nil)
+        for var question in questions where question.figureIds.contains(where: { replacement[$0] != nil }) {
+            var seen: Set<FigureID> = []
+            question.figureIds = question.figureIds.map { replacement[$0] ?? $0 }.filter { seen.insert($0).inserted }
+            try await update(question)
+        }
+        for duplicate in replacement.keys {
+            try await delete(duplicate, deleteFile: true)
+        }
+        return replacement.count
+    }
+
+    /// SHA-256 of image bytes.
+    static func digest(_ data: Data) -> Data {
+        Data(SHA256.hash(data: data))
     }
 
     public func insert(_ figure: Figure) async throws {

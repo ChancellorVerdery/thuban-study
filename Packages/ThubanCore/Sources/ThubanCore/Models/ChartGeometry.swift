@@ -138,9 +138,11 @@ public enum ChartGeometry {
             Row(id: "\(idPrefix)-m", latex: "\(M)=\(fn)\\left(\(X),\(Y)\\right)", hidden: true),
             Row(id: "\(idPrefix)-d", latex: "\(D)=\\frac{1}{\\sqrt{1+\(M)^{2}}}", hidden: true),
         ]
-        // Segment: centre ± H·(1, m)/√(1+m²); t ∈ [0, 1] is mapped to [-1, 1].
-        let segment = "\\left(\(X)+\(H)\\left(2t-1\\right)\(D),\(Y)+\(H)\\left(2t-1\\right)\(M)\(D)\\right)"
-        out.append(Row(id: "\(idPrefix)-seg", latex: segment, parametricDomain: 0...1, lineWidth: 1.6, lineOpacity: 0.85))
+        // Segment: centre ± H·(1, m)/√(1+m²), as a two-vertex polygon over the lists. A polygon is drawn straight
+        // from its vertices, whereas a parametric curve is sampled hundreds of times per list element — which is
+        // what made a 400-arrow field take seconds to appear.
+        let segment = "\\operatorname{polygon}\\left(\\left(\(X)-\(H)\(D),\(Y)-\(H)\(M)\(D)\\right),\\left(\(X)+\(H)\(D),\(Y)+\(H)\(M)\(D)\\right)\\right)"
+        out.append(Row(id: "\(idPrefix)-seg", latex: segment, fillOpacity: 0, lineWidth: 1.6, lineOpacity: 0.85))
         if arrows {
             // Arrowhead: tip at the segment's end, base 45 % of H back along it, half-width 22 % of H.
             // The unit normal to (1, m)/√(1+m²) is (-m, 1)/√(1+m²).

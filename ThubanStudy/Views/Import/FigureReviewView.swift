@@ -453,6 +453,7 @@ private struct FigureReviewPane: View {
             }
             .frame(width: paneSize.width, height: paneSize.height)
             .padding(12)
+            .overlay(RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous).stroke(theme.lineColor, lineWidth: 1))
             .background(theme.panel2Color, in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
             if let caption = figure.caption, !caption.isEmpty {
                 Text(caption)
@@ -462,6 +463,7 @@ private struct FigureReviewPane: View {
                     .frame(width: paneSize.width + 24, alignment: .leading)
             }
         }
+        .frame(width: paneSize.width + 24)
         .thubanPanel(padding: 14)
     }
 
@@ -495,11 +497,13 @@ private struct FigureReviewPane: View {
             }
             .frame(width: paneSize.width + 24, height: paneSize.height + 24)
             .background(theme.panel2Color, in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous).stroke(theme.lineColor, lineWidth: 1))
             Text("Standardized with the app's graph style")
                 .font(ThubanFont.small)
                 .foregroundStyle(theme.inkFaintColor)
                 .frame(width: paneSize.width + 24, alignment: .leading)
         }
+        .frame(width: paneSize.width + 24)
         .thubanPanel(padding: 14)
     }
 

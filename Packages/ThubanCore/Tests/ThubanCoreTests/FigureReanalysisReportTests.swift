@@ -19,6 +19,13 @@ final class FigureReanalysisReportTests: XCTestCase {
             documents += try await store.documents(in: classId).filter { selector == "all" || $0.id.raw.lowercased() == selector.lowercased() }
         }
         XCTAssertFalse(documents.isEmpty, "no document matched \(selector)")
+        if ProcessInfo.processInfo.environment["THUBAN_DEDUPE"] != nil {
+            for classId in Set(documents.map(\.classId)) {
+                let merged = try await store.dedupeFigures(in: classId)
+                print("DEDUPE class \(classId.raw): merged \(merged) duplicate figure(s)")
+            }
+            return
+        }
         var lines: [String] = []
         let started = Date()
         for document in documents {

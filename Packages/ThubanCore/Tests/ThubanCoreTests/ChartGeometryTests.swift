@@ -34,15 +34,18 @@ final class ChartGeometryTests: XCTestCase {
         XCTAssertTrue(bars.latex.contains("\\left[0,1\\right]-0.4"))
     }
 
-    func testSlopeFieldRowsDefineHelpersSegmentsAndHeads() {
+    func testSlopeFieldRowsDefineHelpersSegmentsAndHeads() throws {
         let rows = ChartGeometry.slopeFieldRows(idPrefix: "f", slope: "x-y", xRange: -3...3, yRange: -3...3, columns: 4, rows: 3)
         XCTAssertEqual(rows.map(\.id), ["f-fn", "f-h", "f-x", "f-y", "f-m", "f-d", "f-seg", "f-head"])
+        let segment = try XCTUnwrap(rows.first { $0.id == "f-seg" })
+        XCTAssertTrue(segment.latex.hasPrefix("\\operatorname{polygon}"), "arrows are polygons (drawn straight), not sampled parametrics")
+        XCTAssertNil(segment.parametricDomain)
+        XCTAssertEqual(segment.fillOpacity, 0)
         XCTAssertEqual(rows[0].latex, "S_{f}\\left(x,y\\right)=x-y")
         XCTAssertTrue(rows[0].hidden && rows[1].hidden && rows[2].hidden && rows[3].hidden && rows[4].hidden && rows[5].hidden)
         XCTAssertEqual(rows[2].latex, "X_{f}=\\left[-3,-1,1,3,-3,-1,1,3,-3,-1,1,3\\right]", "x varies fastest")
         XCTAssertEqual(rows[3].latex, "Y_{f}=\\left[-3,-3,-3,-3,0,0,0,0,3,3,3,3\\right]")
         XCTAssertEqual(rows[1].latex, "H_{f}=0.8", "40 % of the 2-unit grid spacing")
-        XCTAssertEqual(rows[6].parametricDomain, 0...1)
         XCTAssertEqual(rows[6].lineWidth, 1.6)
         XCTAssertEqual(rows[6].lineOpacity, 0.85)
         XCTAssertFalse(rows[6].hidden)

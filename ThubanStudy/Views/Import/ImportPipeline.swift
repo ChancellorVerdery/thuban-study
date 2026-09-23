@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Observation
 import ThubanCore
@@ -343,8 +344,12 @@ final class ImportPipeline {
         let directory = AppPaths.figures.appendingPathComponent(documentId.raw, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         var ids: [Int: FigureID] = [:]
+        // The same sketch offered under several parts or questions is one figure, cited by each of them.
+        var idByHash: [Data: FigureID] = [:]
         for extracted in figures {
             try Task.checkCancellation()
+            let hash = Data(SHA256.hash(data: extracted.pngData))
+            if let existing = idByHash[hash] { ids[extracted.index] = existing; continue }
             let relative = "\(documentId.raw)/\(extracted.index).png"
             try extracted.pngData.write(to: AppPaths.figureURL(relative), options: .atomic)
             let figure = Figure(
@@ -357,6 +362,7 @@ final class ImportPipeline {
             )
             try await session.store.insert(figure)
             ids[extracted.index] = figure.id
+            idByHash[hash] = figure.id
         }
         return ids
     }

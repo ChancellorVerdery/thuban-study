@@ -368,6 +368,7 @@ struct StandardChartView: View {
                 theme.panel2Color
             }
         }
+        .overlay(RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous).stroke(theme.lineColor, lineWidth: 1))
         .onAppear {
             guard controller == nil else { return }
             let controller = GraphWebView.Controller(desmosKey: app.desmosKey, mode: .twoD, isFigure: true)

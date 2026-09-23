@@ -384,6 +384,51 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(remaining.map(\.id), [first.id])
     }
 
+    func testDedupeFiguresMergesIdenticalImagesAndRepointsQuestions() async throws {
+        let store = try makeFileStore()
+        let studyClass = sampleClass()
+        try await store.insert(studyClass)
+        let doc = sampleDocument(classId: studyClass.id)
+        try await store.insert(doc)
+        let folder = store.locations.figures.appendingPathComponent(doc.id.raw, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let sketchA = Data([0x89, 0x50, 0x4E, 0x47, 1, 2, 3]), sketchB = Data([0x89, 0x50, 0x4E, 0x47, 9, 9, 9])
+        // Four images: A, B, A again (analysed), B again — the same two sketches offered under two parts.
+        var figures: [Figure] = []
+        for (index, data) in [sketchA, sketchB, sketchA, sketchB].enumerated() {
+            let path = "\(doc.id.raw)/\(index).png"
+            try data.write(to: store.locations.figures.appendingPathComponent(path))
+            figures.append(Figure(documentId: doc.id, pageOrIndex: index, originalPath: path))
+        }
+        figures[2].kind = .chart
+        figures[2].chart = StandardChart(chartType: "line", series: [ChartSeries(name: "f", points: [[0, 0], [1, 1]])], confidence: 0.9)
+        figures[2].status = .reviewing
+        figures[2].caption = "Analysed copy"
+        for figure in figures { try await store.insert(figure) }
+        var q1 = sampleQuestion(classId: studyClass.id, documentId: doc.id, stem: "Part (a)")
+        q1.figureIds = [figures[0].id, figures[1].id]
+        var q2 = sampleQuestion(classId: studyClass.id, documentId: doc.id, stem: "Part (b)")
+        q2.figureIds = [figures[2].id, figures[3].id, figures[0].id]
+        try await store.insert([q1, q2])
+
+        let merged = try await store.dedupeFigures(in: studyClass.id)
+        XCTAssertEqual(merged, 2)
+        let remaining = try await store.figures(for: doc.id)
+        XCTAssertEqual(remaining.map(\.id), [figures[0].id, figures[1].id], "the earliest of each image stays")
+        XCTAssertEqual(remaining[0].chart, figures[2].chart, "a pending original inherits its analysed duplicate's reading")
+        XCTAssertEqual(remaining[0].status, .reviewing)
+        XCTAssertEqual(remaining[0].caption, "Analysed copy")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: store.locations.figures.appendingPathComponent("\(doc.id.raw)/2.png").path), "duplicate files go")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: store.locations.figures.appendingPathComponent("\(doc.id.raw)/0.png").path))
+        let questions = try await store.questions(in: studyClass.id, filter: nil)
+        let second = try XCTUnwrap(questions.first { $0.stem == "Part (b)" })
+        XCTAssertEqual(second.figureIds, [figures[0].id, figures[1].id], "cites the kept figures, once each, in order")
+        let first = try XCTUnwrap(questions.first { $0.stem == "Part (a)" })
+        XCTAssertEqual(first.figureIds, [figures[0].id, figures[1].id])
+        let again = try await store.dedupeFigures(in: studyClass.id)
+        XCTAssertEqual(again, 0, "nothing left to merge")
+    }
+
     func testDeleteKeepingQuestionsDetachesQuestionsAndTheirFigures() async throws {
         let store = try makeMemoryStore()
         let studyClass = sampleClass()

@@ -1147,7 +1147,18 @@ var thubanMath = (function () {
     // off to the window's edge is followed there instead of jumping past it.
     var maxDy = Number(r.maxDy) || (yLimit < 1e5 ? yLimit / 200 : 1);
     if (!isFinite(x0) || !isFinite(y0) || !(xmin < xmax)) return { error: 'bad range' };
+    // The slope compiled to a plain function is a hundred times faster than substituting into the symbolic
+    // expression at every Runge–Kutta stage; substitution stays as the fallback for anything the compiler declines.
+    var compiled = null;
+    try { if (typeof expr.compile === 'function') compiled = expr.compile(); } catch (e) { compiled = null; }
     function f(x, y) {
+      if (compiled) {
+        try {
+          var c = compiled({ x: x, y: y });
+          if (typeof c === 'number') return c;
+          if (c && typeof c.re === 'number') return Math.abs(c.im || 0) < 1e-9 ? c.re : NaN;
+        } catch (e) { compiled = null; }
+      }
       var v = numericValue(expr, { x: x, y: y });
       return v && Math.abs(v.im) < 1e-9 ? v.re : NaN;
     }
