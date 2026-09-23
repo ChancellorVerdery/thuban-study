@@ -732,7 +732,16 @@ public actor ImportAgent {
                                                                chunk: chunk, images: state.images, pageImages: state.pageImages))]
         var drafts: [QuestionDraft] = []
         var nudged = false
-        for _ in 0..<maxToolRounds {
+        // Follow-ups once the excerpt's questions are in: ask for any left out, then (when the excerpt has images, where
+        // values and angles are read off a drawing) re-derive the answer keys. Questions re-emitted during the key
+        // check replace the earlier ones with the same sourceRef.
+        var followUps: [String] = []
+        if checksCompleteness {
+            followUps.append("completeness")
+            if !chunk.figureIndices.isEmpty || chunk.pages != nil { followUps.append("keys") }
+        }
+        var replacing = false
+        for _ in 0..<(maxToolRounds + 2 * followUps.count) {
             let response = try await client.complete(
                 model: state.model, system: system, messages: messages,
                 tools: ImportTools.specs, maxTokens: maxTokens
@@ -745,16 +754,25 @@ public actor ImportAgent {
                 FileHandle.standardError.write(Data("IMPORTDEBUG chunk \(chunk.index + 1): round stop=\(response.stopReason ?? "-") calls=\(calls.map(\.name)) text=\(text.prefix(300))\n".utf8))
             }
             if calls.isEmpty, !truncated {
-                guard !nudged, drafts.isEmpty || checksCompleteness else { break }
-                nudged = true
-                messages.append(.assistant(Self.assistantParts(response.parts)))
                 if drafts.isEmpty {
+                    guard !nudged else { break }
+                    nudged = true
+                    messages.append(.assistant(Self.assistantParts(response.parts)))
                     messages.append(.user("Call emit_questions now with the questions for this excerpt."))
-                } else {
-                    // One completeness pass: questions are easily left out when they are emitted in batches.
+                    continue
+                }
+                guard !followUps.isEmpty else { break }
+                let next = followUps.removeFirst()
+                messages.append(.assistant(Self.assistantParts(response.parts)))
+                if next == "completeness" {
+                    // Questions are easily left out when they are emitted in batches.
+                    replacing = false
                     messages.append(.user("Recorded so far: \(drafts.map { $0.sourceRef ?? String($0.stem.prefix(40)) }.joined(separator: "; ")). "
                         + "Check the excerpt (its text and images) against that list: if any question, problem or part is missing, "
                         + "call emit_questions with only the missing ones. Otherwise reply with the single word DONE."))
+                } else {
+                    replacing = true
+                    messages.append(.user(Self.keyCheckPrompt(drafts)))
                 }
                 continue
             }
@@ -764,7 +782,13 @@ public actor ImportAgent {
                 switch call.name {
                 case ImportTools.emitName:
                     let decoded = Self.decodeDrafts(call.input)
-                    drafts.append(contentsOf: decoded.drafts)
+                    for draft in decoded.drafts {
+                        if replacing, let ref = draft.sourceRef, let index = drafts.firstIndex(where: { $0.sourceRef == ref }) {
+                            drafts[index] = draft
+                        } else {
+                            drafts.append(draft)
+                        }
+                    }
                     if ProcessInfo.processInfo.environment["THUBAN_IMPORT_DEBUG"] != nil {
                         let line = "IMPORTDEBUG chunk \(chunk.index + 1): emit \(call.input["questions"]?.arrayValue?.count ?? -1) → \(decoded.drafts.map { $0.sourceRef ?? "?" }) errors \(decoded.errors) stop \(response.stopReason ?? "-")\n"
                         FileHandle.standardError.write(Data(line.utf8))
@@ -959,6 +983,25 @@ public actor ImportAgent {
                 + "options (numbering continued) and their [figure N]s.\n\n"
         }
         return prompt + "\(header):\n\n\(chunk.text)"
+    }
+
+    /// The key check: every numeric answer re-derived from the statement and the figure, with the numbers the
+    /// agent recorded listed so it can compare.
+    static func keyCheckPrompt(_ drafts: [QuestionDraft]) -> String {
+        var lines: [String] = []
+        for draft in drafts {
+            let keys = draft.parts.compactMap { part -> String? in
+                guard part.answerKind == .numeric || part.answerKind == .math, let key = part.answer.latex, !key.isEmpty else { return nil }
+                return "(\(part.id)) \(key)" + (part.conditions.units.map { " \($0)" } ?? "")
+            }
+            if !keys.isEmpty { lines.append("\(draft.sourceRef ?? String(draft.stem.prefix(40))): " + keys.joined(separator: ", ")) }
+        }
+        guard !lines.isEmpty else { return "Reply with the single word CHECKED." }
+        return "Check the answer keys against the excerpt. For each question below, re-derive every numeric answer independently "
+            + "from the original statement and figure — in particular how each angle is measured (from which line, to which force), "
+            + "which way each force and each direction points, the signs of components, and the units asked for. "
+            + "If a key is wrong, call emit_questions with the whole corrected question (same sourceRef; it replaces the earlier "
+            + "one). If every key is right, reply with the single word CHECKED.\n\n" + lines.joined(separator: "\n")
     }
 
     /// Most images sent with one excerpt (the rest are named only by their markers).

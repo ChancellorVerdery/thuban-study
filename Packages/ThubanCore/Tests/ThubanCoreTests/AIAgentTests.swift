@@ -470,6 +470,9 @@ final class AIAgentTests: XCTestCase {
             .sse(SSE.text("That is all for now.")),
             .sse(SSE.toolUse(id: "q2", name: "emit_questions", input: ["questions": [draftJSON(sourceRef: "Q2", seedNote: "ok", withTemplate: false)]])),
             .sse(SSE.text("DONE")),
+            // The key check (the excerpt has a figure) re-emits Q1 corrected: it replaces the earlier Q1.
+            .sse(SSE.toolUse(id: "q3", name: "emit_questions", input: ["questions": [draftJSON(sourceRef: "Q1", seedNote: "fixed", withTemplate: false)]])),
+            .sse(SSE.text("CHECKED")),
         ])
         let agent = ImportAgent(client: .mock(transport), validator: { _ in [] }, checksCompleteness: true)
         let result = try await agent.run(
