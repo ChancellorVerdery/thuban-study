@@ -329,8 +329,8 @@ struct FigureCard: View {
             }
             if isStandardized, let chart = figure.chart {
                 StandardChartView(chart: chart)
-                    .frame(height: 240)
-                    .clipShape(RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
+                    .aspectRatio(originalAspect, contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: 360)
             } else if let image = NSImage(contentsOf: AppPaths.figureURL(figure.originalPath)) {
                 Image(nsImage: image)
                     .resizable()
@@ -349,39 +349,21 @@ struct FigureCard: View {
     }
 
     private var isStandardized: Bool {
-        figure.chart != nil && figure.status == .accepted && app.hasDesmosKey
+        figure.chart != nil && figure.status == .accepted
+    }
+
+    /// Width ÷ height of the clipped original, so the redraw has the same proportions.
+    private var originalAspect: CGFloat {
+        guard let image = NSImage(contentsOf: AppPaths.figureURL(figure.originalPath)), image.size.height > 0 else { return 1 }
+        return max(0.4, min(3, image.size.width / image.size.height))
     }
 }
 
-/// A `StandardChart` drawn by a small Desmos grapher through `ChartRenderer` (curves, bars, slope fields).
+/// A `StandardChart` drawn natively (`FigureCanvasView`): no web view, no network, same proportions as the original.
 struct StandardChartView: View {
-    @Environment(AppModel.self) private var app
-    @Environment(\.thubanTheme) private var theme
     var chart: StandardChart
-    @State private var controller: GraphWebView.Controller?
 
     var body: some View {
-        Group {
-            if let controller {
-                GraphWebView(controller: controller)
-            } else {
-                theme.panel2Color
-            }
-        }
-        .overlay(RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous).stroke(theme.lineColor, lineWidth: 1))
-        .onAppear {
-            guard controller == nil else { return }
-            let controller = GraphWebView.Controller(desmosKey: app.desmosKey, mode: .twoD, isFigure: true)
-            controller.onReady = { [weak controller] in
-                guard let controller else { return }
-                Task { @MainActor in
-                    controller.setExpressions(await ChartRenderer.expressions(for: chart, theme: theme, engine: app.engine))
-                    if let viewport = ChartRenderer.viewport(for: chart) { controller.setViewport(viewport) }
-                    controller.setAxes(xStep: chart.xStep, yStep: chart.yStep, xLabel: chart.xLabel, yLabel: chart.yLabel)
-                }
-            }
-            self.controller = controller
-        }
+        FigureCanvasView(chart: chart)
     }
-
 }

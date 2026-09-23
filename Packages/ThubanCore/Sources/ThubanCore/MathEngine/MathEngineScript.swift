@@ -1203,6 +1203,23 @@ var thubanMath = (function () {
   // Values of `latex` at each of `points` ([{x, y}, …]). A bare expression is evaluated as given; "y = f(x)"
   // (or "f(x) = …") gives f(x) so the value compares directly with a y read off a picture; any other equation
   // "lhs = rhs" gives the residual lhs − rhs (0 on the curve) with the larger side's magnitude as `scales[i]`.
+  // A fast evaluator for `expr`: its compiled JS function when the compiler accepts it (real results only; NaN
+  // and complex values are "undefined"), else symbolic substitution. Returns {re, im} or null.
+  function fastEvaluator(expr) {
+    var compiled = null;
+    try { if (typeof expr.compile === 'function') compiled = expr.compile(); } catch (e) { compiled = null; }
+    return function (at) {
+      if (compiled) {
+        try {
+          var c = compiled(at);
+          if (typeof c === 'number') return isFinite(c) ? { re: c, im: 0 } : null;
+          if (c && typeof c.re === 'number') return isFinite(c.re) && isFinite(c.im || 0) ? { re: c.re, im: c.im || 0 } : null;
+        } catch (e) { compiled = null; }
+      }
+      return numericValue(expr, at);
+    };
+  }
+
   function evaluateAt(r) {
     var latex = String(r.latex);
     var eq = latex.indexOf('=');
@@ -1222,14 +1239,16 @@ var thubanMath = (function () {
     }
     if (!expr.isValid) return { error: 'unparseable' };
     var values = [], scales = [];
+    var evalExpr = fastEvaluator(expr);
+    var evalL = lhsExpr ? fastEvaluator(lhsExpr) : null, evalR = rhsExpr ? fastEvaluator(rhsExpr) : null;
     (r.points || []).forEach(function (p) {
       var at = { x: Number(p.x), y: Number(p.y) };
       if (explicit) {
-        var v = numericValue(expr, at);
+        var v = evalExpr(at);
         var re = v && Math.abs(v.im) < 1e-9 ? v.re : null;
         values.push(re); scales.push(re === null ? null : Math.max(Math.abs(re), Math.abs(at.y)));
       } else {
-        var a = numericValue(lhsExpr, at), b = numericValue(rhsExpr, at);
+        var a = evalL(at), b = evalR(at);
         if (!a || !b || Math.abs(a.im) > 1e-9 || Math.abs(b.im) > 1e-9) { values.push(null); scales.push(null); }
         else { values.push(a.re - b.re); scales.push(Math.max(Math.abs(a.re), Math.abs(b.re))); }
       }

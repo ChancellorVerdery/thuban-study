@@ -38,6 +38,7 @@
 		77D6B405D61E3A607CB47999 /* ThubanMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60C9B921445F87FD56D4E7B8 /* ThubanMark.swift */; };
 		78089632D161182381DB77AC /* Icon.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB1E418EE8AF7B971BC9F46C /* Icon.swift */; };
 		7C1231DD149B6AEEDC68C602 /* DeleteClassAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34CCBA064123C65B63E41283 /* DeleteClassAlert.swift */; };
+		7EB8A84BDE90B5061C640D59 /* FigureCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8996B72D9D053D080BFD7A4C /* FigureCanvasView.swift */; };
 		7F5B98D2F7E8519964BE5AF9 /* ProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20DF246D546C4759E93C243 /* ProgressBar.swift */; };
 		8A579E26738F001B6B42A37D /* EmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1CEB9ACB1D91668E88A25DC /* EmptyState.swift */; };
 		9ACF11AEFE1A4D0A1D72EB1B /* CommandBus.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECB3AFA5D45551F433544E15 /* CommandBus.swift */; };
@@ -103,6 +104,7 @@
 		792DD5DF1A29C472185321F8 /* CalculatorWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorWebView.swift; sourceTree = "<group>"; };
 		79B2C18B5C7D4AF8FA65BAB0 /* ThubanCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ThubanCore; path = Packages/ThubanCore; sourceTree = SOURCE_ROOT; };
 		7BF203952EBA1DDEF711F3B9 /* AppIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconRenderer.swift; sourceTree = "<group>"; };
+		8996B72D9D053D080BFD7A4C /* FigureCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FigureCanvasView.swift; sourceTree = "<group>"; };
 		89F27B8A832C0FC7E38E208F /* ClaudeAccountSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeAccountSettings.swift; sourceTree = "<group>"; };
 		9138405FEDB4C9F2D51C45F2 /* AppModel+SettingsandModals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+SettingsandModals.swift"; sourceTree = "<group>"; };
 		9676B93BD738E096D9763F0A /* web */ = {isa = PBXFileReference; lastKnownFileType = folder; name = web; path = ThubanStudy/Resources/web; sourceTree = SOURCE_ROOT; };
@@ -308,6 +310,7 @@
 				103ADF805FA9261CE62259F6 /* Buttons.swift */,
 				C6018324F1F6BF47F9E04CC8 /* Chip.swift */,
 				D1CEB9ACB1D91668E88A25DC /* EmptyState.swift */,
+				8996B72D9D053D080BFD7A4C /* FigureCanvasView.swift */,
 				EB1E418EE8AF7B971BC9F46C /* Icon.swift */,
 				F20DF246D546C4759E93C243 /* ProgressBar.swift */,
 				B204DFD6226F3128D480D100 /* SegmentedPicker.swift */,
@@ -440,6 +443,7 @@
 				C205839B56E041CD0CE3B4C6 /* DataSettings.swift in Sources */,
 				7C1231DD149B6AEEDC68C602 /* DeleteClassAlert.swift in Sources */,
 				8A579E26738F001B6B42A37D /* EmptyState.swift in Sources */,
+				7EB8A84BDE90B5061C640D59 /* FigureCanvasView.swift in Sources */,
 				418A485B7A86954B315D5D9C /* FigureReviewView.swift in Sources */,
 				07F9F1538C63906F03C15A62 /* GraphPane.swift in Sources */,
 				1B718E7426BAC757689A811B /* GraphWebView.swift in Sources */,

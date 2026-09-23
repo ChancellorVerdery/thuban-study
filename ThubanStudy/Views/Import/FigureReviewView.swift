@@ -234,7 +234,6 @@ struct FigureReviewView: View {
 
     @State private var model: FigureReviewModel
     /// One grapher for the pane's lifetime; the Desmos key is applied from the environment on appear.
-    @State private var graph = GraphWebView.Controller(desmosKey: "", mode: .twoD, isFigure: true)
 
     init(session: ClassSession, scope: FigureReviewModel.Scope, breadcrumbRoot: String = "Import", onClose: @escaping () -> Void) {
         self.session = session
@@ -257,7 +256,7 @@ struct FigureReviewView: View {
                 GeometryReader { proxy in
                     HStack(alignment: .top, spacing: 16) {
                         ScrollView {
-                            FigureReviewPane(model: model, figure: figure, graph: graph,
+                            FigureReviewPane(model: model, figure: figure,
                                              availableWidth: max(0, proxy.size.width - 260 - 16), availableHeight: proxy.size.height)
                                 .padding(.bottom, 20)
                         }
@@ -282,14 +281,6 @@ struct FigureReviewView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .task { await model.load() }
-        .onAppear {
-            graph.onReady = { [graph] in
-                Task { @MainActor in Self.push(model: model, to: graph) }
-            }
-        }
-        .onChange(of: app.desmosKey, initial: true) { _, key in graph.configure(desmosKey: key) }
-        .onChange(of: model.current?.id, initial: true) { _, _ in pushChart() }
-        .onChange(of: model.current?.chart) { _, _ in pushChart() }
         .sheet(isPresented: Binding(get: { model.isEditingValues }, set: { model.isEditingValues = $0 })) {
             if let chart = model.current?.chart {
                 SeriesValuesSheet(chart: chart) { edited in
@@ -297,28 +288,6 @@ struct FigureReviewView: View {
                 }
                 .environment(\.thubanTheme, theme)
             }
-        }
-    }
-
-    private func pushChart() {
-        Self.push(model: model, to: graph)
-    }
-
-    @MainActor
-    private static func push(model: FigureReviewModel, to graph: GraphWebView.Controller) {
-        guard let chart = model.current?.chart else {
-            graph.clear()
-            return
-        }
-        Task { @MainActor in
-            let expressions = await ChartRenderer.expressions(for: chart, theme: graph.theme, engine: model.engine)
-            // The student may have moved on while a curve was being integrated.
-            guard model.current?.chart == chart else { return }
-            graph.setExpressions(expressions)
-            if let viewport = FigureReviewModel.viewport(for: chart) {
-                graph.setViewport(viewport)
-            }
-            graph.setAxes(xStep: chart.xStep, yStep: chart.yStep, xLabel: chart.xLabel, yLabel: chart.yLabel)
         }
     }
 
@@ -361,7 +330,6 @@ private struct FigureReviewPane: View {
     @Environment(\.thubanTheme) private var theme
     var model: FigureReviewModel
     var figure: Figure
-    var graph: GraphWebView.Controller
     /// Size of the page area the panes may use (they take the full width and up to ~70 % of the height).
     var availableWidth: CGFloat = 900
     var availableHeight: CGFloat = 600
@@ -479,16 +447,8 @@ private struct FigureReviewPane: View {
                 Chip("App graph style", kind: .accent, icon: .graph2D)
             }
             ZStack {
-                if figure.chart != nil {
-                    GraphWebView(controller: graph)
-                        .clipShape(RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
-                    if app.desmosKey.isEmpty {
-                        Text("Add a Desmos API key in Settings to render the standardized graph.")
-                            .font(ThubanFont.small)
-                            .foregroundStyle(theme.inkDimColor)
-                            .padding(12)
-                            .background(theme.panelColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
-                    }
+                if let chart = figure.chart {
+                    FigureCanvasView(chart: chart)
                 } else {
                     Text("Not a chart — nothing to standardize.")
                         .font(ThubanFont.small)
@@ -496,8 +456,6 @@ private struct FigureReviewPane: View {
                 }
             }
             .frame(width: paneSize.width + 24, height: paneSize.height + 24)
-            .background(theme.panel2Color, in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous).stroke(theme.lineColor, lineWidth: 1))
             Text("Standardized with the app's graph style")
                 .font(ThubanFont.small)
                 .foregroundStyle(theme.inkFaintColor)
