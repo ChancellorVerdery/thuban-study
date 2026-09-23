@@ -976,6 +976,7 @@ public enum GraphReader {
             }
             index = end + 1
         }
+        pixels = bridgeAxisCrossings(pixels, axisRow: reading.y.pixel(0), axisColumn: reading.x.pixel(0))
         pixels = smoothStroke(pixels)
         // Thin by distance along the stroke (about every 2.5 px), keeping both ends.
         var kept: [(Double, Double)] = []
@@ -1018,6 +1019,49 @@ public enum GraphReader {
             sum += w * Double(position)
         }
         return weight > 0 ? sum / weight : nil
+    }
+
+    /// Where a curve crosses a black axis the axis ink hides the curve's colour, so the traced centre leans to one
+    /// side and leaves a bump. A short stretch of the trace lying on an axis line (a crossing) is dropped and
+    /// bridged straight from the curve on either side; a long one (a curve running along the axis) is kept.
+    static func bridgeAxisCrossings(_ points: [(Double, Double)], axisRow: Double, axisColumn: Double) -> [(Double, Double)] {
+        let band = 5.0, longest = 18
+        func onAxis(_ p: (Double, Double)) -> Bool { abs(p.1 - axisRow) <= band || abs(p.0 - axisColumn) <= band }
+        var out: [(Double, Double)] = []
+        var i = 0
+        while i < points.count {
+            guard onAxis(points[i]) else { out.append(points[i]); i += 1; continue }
+            var j = i
+            while j + 1 < points.count, onAxis(points[j + 1]) { j += 1 }
+            let run = j - i + 1
+            if run <= longest, i > 0, j + 1 < points.count, let before = out.last {
+                // A straight bridge across the crossing, as dense as the trace it replaces.
+                let after = points[j + 1]
+                for k in 1...run {
+                    let t = Double(k) / Double(run + 1)
+                    out.append((before.0 + (after.0 - before.0) * t, before.1 + (after.1 - before.1) * t))
+                }
+            } else if run > longest {
+                // Running along an axis: the partly hidden ink wobbles the centre, so this stretch (with a margin
+                // either side) is smoothed much more strongly than the rest of the stroke.
+                let lo = max(0, i - 10), hi = min(points.count - 1, j + 10)
+                let window = Array(points[lo...hi])
+                let sigma = 8.0, reach = 24
+                for k in i...j {
+                    let c = k - lo
+                    var w = 0.0, sx = 0.0, sy = 0.0
+                    for m in max(0, c - reach)...min(window.count - 1, c + reach) {
+                        let weight = exp(-Double((m - c) * (m - c)) / (2 * sigma * sigma))
+                        w += weight; sx += weight * window[m].0; sy += weight * window[m].1
+                    }
+                    out.append((sx / w, sy / w))
+                }
+            } else {
+                out.append(contentsOf: points[i...j])
+            }
+            i = j + 1
+        }
+        return out
     }
 
     /// Removes pixel quantisation and stray jumps from a traced stroke: a running median (outliers such as a
