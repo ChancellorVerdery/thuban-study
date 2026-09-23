@@ -16,19 +16,24 @@ struct StudyView: View {
         @Bindable var state = state
         GeometryReader { geometry in
             HStack(spacing: 0.z) {
+                // The question pane takes exactly what the graph and tutor leave, so the row never overflows the
+                // window (at a large app zoom its contents would otherwise push the panes off-screen).
                 QuestionPane(session: session)
-                    .frame(minWidth: StudyLayout.questionMinWidth, maxWidth: .infinity)
+                    .frame(width: questionWidth(total: geometry.size.width), alignment: .leading)
+                    .clipped()
 
                 if session.showGraph {
                     PaneDivider(width: $state.graphWidth, range: graphWidthRange(total: geometry.size.width))
                     GraphPane(session: session)
                         .frame(width: clampedGraphWidth(total: geometry.size.width))
+                        .clipped()
                         .thubanHairline(.leading, color: theme.lineColor)
                 }
 
+                PaneDivider(width: $state.tutorWidth, range: tutorWidthRange(total: geometry.size.width), label: "Resize tutor pane")
                 TutorPane(session: session)
                     .frame(width: tutorWidth(total: geometry.size.width))
-                    .thubanHairline(.leading, color: theme.lineColor)
+                    .clipped()
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .overlay(alignment: .bottomTrailing) {
@@ -57,21 +62,43 @@ struct StudyView: View {
 
     // MARK: Layout
 
-    /// The tutor pane keeps its preferred width until the three panes no longer fit; below that it gives up
-    /// width first (down to `tutorMinWidth`) so nothing is pushed off-screen at the 1100 pt window minimum.
+    /// How wide the tutor pane may be dragged: at least `tutorMinWidth`, and never so wide that the question pane
+    /// (and the graph, when it is open) drop below their minimums.
+    /// The question pane's minimum grows with the app zoom (its text does), up to 55 % of the window.
+    private func questionMin(total: CGFloat) -> CGFloat {
+        min(StudyLayout.questionMinWidth * AppZoom.shared.scale, total * 0.55)
+    }
+
+    private func tutorWidthRange(total: CGFloat) -> ClosedRange<CGFloat> {
+        var others = questionMin(total: total) + PaneDivider.thickness
+        if session.showGraph { others += PaneDivider.thickness + min(StudyLayout.graphFloorWidth, total * 0.2) }
+        let upper = max(StudyLayout.tutorMinWidth, total - others)
+        return StudyLayout.tutorMinWidth...upper
+    }
+
+    /// The tutor pane keeps the width the student dragged it to (the design width by default) until the panes no
+    /// longer fit; below that it gives up width first (down to `tutorMinWidth`) so nothing is pushed off-screen.
     private func tutorWidth(total: CGFloat) -> CGFloat {
-        guard session.showGraph else { return StudyLayout.tutorWidth }
-        let needed = StudyLayout.questionMinWidth + PaneDivider.thickness + StudyLayout.graphMinWidth
-            + StudyLayout.tutorWidth
-        let deficit = max(0, needed - total)
-        return max(StudyLayout.tutorMinWidth, StudyLayout.tutorWidth - deficit)
+        let range = tutorWidthRange(total: total)
+        var preferred = min(max(state.tutorWidth, range.lowerBound), range.upperBound)
+        if session.showGraph {
+            let needed = questionMin(total: total) + 2 * PaneDivider.thickness + StudyLayout.graphMinWidth + preferred
+            preferred = max(StudyLayout.tutorMinWidth, preferred - max(0, needed - total))
+        }
+        return preferred
+    }
+
+    private func questionWidth(total: CGFloat) -> CGFloat {
+        var others = PaneDivider.thickness + tutorWidth(total: total)
+        if session.showGraph { others += PaneDivider.thickness + clampedGraphWidth(total: total) }
+        return max(0, total - others)
     }
 
     private func graphWidthRange(total: CGFloat) -> ClosedRange<CGFloat> {
-        let available = total - tutorWidth(total: total) - StudyLayout.questionMinWidth - PaneDivider.thickness
+        let available = total - tutorWidth(total: total) - questionMin(total: total) - 2 * PaneDivider.thickness
         // When even a shrunken tutor pane leaves less than the preferred graph minimum, the graph takes what is
-        // left (never below its hard floor) rather than overflowing the window.
-        let lower = max(StudyLayout.graphFloorWidth, min(StudyLayout.graphMinWidth, available))
+        // left rather than overflowing the window.
+        let lower = max(0, min(StudyLayout.graphMinWidth, available))
         let upper = max(lower, available)
         return lower...upper
     }
@@ -114,13 +141,14 @@ enum StudyLayout {
     static let tutorMinWidth: CGFloat = 320
 }
 
-/// A draggable hairline between the question pane and the graph pane.
+/// A draggable hairline on the leading edge of a pane to its right (the graph, the tutor): dragging left widens it.
 struct PaneDivider: View {
     static let thickness: CGFloat = 9
 
     @Environment(\.thubanTheme) private var theme
     @Binding var width: CGFloat
     var range: ClosedRange<CGFloat>
+    var label: String = "Resize graph pane"
     @State private var hovering = false
     @State private var startWidth: CGFloat?
 
@@ -149,7 +177,7 @@ struct PaneDivider: View {
                 .onEnded { _ in startWidth = nil }
         )
         .accessibilityElement()
-        .accessibilityLabel("Resize graph pane")
+        .accessibilityLabel(label)
         .accessibilityValue("\(Int(width)) points")
         .accessibilityAdjustableAction { direction in
             switch direction {

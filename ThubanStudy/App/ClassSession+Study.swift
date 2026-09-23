@@ -41,6 +41,15 @@ final class StudyState {
 
     // Layout
     var graphWidth: CGFloat = 480
+    /// The tutor pane's width, dragged by its leading edge; kept across launches.
+    var tutorWidth: CGFloat = StudyState.savedTutorWidth {
+        didSet { UserDefaults.standard.set(Double(tutorWidth), forKey: Self.tutorWidthKey) }
+    }
+    static let tutorWidthKey = "studyTutorWidth"
+    static var savedTutorWidth: CGFloat {
+        let saved = UserDefaults.standard.double(forKey: tutorWidthKey)
+        return saved >= Double(StudyLayout.tutorMinWidth) ? CGFloat(saved) : StudyLayout.tutorWidth
+    }
     var calculatorOffset: CGSize = .zero
 
     enum TutorError: Equatable {
