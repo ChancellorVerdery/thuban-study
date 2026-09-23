@@ -107,6 +107,18 @@ final class CurveFitterTests: XCTestCase {
         XCTAssertEqual(kept.status, .keptOriginal)
     }
 
+    func testPlotInItsOwnLettersIsAFunctionOfX() async throws {
+        let engine = MathEngine()
+        let pv = try await engine.samples(of: "p = 100 + 2V", at: [(x: 1, y: 0), (x: 5, y: 0)])
+        XCTAssertTrue(pv.explicit)
+        XCTAssertEqual(pv.values.compactMap { $0 }, [102, 110])
+        let lone = try await engine.samples(of: "3t^2", at: [(x: 2, y: 0)])
+        XCTAssertEqual(lone.values.first ?? nil, 12)
+        // A slope in y alone (dy/dx = y − y³) still reads y.
+        let field = try await engine.samples(of: "y - y^3", at: [(x: 0, y: 2)])
+        XCTAssertEqual(field.values.first ?? nil, -6)
+    }
+
     func testCurveNoEquationFollowsStaysTraced() async {
         // A sine wave is no solution of an autonomous equation.
         let points = stride(from: -3.0, through: 3.0, by: 0.05).map { [$0, sin(2 * $0)] }

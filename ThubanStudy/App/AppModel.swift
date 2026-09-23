@@ -158,6 +158,7 @@ final class AppModel {
         SmokeHarness.startIfEnabled(app: self)
         FigureDump.startIfEnabled(app: self)
         RegenerateHarness.startIfEnabled(app: self)
+        ImportHarness.startIfEnabled(app: self)
     }
 
     /// `DesmosAPIKey` from the bundled `Secrets.plist`, if present.

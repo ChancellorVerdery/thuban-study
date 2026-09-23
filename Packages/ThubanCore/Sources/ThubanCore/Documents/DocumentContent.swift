@@ -64,6 +64,9 @@ public struct DocumentContent: Sendable, Equatable {
     public var warnings: [String]
     /// Images the `FigureGate` turned away (glyphs, icons, equation renders), by reason.
     public var rejectedImages: [FigureGate.Rejection: Int] = [:]
+    /// PDFs: each page rendered (PNG, 1-based page number), for the import agent to read what the text layer
+    /// loses — table columns, equations drawn as graphics, layout.
+    public var pageImages: [Int: Data] = [:]
 
     public init(blocks: [ContentBlock] = [], figures: [ExtractedFigure] = [], pageCount: Int? = nil, warnings: [String] = []) {
         self.blocks = blocks

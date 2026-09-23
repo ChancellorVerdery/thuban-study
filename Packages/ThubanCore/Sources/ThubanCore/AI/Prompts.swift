@@ -197,6 +197,25 @@ public enum Prompts {
           part correct, its selected option (or entered answer) is the answer key — use it, including for picture \
           options (the [figure N] after "[selected]"). Work an answer out yourself only where the page does not \
           record a correct one.
+        - Images: the excerpt's images follow its text, each labelled [figure N]. In slide decks and scanned or \
+          pasted textbook problems the problem statement, the given values and the dimensions and angles are often \
+          only in the image: read them there, write the full statement in the stem (transcribe it; keep the figure \
+          attached for the drawing), and work the answers from those values.
+        - Leave out what is not a question: title or "about you" slides, instructions, and links to an outside \
+          site where the problem itself is not given.
+        - Engineering and physics answers (forces, moments, pressures, energies, conversions): one part per \
+          unknown ("Tension in AB", "Tension in AC", …; x-, y-, z-components as separate parts or one vector part). \
+          A numeric part has answerKind "numeric", answer.latex the number in the unit the problem asks for (or \
+          the problem's own units), conditions.units that unit as plain text ("kN", "lb", "lbf/in^2", "ft·lbf/s", \
+          "N·m", "°"), conditions.significantFigures 3 and conditions.relativeTolerance 0.01 unless the problem \
+          says otherwise. A vector answer is answerKind "math" with answer.latex in i, j, k form \
+          ("-150\\mathbf{i}+200\\mathbf{j}+180\\mathbf{k}") and its unit in conditions.units. Angles are in \
+          degrees unless stated. Directions ("the heat transfer is out of the system") are choice parts.
+        - A table with missing entries: one part per missing entry, named by its row and column ("Process b: \
+          Q"), with the table itself in the stem as a Markdown table.
+        - "Sketch", "plot", "explain", "show that", "state assumptions" parts are freeResponse with a rubric of \
+          what a correct answer shows or says; a "plot … and state the maximum" part gives the numbers as numeric \
+          parts and the plot as a freeResponse part.
         - A question that relies on figures is never a template: its figures show the original numbers, so \
           fresh numbers would no longer match them. Write it as a static question.
 
@@ -204,7 +223,9 @@ public enum Prompts {
         A template lets the app regenerate the question with new numbers. Write it as JSON exactly like this:
         - `params`: each `{ "name": "a", "kind": {"type":"int","min":2,"max":9}, "exclude": [0] }`; kinds are \
           `{"type":"int","min":…,"max":…}`, `{"type":"real","min":…,"max":…,"decimals":…}` or \
-          `{"type":"choice","options":["x","t"]}`. Use short single-letter names.
+          `{"type":"choice","options":["x","t"]}`. Use short single-letter names. Give every numeric param \
+          `"original"`: its value in the original problem — the app evaluates each answerExpr there and rejects \
+          the template unless it reproduces the static answer.
         - `constraints`: LaTeX boolean expressions over the params that must hold, e.g. "a \\\\ne b", "b^2 - 4ac > 0".
         - `stem` and every part `prompt`: the question text with `{a}`, `{b}` placeholders where the numbers go, e.g. \
           "Let $f(x) = {a}x^2 + {b}$." Placeholders are replaced by the drawn values verbatim.

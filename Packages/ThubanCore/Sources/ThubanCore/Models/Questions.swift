@@ -68,8 +68,14 @@ public struct AnswerConditions: Codable, Sendable, Equatable {
     public var implicitAllowed: Bool
     /// Radicals must stay symbolic (default when `roundingDecimals == nil`).
     public var exactRadicals: Bool
-    /// Required unit text, if any.
+    /// The unit the answer is expressed in ("kN", "ft·lbf/s", "°"). A student answer in a compatible unit is
+    /// converted before comparing; a bare number is taken to be in this unit.
     public var units: String?
+    /// Engineering answers: the significant figures the expected value is given to. A value that rounds to it
+    /// (half a unit in the last figure) is accepted; decimals never count against exact form.
+    public var significantFigures: Int?
+    /// Engineering answers: accepted relative error (0.01 = within 1 %). Decimals never count against exact form.
+    public var relativeTolerance: Double?
     /// Free-text conditions the import agent could not map (shown to the student, checked by the tutor).
     public var custom: [String]
 
@@ -87,6 +93,8 @@ public struct AnswerConditions: Codable, Sendable, Equatable {
         implicitAllowed: Bool? = nil,
         exactRadicals: Bool? = nil,
         units: String? = nil,
+        significantFigures: Int? = nil,
+        relativeTolerance: Double? = nil,
         custom: [String] = []
     ) {
         self.roundingDecimals = roundingDecimals
@@ -99,12 +107,14 @@ public struct AnswerConditions: Codable, Sendable, Equatable {
         self.implicitAllowed = implicitAllowed ?? !explicit
         self.exactRadicals = exactRadicals ?? (roundingDecimals == nil)
         self.units = units
+        self.significantFigures = significantFigures
+        self.relativeTolerance = relativeTolerance
         self.custom = custom
     }
 
     private enum CodingKeys: String, CodingKey {
         case roundingDecimals, tolerance, rationalizedDenominator, simplified, factored, expanded, explicit,
-             implicitAllowed, exactRadicals, units, custom
+             implicitAllowed, exactRadicals, units, significantFigures, relativeTolerance, custom
     }
 
     /// Lenient decoding: every key is optional so agent-written JSON can omit anything that is at its default.
@@ -123,6 +133,8 @@ public struct AnswerConditions: Codable, Sendable, Equatable {
             implicitAllowed: try c.decodeIfPresent(Bool.self, forKey: .implicitAllowed),
             exactRadicals: try c.decodeIfPresent(Bool.self, forKey: .exactRadicals),
             units: try c.decodeIfPresent(String.self, forKey: .units),
+            significantFigures: try c.decodeIfPresent(Int.self, forKey: .significantFigures),
+            relativeTolerance: try c.decodeIfPresent(Double.self, forKey: .relativeTolerance),
             custom: try c.decodeIfPresent([String].self, forKey: .custom) ?? []
         )
     }
@@ -133,7 +145,16 @@ public struct AnswerConditions: Codable, Sendable, Equatable {
     /// Student-facing lines, one per active condition.
     public var summaryItems: [String] {
         var items: [String] = []
-        if let decimals = roundingDecimals {
+        let engineering = significantFigures != nil || relativeTolerance != nil
+        if let figures = significantFigures {
+            items.append(figures == 1 ? "1 significant figure" : "\(figures) significant figures")
+        }
+        if let relative = relativeTolerance {
+            items.append("Within \(Self.format(relative * 100)) %")
+        }
+        if engineering {
+            // Rounded answers are expected; exact form never applies.
+        } else if let decimals = roundingDecimals {
             switch decimals {
             case 0: items.append("Round to the nearest whole number")
             case 1: items.append("Round to 1 decimal place")
@@ -386,20 +407,25 @@ public struct TemplateParam: Codable, Sendable, Equatable {
     public var kind: Kind
     /// Values never drawn (e.g. 0 for a divisor).
     public var exclude: [Double]
+    /// The value in the original problem (numeric parameters). At these values every answer expression must
+    /// reproduce the static answer the import agent worked out; the import checks it (`MathEngine.checkOriginals`).
+    public var original: Double?
 
-    public init(name: String, kind: Kind, exclude: [Double] = []) {
+    public init(name: String, kind: Kind, exclude: [Double] = [], original: Double? = nil) {
         self.name = name
         self.kind = kind
         self.exclude = exclude
+        self.original = original
     }
 
-    private enum CodingKeys: String, CodingKey { case name, kind, exclude }
+    private enum CodingKeys: String, CodingKey { case name, kind, exclude, original }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         name = try c.decode(String.self, forKey: .name)
         kind = try c.decode(Kind.self, forKey: .kind)
         exclude = try c.decodeIfPresent([Double].self, forKey: .exclude) ?? []
+        original = try? c.decodeIfPresent(Double.self, forKey: .original)
     }
 }
 

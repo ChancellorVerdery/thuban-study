@@ -75,6 +75,34 @@ public actor MathEngine {
 
     /// Checks a template the import agent wrote: structure, constraint and answer syntax, then three trial
     /// instantiations. Returns human-readable problems; empty means valid.
+    /// Checks a template against the question it was written for: at the parameters' original values each answer
+    /// expression must reproduce the static answer (within 1 %). Returns one message per part that does not (or a
+    /// request for the missing original values).
+    public func checkOriginals(_ template: MathTemplate, parts: [QuestionPart]) async -> [String] {
+        let answers: [String: String]?
+        do {
+            answers = try TemplateInstantiator(runtime: try loadedRuntime()).answersAtOriginals(template)
+        } catch {
+            return ["At the original values the template does not evaluate: \(error.localizedDescription)"]
+        }
+        guard let answers else {
+            return ["Give every numeric parameter its value in the original problem as \"original\", so the template can be checked against the static answers."]
+        }
+        var errors: [String] = []
+        for part in parts where part.answerKind == .math || part.answerKind == .numeric {
+            guard let expected = part.answer.latex, !expected.isEmpty, let produced = answers[part.id] else { continue }
+            var conditions = AnswerConditions.none
+            conditions.relativeTolerance = 0.01
+            conditions.roundingDecimals = 6
+            let verdict = await grade(student: produced, expected: AnswerSpec(latex: expected, alternatives: part.answer.alternatives),
+                                      conditions: conditions, kind: .math)
+            if verdict.outcome != .correct {
+                errors.append("Part '\(part.id)': at the original values answerExpr gives \(produced), but the static answer is \(expected).")
+            }
+        }
+        return errors
+    }
+
     public func validate(_ template: MathTemplate) async -> [String] {
         do {
             return TemplateInstantiator(runtime: try loadedRuntime()).validate(template)

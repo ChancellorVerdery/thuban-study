@@ -216,6 +216,12 @@ public struct MessagesStreamDecoder: Sendable {
         if let block = invalidBlocks.first, stopReason != "max_tokens" {
             throw ThubanError.parse("Tool '\(block.name)' produced invalid JSON input.")
         }
+        if ProcessInfo.processInfo.environment["THUBAN_IMPORT_DEBUG"] != nil {
+            for block in invalidBlocks {
+                let line = "IMPORTDEBUG cut-off \(block.name) (\(block.json.count) chars): \(block.json.prefix(1500)) … \(block.json.suffix(1500))\n"
+                FileHandle.standardError.write(Data(line.utf8))
+            }
+        }
         invalidBlocks = []
         return [.messageEnd(stopReason: stopReason, usage: usage)]
     }

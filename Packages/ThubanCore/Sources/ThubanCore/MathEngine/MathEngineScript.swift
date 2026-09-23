@@ -57,7 +57,8 @@ var thubanMath = (function () {
     explicit: 'Equivalent, but this part requires the equation solved explicitly for the dependent variable.',
     implicitAllowed: 'Equivalent, but implicit equations are not accepted here; solve for the dependent variable.',
     units: 'The value is equivalent, but include the required units.',
-    unitsMismatch: 'The value is equivalent, but the units are not the ones this part asks for.'
+    unitsMismatch: 'The value is equivalent, but the units are not the ones this part asks for.',
+    unitsDimension: 'Not quite. Those units measure a different kind of quantity than this part asks for.'
   };
 
   // ---------------------------------------------------------------- utilities
@@ -1008,8 +1009,16 @@ var thubanMath = (function () {
     var sNc = student.nc, sC = student.c;
     var reqUnit = normalizeUnit(cond.units);
     if (reqUnit) {
-      if (!student.unit) failed.push('units');
-      else if (student.unit !== reqUnit) failed.push('unitsMismatch');
+      // Engineering answers (significant figures / relative tolerance) are in the stated unit when none is written.
+      var engineeringUnits = true;
+      if (!student.unit) {
+        if (!engineeringUnits) failed.push('units');
+      } else if (student.unit !== reqUnit) {
+        // The same unit spelled differently ("N·m", "N\\cdot m") is not a mismatch.
+        var su = parseUnit(student.unit), ru = parseUnit(cond.units);
+        var rs = su && ru ? resolveUnit(su, ru) : null;
+        if (!(rs && sameDims(rs.d, ru.d) && Math.abs(rs.f / ru.f - 1) < 1e-9)) failed.push('unitsMismatch');
+      }
     }
     if (cond.rationalizedDenominator && hasUnrationalizedDenominator(sNc.json)) failed.push('rationalizedDenominator');
     if (cond.simplified && !forEachScalar(sNc, sC, function (n, c) { var s = scalarValue(n, c); return isSimplified(s.nc, s.c); })) failed.push('simplified');
@@ -1094,10 +1103,368 @@ var thubanMath = (function () {
     return out;
   }
 
+  // ---------------------------------------------------------------- engineering answers (units, tolerance, vectors)
+
+  // Dimension vectors are over [kg, m, s, K, rad].
+  var DIM_FORCE = [1, 1, -2, 0, 0], DIM_MASS = [1, 0, 0, 0, 0];
+  var UNIT_TABLE = {
+    // SI base and derived (prefixable)
+    g: { f: 1e-3, d: [1, 0, 0, 0, 0], si: true }, m: { f: 1, d: [0, 1, 0, 0, 0], si: true },
+    s: { f: 1, d: [0, 0, 1, 0, 0], si: true }, N: { f: 1, d: DIM_FORCE, si: true },
+    J: { f: 1, d: [1, 2, -2, 0, 0], si: true }, W: { f: 1, d: [1, 2, -3, 0, 0], si: true },
+    Pa: { f: 1, d: [1, -1, -2, 0, 0], si: true }, L: { f: 1e-3, d: [0, 3, 0, 0, 0], si: true },
+    l: { f: 1e-3, d: [0, 3, 0, 0, 0], si: false }, bar: { f: 1e5, d: [1, -1, -2, 0, 0], si: true },
+    K: { f: 1, d: [0, 0, 0, 1, 0], si: true, temp: 0 }, Hz: { f: 1, d: [0, 0, -1, 0, 0], si: true },
+    t: { f: 1000, d: [1, 0, 0, 0, 0], si: false },
+    // time
+    sec: { f: 1, d: [0, 0, 1, 0, 0] }, min: { f: 60, d: [0, 0, 1, 0, 0] }, h: { f: 3600, d: [0, 0, 1, 0, 0] },
+    hr: { f: 3600, d: [0, 0, 1, 0, 0] }, hour: { f: 3600, d: [0, 0, 1, 0, 0] }, hours: { f: 3600, d: [0, 0, 1, 0, 0] },
+    // US customary
+    in: { f: 0.0254, d: [0, 1, 0, 0, 0] }, inch: { f: 0.0254, d: [0, 1, 0, 0, 0] }, inches: { f: 0.0254, d: [0, 1, 0, 0, 0] },
+    ft: { f: 0.3048, d: [0, 1, 0, 0, 0] }, feet: { f: 0.3048, d: [0, 1, 0, 0, 0] }, foot: { f: 0.3048, d: [0, 1, 0, 0, 0] },
+    yd: { f: 0.9144, d: [0, 1, 0, 0, 0] }, mi: { f: 1609.344, d: [0, 1, 0, 0, 0] }, mile: { f: 1609.344, d: [0, 1, 0, 0, 0] },
+    miles: { f: 1609.344, d: [0, 1, 0, 0, 0] }, mph: { f: 0.44704, d: [0, 1, -1, 0, 0] },
+    lbf: { f: 4.4482216152605, d: DIM_FORCE }, lbm: { f: 0.45359237, d: DIM_MASS },
+    lb: { f: 4.4482216152605, d: DIM_FORCE, lbAmbiguous: true }, lbs: { f: 4.4482216152605, d: DIM_FORCE, lbAmbiguous: true },
+    kip: { f: 4448.2216152605, d: DIM_FORCE }, kips: { f: 4448.2216152605, d: DIM_FORCE },
+    ton: { f: 8896.443230521, d: DIM_FORCE }, tons: { f: 8896.443230521, d: DIM_FORCE },
+    slug: { f: 14.593902937, d: DIM_MASS }, slugs: { f: 14.593902937, d: DIM_MASS },
+    oz: { f: 0.028349523125, d: DIM_MASS },
+    psi: { f: 6894.757293168, d: [1, -1, -2, 0, 0] }, ksi: { f: 6894757.293168, d: [1, -1, -2, 0, 0] },
+    psf: { f: 47.880258980336, d: [1, -1, -2, 0, 0] },
+    atm: { f: 101325, d: [1, -1, -2, 0, 0] }, mmHg: { f: 133.322387415, d: [1, -1, -2, 0, 0] },
+    inHg: { f: 3386.389, d: [1, -1, -2, 0, 0] },
+    Btu: { f: 1055.05585262, d: [1, 2, -2, 0, 0] }, BTU: { f: 1055.05585262, d: [1, 2, -2, 0, 0] },
+    cal: { f: 4.184, d: [1, 2, -2, 0, 0] }, kcal: { f: 4184, d: [1, 2, -2, 0, 0] },
+    hp: { f: 745.69987158227, d: [1, 2, -3, 0, 0] }, gal: { f: 0.003785411784, d: [0, 3, 0, 0, 0] },
+    // angles and temperatures
+    rad: { f: 1, d: [0, 0, 0, 0, 1] }, deg: { f: Math.PI / 180, d: [0, 0, 0, 0, 1] },
+    degree: { f: Math.PI / 180, d: [0, 0, 0, 0, 1] }, degrees: { f: Math.PI / 180, d: [0, 0, 0, 0, 1] },
+    '°': { f: Math.PI / 180, d: [0, 0, 0, 0, 1] }, rev: { f: 2 * Math.PI, d: [0, 0, 0, 0, 1] },
+    rpm: { f: 2 * Math.PI / 60, d: [0, 0, -1, 0, 1] },
+    '°C': { f: 1, d: [0, 0, 0, 1, 0], temp: 273.15 }, '°F': { f: 5 / 9, d: [0, 0, 0, 1, 0], temp: 459.67 * 5 / 9 },
+    '°R': { f: 5 / 9, d: [0, 0, 0, 1, 0], temp: 0 }, degC: { f: 1, d: [0, 0, 0, 1, 0], temp: 273.15 },
+    degF: { f: 5 / 9, d: [0, 0, 0, 1, 0], temp: 459.67 * 5 / 9 }, degR: { f: 5 / 9, d: [0, 0, 0, 1, 0], temp: 0 }
+  };
+  var UNIT_PREFIXES = { G: 1e9, M: 1e6, k: 1e3, h: 1e2, d: 1e-1, c: 1e-2, m: 1e-3, 'µ': 1e-6, 'μ': 1e-6, u: 1e-6, n: 1e-9 };
+
+  function lookupUnitToken(name) {
+    if (UNIT_TABLE.hasOwnProperty(name)) return UNIT_TABLE[name];
+    var first = name.charAt(0), rest = name.slice(1);
+    if (rest && UNIT_PREFIXES.hasOwnProperty(first) && UNIT_TABLE.hasOwnProperty(rest) && UNIT_TABLE[rest].si) {
+      var base = UNIT_TABLE[rest];
+      return { f: base.f * UNIT_PREFIXES[first], d: base.d, temp: base.temp };
+    }
+    return null;
+  }
+
+  /// Plain unit text from LaTeX: "\text{kN}\cdot\mathrm{m}" → "kN·m", "\frac{lbf}{in^{2}}" → "lbf/in^2".
+  function plainUnitText(latex) {
+    var t = String(latex)
+      .replace(/\^\{([^{}]*)\}/g, function (all, e) { return /\\circ/.test(e) ? all : '^' + e; })
+      .replace(/\\(?:cdot|times|bullet|centerdot)(?![A-Za-z])/g, '·');
+    for (var guard = 0; guard < 4 && /\\frac\{([^{}]*)\}\{([^{}]*)\}/.test(t); guard++) {
+      t = t.replace(/\\[dt]?frac\{([^{}]*)\}\{([^{}]*)\}/g, function (_, a, b) { return a + '/(' + b + ')'; });
+    }
+    t = t.replace(/\\(?:text|mathrm|operatorname|textrm|mathit|mbox|textup)\{([^{}]*)\}/g, '$1')
+      .replace(/\^\{?\\circ\}?|\\circ|\\degree|\^\{\\circ\}/g, '°')
+      .replace(/\\(?:mu)\b\s*/g, 'µ')
+      .replace(/\\(?:cdot|times|bullet|centerdot)\b/g, '·')
+      .replace(/\\[,;: !]|~/g, ' ')
+      .replace(/\\(?:left|right)/g, '')
+      .replace(/[{}]/g, '')
+      .replace(/\*/g, '·').replace(/⋅|•/g, '·')
+      .replace(/\s*\/\s*/g, '/').replace(/\s*·\s*/g, '·')
+      .trim();
+    return t;
+  }
+
+  /// Parses unit text into { f, d, temp?, lbAmbiguous? } (factor to SI, dimension vector), or null.
+  function parseUnit(text) {
+    if (text == null) return null;
+    var t = plainUnitText(text).replace(/\.(?=$|[·\/\^\s)])/g, '').replace(/\s+/g, '·');
+    if (!t.length) return null;
+    // Parenthesised denominators from \frac: "lbf/(in^2)" → "lbf/in^2"; everything after the first "/" divides.
+    t = t.replace(/[()]/g, '');
+    var slash = t.indexOf('/');
+    var numerator = slash < 0 ? t : t.slice(0, slash);
+    var denominator = slash < 0 ? '' : t.slice(slash + 1).replace(/\//g, '·');
+    var out = { f: 1, d: [0, 0, 0, 0, 0], tokens: 0 };
+    var ambiguous = false, temp = null;
+    function apply(part, sign) {
+      if (!part.length) return true;
+      var factors = part.split('·');
+      for (var i = 0; i < factors.length; i++) {
+        var raw = factors[i];
+        if (!raw.length) continue;
+        if (raw === '1') continue;
+        var m = /^([A-Za-zµμ°]+?)(?:\^?(-?\d+))?$/.exec(raw);
+        if (!m) return false;
+        var name = m[1], exp = m[2] ? Number(m[2]) : 1;
+        var u = lookupUnitToken(name);
+        if (!u && /^°[CFR]$/.test(name) === false && name.charAt(0) === '°' && name.length > 1) u = lookupUnitToken(name);
+        if (!u) return false;
+        if (u.lbAmbiguous) ambiguous = true;
+        if (u.temp !== undefined) temp = u;
+        out.f *= Math.pow(u.f, exp * sign);
+        for (var k = 0; k < 5; k++) out.d[k] += u.d[k] * exp * sign;
+        out.tokens++;
+      }
+      return true;
+    }
+    if (!apply(numerator, 1) || !apply(denominator, -1)) return null;
+    if (!out.tokens) return null;
+    out.lbAmbiguous = ambiguous;
+    // An absolute temperature: a lone temperature unit.
+    if (temp && out.tokens === 1 && slash < 0) out.temp = temp.temp;
+    return out;
+  }
+
+  function sameDims(a, b) {
+    for (var k = 0; k < 5; k++) if (Math.abs(a[k] - b[k]) > 1e-9) return false;
+    return true;
+  }
+
+  /// "lb" is pound-force in statics and pound-mass in thermodynamics: the reading that matches `other` wins.
+  function resolveUnit(unit, other) {
+    if (!unit || !unit.lbAmbiguous || !other || sameDims(unit.d, other.d)) return unit;
+    // Swap every pound-force for a pound-mass: force = mass·m/s², factor 4.448…/0.4536 = g.
+    var alt = { f: unit.f, d: unit.d.slice(), lbAmbiguous: true };
+    // Try replacing lb force (kg·m/s²) by lb mass (kg) for up to 3 occurrences.
+    for (var n = 1; n <= 3; n++) {
+      var d = unit.d.slice();
+      d[1] -= n; d[2] += 2 * n;
+      if (sameDims(d, other.d)) {
+        return { f: unit.f / Math.pow(4.4482216152605 / 0.45359237, n), d: d };
+      }
+      d = unit.d.slice();
+      d[1] += n; d[2] -= 2 * n;
+      if (sameDims(d, other.d)) {
+        return { f: unit.f * Math.pow(4.4482216152605 / 0.45359237, n), d: d };
+      }
+    }
+    return alt;
+  }
+
+  /// SI value of `value` in `unit` (absolute temperatures included).
+  function toSI(value, unit) { return unit.temp !== undefined && unit.temp !== null ? value * unit.f + unit.temp : value * unit.f; }
+  function fromSI(value, unit) { return unit.temp !== undefined && unit.temp !== null ? (value - unit.temp) / unit.f : value / unit.f; }
+
+  var UNIT_VECTOR_PATTERN = /\\(?:mathbf|boldsymbol|bm|vec|hat|mathbfit|textbf)\s*\{\s*(?:\\(?:hat|mathbf|vec)\s*\{?\s*)?(\\imath|\\jmath|[ijk])\s*\}?\s*\}|\\(?:hat|vec)\s*(\\imath|\\jmath|[ijk])(?![A-Za-z])|\\(imath|jmath)(?![A-Za-z])/g;
+  var VECTOR_SYMBOLS = { i: 'q_{1}', j: 'q_{2}', k: 'q_{3}', '\\imath': 'q_{1}', '\\jmath': 'q_{2}', imath: 'q_{1}', jmath: 'q_{2}' };
+
+  function hasUnitVectors(latex) { UNIT_VECTOR_PATTERN.lastIndex = 0; return UNIT_VECTOR_PATTERN.test(String(latex)); }
+
+  /// Replaces unit vectors by the symbols ξ, η, ζ; with `bare`, lone letters i, j, k count too.
+  function markUnitVectors(latex, bare) {
+    var t = String(latex).replace(UNIT_VECTOR_PATTERN, function (all, a, b, c) {
+      var key = a || b || c;
+      return '{' + (VECTOR_SYMBOLS[key] || VECTOR_SYMBOLS[key.replace('\\', '')]) + '}';
+    });
+    if (bare) {
+      var out = '';
+      for (var p = 0; p < t.length; p++) {
+        var ch = t.charAt(p);
+        if ((ch === 'i' || ch === 'j' || ch === 'k') && !/[A-Za-z\\]/.test(t.charAt(p - 1) || '') && !/[A-Za-z]/.test(t.charAt(p + 1) || '')) {
+          // A command's trailing letter (\pi, \sqrt…) never gets here: the preceding character would be a letter.
+          out += '{' + VECTOR_SYMBOLS[ch] + '}';
+        } else {
+          out += ch;
+        }
+      }
+      t = out;
+    }
+    return t;
+  }
+
+  var TRAILING_UNIT_PATTERN = /((?:\\(?:text|mathrm|operatorname|textrm|mathit)\{(?:[^{}]|\{[^{}]*\})*\}|\\[dt]?frac\{[A-Za-z°µ\^\{\}\d\.\s\\·]*\}\{[A-Za-z°µ\^\{\}\d\.\s\\·]*\}|\\(?:cdot|mu|circ|degree|times)(?![A-Za-z])|\^\{?\\circ\}?|\^\{-?\d+\}|\^-?\d|[A-Za-zµ°·\/\.]|\\[,;: ]|~|\s)+)$/;
+
+  /// Splits a trailing unit (any spelling, typed or \text) from an answer. Only a tail that parses as a known
+  /// unit counts, trying the longest first; the rest must still be something (a number, a vector, a bracket).
+  function splitQuantity(latex) {
+    var text = String(latex == null ? '' : latex).trim();
+    var m = TRAILING_UNIT_PATTERN.exec(text);
+    if (!m) return { core: text, unit: null, unitText: null };
+    var tail = m[1];
+    var start = text.length - tail.length;
+    // Try successively shorter tails (so "2x\,\text{m}" keeps x): start at each token boundary.
+    for (var i = start; i < text.length; i++) {
+      var candidate = text.slice(i);
+      if (i > start && /^[A-Za-z]/.test(candidate) && /[A-Za-z]$/.test(text.charAt(i - 1))) continue;
+      if (/^\^/.test(candidate) && !/^\^\{?\\circ/.test(candidate)) continue;
+      var unit = parseUnit(candidate);
+      if (!unit) continue;
+      var core = text.slice(0, i).replace(/(?:\\[,;: ]|~|\s|\\cdot|\\times)+$/, '');
+      if (!core.length) continue;
+      return { core: core, unit: unit, unitText: plainUnitText(candidate) };
+    }
+    return { core: text, unit: null, unitText: null };
+  }
+
+  /// Numeric components of an answer core: a scalar → [v]; a tuple / angle-bracket list → [v1, v2, …]; a sum of
+  /// unit vectors → [x, y(, z)]. Null when it is not a plain numeric quantity.
+  function numericComponents(core, vectorMode) {
+    var marked = markUnitVectors(core, vectorMode);
+    var usesVectors = /q_\{[123]\}/.test(marked);
+    var expr;
+    try {
+      var cleaned = marked.replace(SPACING_PATTERN, ' ').replace(/\\langle/g, '(').replace(/\\rangle/g, ')');
+      expr = ce.parse(cleaned, { canonical: false }).canonical;
+      if (!expr.isValid) return null;
+    } catch (e) { return null; }
+    if (usesVectors) {
+      var zero = { q_1: 0, q_2: 0, q_3: 0 };
+      var constant = numericValue(expr, zero);
+      if (!constant || Math.abs(constant.re) > 1e-9 || Math.abs(constant.im) > 1e-9) return null;
+      var comps = [];
+      var names = ['q_1', 'q_2', 'q_3'];
+      for (var n = 0; n < 3; n++) {
+        var pt = { q_1: 0, q_2: 0, q_3: 0 };
+        pt[names[n]] = 1;
+        var v = numericValue(expr, pt);
+        if (!v || Math.abs(v.im) > 1e-9) return null;
+        comps.push(v.re);
+      }
+      var threeD = /q_\{3\}/.test(marked);
+      return { values: threeD ? comps : comps.slice(0, 2), vector: true, padded: !threeD };
+    }
+    var head = expr.operator;
+    var inner = expr;
+    if (head === 'Delimiter' && expr.ops.length === 1 && expr.ops[0] && ORDERED_HEADS[expr.ops[0].operator]) inner = expr.ops[0];
+    if (ORDERED_HEADS[inner.operator] && inner.operator !== 'Delimiter' || (head === 'Delimiter' && expr.ops.length > 1)) {
+      var elements = collectionElements(inner.operator === 'Delimiter' ? inner : inner);
+      if (head === 'Delimiter' && expr.ops.length > 1) elements = expr.ops;
+      var values = [];
+      for (var e = 0; e < elements.length; e++) {
+        var ev = numericValue(elements[e]);
+        if (!ev || Math.abs(ev.im) > 1e-9 * Math.max(1, Math.abs(ev.re))) return null;
+        values.push(ev.re);
+      }
+      return values.length ? { values: values, vector: values.length > 1 } : null;
+    }
+    if ((expr.freeVariables || []).length) return null;
+    var sv = numericValue(expr);
+    if (!sv || Math.abs(sv.im) > 1e-9 * Math.max(1, Math.abs(sv.re))) return null;
+    return { values: [sv.re], vector: false };
+  }
+
+  function engineeringTolerance(cond, expectedValue, scale) {
+    // A physical quantity with no stated tolerance: within 1 % (rounding in intermediate steps).
+    if (cond.significantFigures == null && cond.relativeTolerance == null && cond.tolerance == null && cond.roundingDecimals == null) {
+      cond = Object.assign({}, cond, { relativeTolerance: 0.01 });
+    }
+    var tol = 0;
+    if (cond.tolerance != null) tol = Math.max(tol, Math.abs(cond.tolerance));
+    else if (cond.roundingDecimals != null) tol = Math.max(tol, 0.5 * Math.pow(10, -cond.roundingDecimals));
+    var reference = Math.max(Math.abs(expectedValue), scale || 0);
+    if (cond.relativeTolerance != null) tol = Math.max(tol, Math.abs(cond.relativeTolerance) * reference);
+    if (cond.significantFigures != null && reference > 0) {
+      var figures = Math.max(1, Math.round(cond.significantFigures));
+      var place = Math.floor(Math.log10(reference)) - figures + 1;
+      tol = Math.max(tol, 0.5 * Math.pow(10, place) * 1.000001);
+    }
+    if (tol === 0) tol = 1e-9 * Math.max(1, reference);
+    return tol;
+  }
+
+  function formatQuantity(values, unitText) {
+    var body = values.length > 1 ? '\\left(' + values.map(formatNumber).join(', ') + '\\right)' : formatNumber(values[0]);
+    return unitText ? body + '\\,\\mathrm{' + unitText + '}' : body;
+  }
+
+  /// Whether an answer is graded as an engineering quantity: units, significant figures or a relative tolerance
+  /// are asked for, or a vector is written with unit vectors.
+  function wantsEngineering(request, cond) {
+    // Any part with units is a physical quantity: units convert, a bare number is in the stated unit, and units
+    // typed as plain letters ("168.1mg") are recognised.
+    if (cond.significantFigures != null || cond.relativeTolerance != null || normalizeUnit(cond.units)) return true;
+    var all = [request.expected].concat(request.alternatives || []);
+    for (var i = 0; i < all.length; i++) {
+      if (all[i] != null && (hasUnitVectors(all[i]) || splitQuantity(all[i]).unit)) return true;
+    }
+    if (hasUnitVectors(request.student)) return true;
+    return false;
+  }
+
+  /// Grades one expected answer as a physical quantity. Returns a verdict, or null when either side is not a plain
+  /// numeric quantity (the general grader takes over).
+  function gradeQuantity(studentLatex, expectedLatex, cond) {
+    var expectedSplit = splitQuantity(expectedLatex);
+    var expectedVectorish = hasUnitVectors(expectedSplit.core);
+    var expected = numericComponents(expectedSplit.core, expectedVectorish);
+    if (!expected) return null;
+    var vectorMode = expected.vector || expectedVectorish;
+    var studentSplit = splitQuantity(studentLatex);
+    var student = numericComponents(studentSplit.core, vectorMode);
+    if (!student) {
+      // A unit the splitter did not recognise, or a symbolic answer: let the general grader decide.
+      return null;
+    }
+    var required = cond.units ? parseUnit(cond.units) : null;
+    var expectedUnit = expectedSplit.unit || required;
+    var studentUnit = studentSplit.unit;
+    var out = { outcome: 'incorrect', message: MESSAGES.incorrect, canonicalStudent: formatQuantity(student.values, studentSplit.unitText),
+                canonicalExpected: formatQuantity(expected.values, expectedSplit.unitText || (cond.units ? plainUnitText(cond.units) : null)), failedConditions: [] };
+    // Units: convert the student's value into the expected unit; a bare number is already in it.
+    var factor = 1, shift = null;
+    if (studentUnit && expectedUnit) {
+      var s = resolveUnit(studentUnit, expectedUnit), e = resolveUnit(expectedUnit, studentUnit);
+      if (!sameDims(s.d, e.d)) {
+        out.message = MESSAGES.unitsDimension;
+        out.failedConditions = ['units'];
+        return out;
+      }
+      if (s.temp !== undefined && s.temp !== null && e.temp !== undefined && e.temp !== null && student.values.length === 1) {
+        shift = { s: s, e: e };
+      } else {
+        factor = s.f / e.f;
+      }
+    }
+    // Components: a 2-D unit-vector answer against a 3-D one has a zero k-component.
+    var sv = student.values.slice(), ev = expected.values.slice();
+    if (sv.length !== ev.length) {
+      if (student.padded && sv.length === 2 && ev.length === 3) sv.push(0);
+      else if (expected.padded && ev.length === 2 && sv.length === 3) ev.push(0);
+    }
+    if (sv.length !== ev.length) { out.message = MESSAGES.countMismatch; return out; }
+    var norm = 0;
+    for (var k = 0; k < ev.length; k++) norm += ev[k] * ev[k];
+    norm = Math.sqrt(norm);
+    for (var c = 0; c < ev.length; c++) {
+      var value = shift ? fromSI(toSI(sv[c], shift.s), shift.e) : sv[c] * factor;
+      var tol = engineeringTolerance(cond, ev[c], ev.length > 1 ? 0.05 * norm : 0);
+      if (!(Math.abs(value - ev[c]) <= tol)) return out;
+    }
+    out.outcome = 'correct';
+    out.message = MESSAGES.correct;
+    return out;
+  }
+
+  /// The engineering path for a whole request: the best verdict over the expected answer and its alternatives,
+  /// or null when no candidate is a plain numeric quantity.
+  function gradeEngineering(request, cond) {
+    if (!wantsEngineering(request, cond)) return null;
+    var candidates = [];
+    if (request.expected != null && String(request.expected).trim().length) candidates.push(request.expected);
+    (request.alternatives || []).forEach(function (a) { if (a != null && String(a).trim().length) candidates.push(a); });
+    var best = null;
+    for (var i = 0; i < candidates.length; i++) {
+      var v = gradeQuantity(request.student, candidates[i], cond);
+      if (!v) continue;
+      if (!best || OUTCOME_RANK[v.outcome] < OUTCOME_RANK[best.outcome]) best = v;
+      if (best.outcome === 'correct') break;
+    }
+    return best;
+  }
+
   var OUTCOME_RANK = { correct: 0, equivalentButConditionFailed: 1, incorrect: 2, needsTutor: 3, unparseable: 4 };
 
   function grade(request) {
     var cond = request.conditions || {};
+    // Physical quantities (units converted, engineering tolerance, i-j-k vectors) first; anything that is not a
+    // plain numeric quantity goes on to the general grader.
+    var engineering = gradeEngineering(request, cond);
+    if (engineering) return engineering;
     var student = parseAnswer(request.student, cond.units);
     if (!student.valid) {
       return { outcome: 'unparseable', message: MESSAGES.unparseable, canonicalStudent: null, canonicalExpected: null, failedConditions: [] };
@@ -1232,14 +1599,36 @@ var thubanMath = (function () {
     };
   }
 
+  // The free variables of an expression (constants such as e and pi excluded), or null when unknown.
+  function freeSymbols(expr) {
+    try {
+      var list = expr.unknowns || expr.freeVariables || null;
+      if (!list) return null;
+      return Array.prototype.slice.call(list).filter(function (n) { return n !== 'Pi' && n !== 'ExponentialE' && n !== 'ImaginaryUnit'; });
+    } catch (e) { return null; }
+  }
+
+  // A plot's formula in its own letters (p = f(V), T(t) = ...): the lone free variable plays x.
+  function asFunctionOfX(expr) {
+    var free = freeSymbols(expr);
+    if (!free || free.length !== 1 || free[0] === 'x' || free[0] === 'y') return expr;
+    try { var sub = {}; sub[free[0]] = ce.parse('x'); return expr.subs(sub); } catch (e) { return expr; }
+  }
+
   function evaluateAt(r) {
     var latex = String(r.latex);
     var eq = latex.indexOf('=');
     var explicit = true, expr, lhsExpr = null, rhsExpr = null;
     if (eq >= 0) {
       var lhs = latex.slice(0, eq).trim(), rhs = latex.slice(eq + 1).trim();
+      var rhsParsed = ce.parse(rhs);
+      var rhsFree = rhsParsed.isValid ? freeSymbols(rhsParsed) : null;
       if (/^(y|[a-zA-Z](\\left)?\(x(\\right)?\))$/.test(lhs)) {
-        expr = ce.parse(rhs);
+        expr = asFunctionOfX(rhsParsed);
+      } else if (/^[a-zA-Z](_\{?[a-zA-Z0-9]+\}?)?$/.test(lhs) && rhsFree && rhsFree.length === 1 && lhs.indexOf(rhsFree[0]) !== 0
+                 && rhsFree[0] !== 'y') {
+        // p = f(V): the left-hand letter is the vertical axis, the right-hand variable the horizontal one.
+        expr = asFunctionOfX(rhsParsed);
       } else {
         explicit = false;
         lhsExpr = ce.parse(lhs); rhsExpr = ce.parse(rhs);
@@ -1248,6 +1637,7 @@ var thubanMath = (function () {
       }
     } else {
       expr = ce.parse(latex);
+      if (expr.isValid) expr = asFunctionOfX(expr);
     }
     if (!expr.isValid) return { error: 'unparseable' };
     var values = [], scales = [];

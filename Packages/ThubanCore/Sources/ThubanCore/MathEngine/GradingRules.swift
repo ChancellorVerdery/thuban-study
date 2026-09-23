@@ -16,7 +16,13 @@ import Foundation
 ///    `exactForm`; with rounding allowed, agreement within `0.5·10^−decimals` (or `tolerance`) is accepted.
 /// 5. Conditions are checked only after equivalence: rationalizedDenominator, simplified, factored, expanded,
 ///    explicit / implicitAllowed, units, exactRadicals.
-/// 6. Messages never reveal the expected answer.
+/// 6. Engineering quantities (conditions with `significantFigures` or `relativeTolerance`, or vectors written with
+///    unit vectors i, j, k) are graded numerically first: a trailing unit in any spelling ("8.1kN", "\\text{lbf/in}^2",
+///    "\\frac{lbf}{in^2}", "19.9°") is converted to the part's unit (a bare number is taken to be in it; a unit of
+///    another kind is incorrect), i-j-k sums become component tuples, and each component is accepted within
+///    max(absolute tolerance, relativeTolerance·|expected|, half a unit in the last significant figure). Answers that
+///    are not plain numbers or vectors fall through to the general grader.
+/// 7. Messages never reveal the expected answer.
 public enum GradingRules {
     /// Random points sampled when comparing expressions numerically.
     public static let samplePoints = 12

@@ -10,6 +10,9 @@ public struct PDFParser: DocumentParser {
 
     /// Render scale relative to PDF points (2 ⇒ 144 dpi).
     public static let renderScale: CGFloat = 2
+    /// Pages rendered for the import agent (the first this many), at most this many pixels on the long side.
+    static let maxPageImages = 60
+    static let pageImageDimension = 1400
     /// Total figures kept per document; the rest are dropped with a warning.
     public static let maxFigures = 300
 
@@ -62,6 +65,9 @@ public struct PDFParser: DocumentParser {
         }
 
         guard let render else { return }
+        if number <= Self.maxPageImages, let png = ImageCodec.png(from: render.pageImage, maxDimension: Self.pageImageDimension) {
+            content.pageImages[number] = png
+        }
         var figures = render.figures
         if figures.isEmpty, isScanned { figures = [render.pageImage] }
         for image in figures {

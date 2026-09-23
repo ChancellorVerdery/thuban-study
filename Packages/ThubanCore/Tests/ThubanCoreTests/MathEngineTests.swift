@@ -107,8 +107,10 @@ final class MathEngineTests: XCTestCase {
 
         // Units
         Case(name: "3 \\text{ m} with units", student: "3 \\text{ m}", expected: "3 \\text{ m}", conditions: AnswerConditions(units: "m"), outcome: .correct),
-        Case(name: "missing units", student: "3", expected: "3", conditions: AnswerConditions(units: "m"), outcome: .equivalentButConditionFailed, failed: ["units"]),
-        Case(name: "wrong units", student: "3 \\text{ cm}", expected: "3", conditions: AnswerConditions(units: "m"), outcome: .equivalentButConditionFailed, failed: ["units"]),
+        // A bare number is in the unit the part asks for; another unit is converted (3 cm is not 3 m).
+        Case(name: "missing units", student: "3", expected: "3", conditions: AnswerConditions(units: "m"), outcome: .correct, failed: []),
+        Case(name: "wrong units", student: "3 \\text{ cm}", expected: "3", conditions: AnswerConditions(units: "m"), outcome: .incorrect, failed: []),
+        Case(name: "converted units", student: "300 \\text{ cm}", expected: "3", conditions: AnswerConditions(units: "m"), outcome: .correct, failed: []),
         Case(name: "\\mathrm units", student: "3\\,\\mathrm{m}", expected: "3", conditions: AnswerConditions(units: "m"), outcome: .correct),
         Case(name: "plain suffix units", student: "3 m", expected: "3", conditions: AnswerConditions(units: "m"), outcome: .correct),
 

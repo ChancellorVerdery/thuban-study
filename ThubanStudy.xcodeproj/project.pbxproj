@@ -17,6 +17,7 @@
 		13539FEC06DBA060389E9552 /* QuestionBankModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95708AF55B38145A7A43AE8 /* QuestionBankModel.swift */; };
 		1B423C14F82D7556EE5EA8FD /* QuestionPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03C536510FF925E2F87F43FD /* QuestionPane.swift */; };
 		1B718E7426BAC757689A811B /* GraphWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F119C01B449C902DF167CD7A /* GraphWebView.swift */; };
+		1D1E746E95217F26B496CB21 /* ImportHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04557EC482ADCDDE7624D15A /* ImportHarness.swift */; };
 		200ACCC663E1348C2BA273D6 /* StudyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEEEB0FFBDC1B6A9D80B320 /* StudyView.swift */; };
 		2604A79258DD0271E48FB0E2 /* NewClassSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15F03A03A4D361ACE53C61A3 /* NewClassSheet.swift */; };
 		33EBF0DC0EDC2D787F94C831 /* CalculatorPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF01898BFEC3AFE7B8E8CF3F /* CalculatorPanel.swift */; };
@@ -79,6 +80,7 @@
 
 /* Begin PBXFileReference section */
 		03C536510FF925E2F87F43FD /* QuestionPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionPane.swift; sourceTree = "<group>"; };
+		04557EC482ADCDDE7624D15A /* ImportHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportHarness.swift; sourceTree = "<group>"; };
 		0CDCE0B308500A55764F35AB /* ImportProgressSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportProgressSheet.swift; sourceTree = "<group>"; };
 		103ADF805FA9261CE62259F6 /* Buttons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		10D54CDF78E7A6F2E150EAB6 /* QuestionBankView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionBankView.swift; sourceTree = "<group>"; };
@@ -250,6 +252,7 @@
 				C463C7A24FD856196E75CCB0 /* ClassSession+Study.swift */,
 				ECB3AFA5D45551F433544E15 /* CommandBus.swift */,
 				D6130E36035D70355B9D2F14 /* FigureDump.swift */,
+				04557EC482ADCDDE7624D15A /* ImportHarness.swift */,
 				F917FE53C90B0E81BA94FB95 /* RegenerateHarness.swift */,
 				6E03B635E9538573BCC73AD9 /* SmokeHarness.swift */,
 				600754474895BA108F79E955 /* ThubanStudyApp.swift */,
@@ -471,6 +474,7 @@
 				1B718E7426BAC757689A811B /* GraphWebView.swift in Sources */,
 				D603C8EC0D33212CDDB4786C /* GrapherSettings.swift in Sources */,
 				78089632D161182381DB77AC /* Icon.swift in Sources */,
+				1D1E746E95217F26B496CB21 /* ImportHarness.swift in Sources */,
 				5DEDD52A79EB1C3F9730E9E3 /* ImportPipeline.swift in Sources */,
 				A083F0121ADB9912B36197A8 /* ImportProgressSheet.swift in Sources */,
 				6DD396B5F938A6CDF3265E01 /* ImportView.swift in Sources */,

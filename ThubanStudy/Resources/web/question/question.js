@@ -446,11 +446,19 @@
     }
   }
 
+  // ASCII-math separates adjacent single letters ("168.1m g" for 168.1mg, "k N" for kN); written together they
+  // mean the same product and read as the unit the student typed. Function names ("sin x") stay apart.
+  const ECHO_FUNCTIONS = new Set(['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'arcsin', 'arccos', 'arctan', 'sinh', 'cosh',
+    'tanh', 'ln', 'log', 'exp', 'sqrt', 'abs', 'lim', 'det', 'max', 'min']);
+  function joinLetters(ascii) {
+    return String(ascii).replace(/([A-Za-z]+) (?=[A-Za-z])/g, (match, word) => ECHO_FUNCTIONS.has(word) ? match : word);
+  }
+
   function refreshEcho(entry) {
     const mf = entry.field;
     let latex = '', ascii = '';
     try { latex = mf.getValue('latex'); ascii = mf.getValue('ascii-math'); } catch (_) { /* not mounted yet */ }
-    if (entry.echo) entry.echo.textContent = latex.trim() === '' ? '' : ascii;
+    if (entry.echo) entry.echo.textContent = latex.trim() === '' ? '' : joinLetters(ascii);
     if (entry.wrap) entry.wrap.dataset.empty = latex.trim() === '' ? 'true' : 'false';
   }
 

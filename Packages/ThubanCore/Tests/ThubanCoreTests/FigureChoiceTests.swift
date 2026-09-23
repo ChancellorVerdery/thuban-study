@@ -61,6 +61,26 @@ final class FigureChoiceTests: XCTestCase {
         XCTAssertEqual(merged.parts[0].answer.text, "Graph 1")
     }
 
+    func testTemplateMustReproduceTheOriginalAnswers() async {
+        let engine = MathEngine()
+        let template = MathTemplate(
+            params: [TemplateParam(name: "m", kind: .int(min: 100, max: 500), original: 350),
+                     TemplateParam(name: "g", kind: .real(min: 1, max: 10, decimals: 2), original: 3.73)],
+            stem: "Mass {m} kg, gravity {g} m/s^2.",
+            parts: [TemplatePart(id: "a", prompt: "Weight?", answerExpr: "m g", answerKind: .numeric)]
+        )
+        let right = [QuestionPart(id: "a", prompt: "Weight?", answerKind: .numeric, answer: AnswerSpec(latex: "1305.5"))]
+        let wrong = [QuestionPart(id: "a", prompt: "Weight?", answerKind: .numeric, answer: AnswerSpec(latex: "3433.5"))]
+        let checkedRight = await engine.checkOriginals(template, parts: right)
+        XCTAssertEqual(checkedRight, [])
+        let checkedWrong = await engine.checkOriginals(template, parts: wrong)
+        XCTAssertEqual(checkedWrong.count, 1)
+        var missing = template
+        missing.params[0].original = nil
+        let checkedMissing = await engine.checkOriginals(missing, parts: right)
+        XCTAssertTrue(checkedMissing.first?.contains("original") ?? false)
+    }
+
     func testPictureOptionsMustBeInTheExcerpt() throws {
         let draft = try JSONDecoder().decode(QuestionDraft.self, from: Data(agentJSON.utf8))
         let kept = ImportAgent.attachFigures(draft, chunk: ImportChunk(index: 0, text: "", pages: nil, figureIndices: [3, 4, 5]))

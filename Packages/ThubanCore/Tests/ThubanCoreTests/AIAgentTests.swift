@@ -463,6 +463,26 @@ final class AIAgentTests: XCTestCase {
         }
     }
 
+    func testImportAgentAsksOnceForQuestionsItLeftOut() async throws {
+        let transport = MockTransport([
+            .sse(SSE.toolUse(id: "c1", name: "classify_document", input: ["classification": "existingQuestions", "reasoning": "Numbered."])),
+            .sse(SSE.toolUse(id: "q1", name: "emit_questions", input: ["questions": [draftJSON(sourceRef: "Q1", seedNote: "ok", withTemplate: false)]])),
+            .sse(SSE.text("That is all for now.")),
+            .sse(SSE.toolUse(id: "q2", name: "emit_questions", input: ["questions": [draftJSON(sourceRef: "Q2", seedNote: "ok", withTemplate: false)]])),
+            .sse(SSE.text("DONE")),
+        ])
+        let agent = ImportAgent(client: .mock(transport), validator: { _ in [] }, checksCompleteness: true)
+        let result = try await agent.run(
+            document: sampleDocument, content: sampleContent, classContext: "",
+            policy: ModelPolicy(pinned: .sonnet), progress: { _ in }
+        )
+        XCTAssertEqual(result.questions.map(\.sourceRef), ["Q1", "Q2"])
+        let check = try transport.body(3)
+        let messages = try XCTUnwrap(check["messages"]?.arrayValue)
+        let note = messages.last?["content"]?.arrayValue?.compactMap { $0["text"]?.stringValue }.joined() ?? ""
+        XCTAssertTrue(note.contains("Recorded so far: Q1"), note)
+    }
+
     func testImportAgentAsksForSmallerBatchesWhenEmitIsCutOff() async throws {
         let cutOff = SSE.messageStart()
             + SSE.toolUseBlock(index: 0, id: "q1", name: "emit_questions", partials: [#"{"questions":[{"sourceRef":"Q1","stem":"Let $f"#])

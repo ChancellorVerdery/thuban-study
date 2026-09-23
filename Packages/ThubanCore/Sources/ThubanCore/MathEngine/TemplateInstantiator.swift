@@ -32,6 +32,37 @@ struct TemplateInstantiator {
         )
     }
 
+    /// The template's answers at its parameters' original values (`TemplateParam.original`), by part id; nil when
+    /// a numeric parameter has no original value.
+    func answersAtOriginals(_ template: MathTemplate) throws -> [String: String]? {
+        var values: [String: TemplateValue] = [:]
+        for param in template.params {
+            switch param.kind {
+            case .int:
+                guard let original = param.original else { return nil }
+                values[param.name] = original == original.rounded() ? .int(Int(original)) : .real(original, decimals: 6)
+            case .real(_, _, let decimals):
+                guard let original = param.original else { return nil }
+                values[param.name] = .real(original, decimals: max(decimals, Self.decimals(of: original)))
+            case .choice(let options):
+                guard let first = options.first else { return nil }
+                values[param.name] = .choice(first)
+            }
+        }
+        let parameters = values.mapValues(\.jsonValue)
+        var answers: [String: String] = [:]
+        for part in template.parts {
+            answers[part.id] = try instantiatePart(part, values: values, parameters: parameters).answerLatex
+        }
+        return answers
+    }
+
+    static func decimals(of value: Double) -> Int {
+        var decimals = 0, scaled = value
+        while decimals < 6, abs(scaled - scaled.rounded()) > 1e-9 { scaled *= 10; decimals += 1 }
+        return decimals
+    }
+
     private func satisfyingDraw(_ template: MathTemplate, rng: inout SeededRandom) throws -> [String: TemplateValue] {
         let constraints = template.constraints.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         for _ in 0..<Self.maxDraws {

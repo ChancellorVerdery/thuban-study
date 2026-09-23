@@ -199,7 +199,9 @@ final class ImportPipeline {
             update(document.id) { $0.phase = .generating; $0.detail = "Generating questions"; $0.model = model }
             let agent = ImportAgent(client: app.claudeClient, validator: { [engine = app.engine] template in
                 await engine.validate(template)
-            })
+            }, originalsCheck: { [engine = app.engine] template, parts in
+                await engine.checkOriginals(template, parts: parts)
+            }, checksCompleteness: true)
             let documentId = document.id
             // Progress events go through one stream so they are handled in the order the agent emitted them, and
             // are fully drained before the final status is written.

@@ -296,7 +296,9 @@ public enum ImportTools {
             "explicit": ["type": "boolean", "description": "Equation must be solved for the dependent variable."],
             "implicitAllowed": ["type": "boolean"],
             "exactRadicals": ["type": "boolean"],
-            "units": ["type": "string", "description": "Required unit text, e.g. \"m/s\"."],
+            "units": ["type": "string", "description": "The unit the answer is given in, as plain text: \"kN\", \"lbf/in^2\", \"ft·lbf/s\", \"N·m\", \"m^3/h\", \"°\". Students may answer in any convertible unit or with the bare number."],
+            "significantFigures": ["type": "integer", "description": "Engineering answers: the significant figures expected (usually 3)."],
+            "relativeTolerance": ["type": "number", "description": "Engineering answers: relative tolerance accepted, e.g. 0.01 for 1 %."],
             "custom": ["type": "array", "items": ["type": "string"], "description": "Requirements you could not map, as short student-facing text."],
         ],
     ]
@@ -346,6 +348,7 @@ public enum ImportTools {
                 "required": ["type"],
             ],
             "exclude": ["type": "array", "items": ["type": "number"], "description": "Values never drawn, e.g. [0]."],
+            "original": ["type": "number", "description": "The value in the original problem. Required for numeric params: the app checks that every answerExpr at these values reproduces the static answer."],
         ],
         "required": ["name", "kind"],
     ]
@@ -511,11 +514,16 @@ enum ImportChunker {
 /// validator with one repair turn before downgrading a question to static.
 public actor ImportAgent {
     public typealias TemplateValidator = @Sendable (MathTemplate) async -> [String]
+    /// Checks a template against its question's static parts (the app passes `MathEngine.checkOriginals`).
+    public typealias OriginalsCheck = @Sendable (MathTemplate, [QuestionPart]) async -> [String]
 
     public static let defaultToolRounds = 4
 
     private let client: ClaudeClient
     private let validator: TemplateValidator
+    private let originalsCheck: OriginalsCheck?
+    /// After an excerpt's questions are in, ask once whether any were left out (the app turns this on).
+    private let checksCompleteness: Bool
     private let chunkTokenBudget: Int
     private let maxTokens: Int
     private let maxToolRounds: Int
@@ -527,12 +535,16 @@ public actor ImportAgent {
     public init(
         client: ClaudeClient,
         validator: @escaping TemplateValidator,
+        originalsCheck: OriginalsCheck? = nil,
+        checksCompleteness: Bool = false,
         chunkTokenBudget: Int = 12_000,
         maxTokens: Int = 32_768,
         maxToolRounds: Int = ImportAgent.defaultToolRounds
     ) {
         self.client = client
         self.validator = validator
+        self.originalsCheck = originalsCheck
+        self.checksCompleteness = checksCompleteness
         self.chunkTokenBudget = chunkTokenBudget
         self.maxTokens = maxTokens
         self.maxToolRounds = max(1, maxToolRounds)
@@ -569,6 +581,10 @@ public actor ImportAgent {
         var drafts: [QuestionDraft] = []
         /// Types the class already has, in prompt order, plus the ones this run has created so far.
         var knownTypes: [String]
+        /// Each figure's image by extraction index, sent with the excerpt that shows it.
+        var images: [Int: Data] = [:]
+        /// PDFs: each page's render by page number, sent with the excerpt that covers it.
+        var pageImages: [Int: Data] = [:]
 
         mutating func noteTypes(of drafts: [QuestionDraft]) {
             for draft in drafts where !draft.type.isEmpty
@@ -593,6 +609,8 @@ public actor ImportAgent {
             warnings: content.warnings,
             knownTypes: existingTypes.map(Question.normalizedType).filter { !$0.isEmpty }
         )
+        state.images = Dictionary(content.figures.map { ($0.index, $0.pngData) }, uniquingKeysWith: { first, _ in first })
+        state.pageImages = content.pageImages
         let chunks = ImportChunker.chunks(content, tokenBudget: chunkTokenBudget)
         guard let first = chunks.first else {
             state.warnings.append("No readable text was found in \(document.filename).")
@@ -700,7 +718,8 @@ public actor ImportAgent {
     }
 
     private func generate(_ chunk: ImportChunk, system: String, state: inout RunState) async throws -> ChunkOutcome {
-        var messages: [ChatMessage] = [.user(Self.chunkPrompt(chunk, knownTypes: state.knownTypes, previous: state.drafts.last))]
+        var messages: [ChatMessage] = [.user(Self.chunkContent(Self.chunkPrompt(chunk, knownTypes: state.knownTypes, previous: state.drafts.last),
+                                                               chunk: chunk, images: state.images, pageImages: state.pageImages))]
         var drafts: [QuestionDraft] = []
         var nudged = false
         for _ in 0..<maxToolRounds {
@@ -711,11 +730,22 @@ public actor ImportAgent {
             state.usage += response.usage
             let calls = response.parts.compactMap(\.toolUseValue)
             let truncated = response.stopReason == "max_tokens"
+            if ProcessInfo.processInfo.environment["THUBAN_IMPORT_DEBUG"] != nil {
+                let text = response.parts.compactMap { part -> String? in if case .text(let t) = part { return t } else { return nil } }.joined()
+                FileHandle.standardError.write(Data("IMPORTDEBUG chunk \(chunk.index + 1): round stop=\(response.stopReason ?? "-") calls=\(calls.map(\.name)) text=\(text.prefix(300))\n".utf8))
+            }
             if calls.isEmpty, !truncated {
-                guard drafts.isEmpty, !nudged else { break }
+                guard !nudged, drafts.isEmpty || checksCompleteness else { break }
                 nudged = true
                 messages.append(.assistant(Self.assistantParts(response.parts)))
-                messages.append(.user("Call emit_questions now with the questions for this excerpt."))
+                if drafts.isEmpty {
+                    messages.append(.user("Call emit_questions now with the questions for this excerpt."))
+                } else {
+                    // One completeness pass: questions are easily left out when they are emitted in batches.
+                    messages.append(.user("Recorded so far: \(drafts.map { $0.sourceRef ?? String($0.stem.prefix(40)) }.joined(separator: "; ")). "
+                        + "Check the excerpt (its text and images) against that list: if any question, problem or part is missing, "
+                        + "call emit_questions with only the missing ones. Otherwise reply with the single word DONE."))
+                }
                 continue
             }
             messages.append(.assistant(Self.assistantParts(response.parts)))
@@ -725,6 +755,10 @@ public actor ImportAgent {
                 case ImportTools.emitName:
                     let decoded = Self.decodeDrafts(call.input)
                     drafts.append(contentsOf: decoded.drafts)
+                    if ProcessInfo.processInfo.environment["THUBAN_IMPORT_DEBUG"] != nil {
+                        let line = "IMPORTDEBUG chunk \(chunk.index + 1): emit \(call.input["questions"]?.arrayValue?.count ?? -1) → \(decoded.drafts.map { $0.sourceRef ?? "?" }) errors \(decoded.errors) stop \(response.stopReason ?? "-")\n"
+                        FileHandle.standardError.write(Data(line.utf8))
+                    }
                     results.append(Self.emitResult(call.id, decoded))
                 case ImportTools.escalateName:
                     let reason = call.input["reason"]?.stringValue ?? "The model asked for a stronger model."
@@ -773,7 +807,9 @@ public actor ImportAgent {
         var failing: [(index: Int, errors: [String])] = []
         for (index, draft) in drafts.enumerated() {
             guard let template = draft.template else { continue }
-            let errors = await validator(template)
+            var errors = await validator(template)
+            // A template must reproduce the question it was written for.
+            if errors.isEmpty, let originalsCheck { errors = await originalsCheck(template, draft.parts) }
             if !errors.isEmpty { failing.append((index, errors)) }
         }
         guard !failing.isEmpty else { return out }
@@ -854,7 +890,9 @@ public actor ImportAgent {
         guard let template = candidate.template else {
             return candidate.kind == .mathTemplate ? nil : candidate
         }
-        return await validator(template).isEmpty ? candidate : nil
+        guard await validator(template).isEmpty else { return nil }
+        if let originalsCheck, !(await originalsCheck(template, candidate.parts)).isEmpty { return nil }
+        return candidate
     }
 
     // MARK: Assembly
@@ -911,6 +949,41 @@ public actor ImportAgent {
                 + "options (numbering continued) and their [figure N]s.\n\n"
         }
         return prompt + "\(header):\n\n\(chunk.text)"
+    }
+
+    /// Most images sent with one excerpt (the rest are named only by their markers).
+    static let maxImagesPerChunk = 20
+
+    /// The excerpt's text followed by its figures' images, each labelled with its marker: problem statements,
+    /// given values and dimensions are often only in an image (a pasted textbook problem, a labelled diagram).
+    static func chunkContent(_ prompt: String, chunk: ImportChunk, images: [Int: Data], pageImages: [Int: Data] = [:]) -> [ContentPart] {
+        var parts: [ContentPart] = [.text(prompt)]
+        // The pages themselves first: tables keep their columns (empty cells included) and drawn equations their
+        // layout, which the text layer above loses.
+        var budget = maxImagesPerChunk
+        if let pages = chunk.pages {
+            let rendered = pages.filter { pageImages[$0] != nil }.prefix(budget / 2 + 2)
+            if !rendered.isEmpty {
+                parts.append(.text("The excerpt's pages as rendered (trust these over the extracted text for tables, empty table cells, equations and layout):"))
+                for page in rendered {
+                    parts.append(.text("[page \(page)]"))
+                    parts.append(.image(mediaType: "image/png", base64: pageImages[page]!.base64EncodedString()))
+                }
+                budget -= rendered.count
+            }
+        }
+        let shown = chunk.figureIndices.filter { images[$0] != nil }.prefix(max(0, budget))
+        guard !shown.isEmpty else { return parts }
+        parts.append(.text("The images in this excerpt, in order. Read problem statements, given values, dimensions and angles from them."))
+        for index in shown {
+            guard let png = images[index] else { continue }
+            parts.append(.text("[figure \(index)]"))
+            parts.append(.image(mediaType: "image/png", base64: png.base64EncodedString()))
+        }
+        if chunk.figureIndices.count > shown.count {
+            parts.append(.text("(\(chunk.figureIndices.count - shown.count) more images in this excerpt are not shown; use their markers and nearby text.)"))
+        }
+        return parts
     }
 
     /// Keeps figure references that occur in the chunk (the agent sometimes cites indices from elsewhere).
