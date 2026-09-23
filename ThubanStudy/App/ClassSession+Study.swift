@@ -14,6 +14,8 @@ final class StudyState {
     /// The answer form, the transcript and (lazily) the grapher and calculator — one controller per pane.
     let form = QuestionFormWebView.Controller()
     let chat = ChatWebView.Controller()
+    /// The tutor composer (text with inline math).
+    let composer = ComposerWebView.Controller()
     private(set) var graph: GraphWebView.Controller?
     private(set) var calculator: CalculatorWebView.Controller?
 
@@ -473,6 +475,7 @@ extension ClassSession {
                 state.chat.setTranscript(self.transcript)
                 if state.tutorError != nil, state.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     state.composerText = trimmed
+                    state.composer.setText(trimmed)
                 }
             }
         }

@@ -74,6 +74,7 @@
 		EA3622FC5EC48AF3ED58F529 /* ThubanStudyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 600754474895BA108F79E955 /* ThubanStudyApp.swift */; };
 		EAD15F7EFB6E8147FD3C2C58 /* ClaudeAccountSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89F27B8A832C0FC7E38E208F /* ClaudeAccountSettings.swift */; };
 		F75F107537F9CCA0CBB5226F /* ChoiceFigureImages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1D19F12B0561B08ED2F0C2 /* ChoiceFigureImages.swift */; };
+		F9A14A3C468A9727689D425A /* ComposerWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C86B038854C562FFF2118E74 /* ComposerWebView.swift */; };
 		FDE734AB1F0C9DFC4F503B88 /* ShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDC77D0C277A82BB684D9ADE /* ShellView.swift */; };
 		FE73EDBDCC5EB80ACA628607 /* StudyFilterMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2BEF609EF1C5BF3CA312DF9 /* StudyFilterMenu.swift */; };
 /* End PBXBuildFile section */
@@ -133,6 +134,7 @@
 		C463C7A24FD856196E75CCB0 /* ClassSession+Study.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ClassSession+Study.swift"; sourceTree = "<group>"; };
 		C57D930C066D04D1B08182F2 /* ThubanSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThubanSchemeHandler.swift; sourceTree = "<group>"; };
 		C6018324F1F6BF47F9E04CC8 /* Chip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chip.swift; sourceTree = "<group>"; };
+		C86B038854C562FFF2118E74 /* ComposerWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposerWebView.swift; sourceTree = "<group>"; };
 		CB0E7785B11EF0A5DC15E9CD /* AboutSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutSettings.swift; sourceTree = "<group>"; };
 		CC57D74813573353742F38B9 /* ImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportView.swift; sourceTree = "<group>"; };
 		D1CEB9ACB1D91668E88A25DC /* EmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyState.swift; sourceTree = "<group>"; };
@@ -231,6 +233,7 @@
 				792DD5DF1A29C472185321F8 /* CalculatorWebView.swift */,
 				7900075AD4A03B3228B2EF7D /* ChartRenderer.swift */,
 				778E2B04690D737EF33E3A47 /* ChatWebView.swift */,
+				C86B038854C562FFF2118E74 /* ComposerWebView.swift */,
 				F119C01B449C902DF167CD7A /* GraphWebView.swift */,
 				2BC5BBCEB0C00BC5DD7BF2A4 /* QuestionFormWebView.swift */,
 				C57D930C066D04D1B08182F2 /* ThubanSchemeHandler.swift */,
@@ -461,6 +464,7 @@
 				70CA6676D30B924DA53E159F /* ClassSession.swift in Sources */,
 				EAD15F7EFB6E8147FD3C2C58 /* ClaudeAccountSettings.swift in Sources */,
 				9ACF11AEFE1A4D0A1D72EB1B /* CommandBus.swift in Sources */,
+				F9A14A3C468A9727689D425A /* ComposerWebView.swift in Sources */,
 				D91612C56563A4C9A6CC4437 /* ConnectClaudeSheet.swift in Sources */,
 				C14FCDF02B8D76B26F1972FE /* CustomSchemeSheet.swift in Sources */,
 				C205839B56E041CD0CE3B4C6 /* DataSettings.swift in Sources */,

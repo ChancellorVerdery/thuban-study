@@ -415,6 +415,8 @@ struct ImportChunk: Sendable, Equatable {
 /// Splits `DocumentContent` into chunks of roughly `tokenBudget` tokens (estimated at 3.5 characters per token).
 enum ImportChunker {
     static let charactersPerToken = 3.5
+    /// See `Builder.maxPages`.
+    static let maxPagesPerChunk = 4
 
     static func chunks(_ content: DocumentContent, tokenBudget: Int) -> [ImportChunk] {
         let figures = Dictionary(content.figures.map { ($0.index, $0) }, uniquingKeysWith: { first, _ in first })
@@ -454,9 +456,17 @@ enum ImportChunker {
         /// A `[page N]` marker waiting for the next content piece, so it lands in the same chunk as that content.
         private var pendingMarker: String?
 
-        init(budget: Int) { self.budget = budget }
+        /// Most pages one excerpt spans: slide decks and scanned problem sets carry their problems in images, and
+        /// the agent works every answer out, so a few pages per call keeps each reply within its output limit.
+        let maxPages: Int
+
+        init(budget: Int, maxPages: Int = ImportChunker.maxPagesPerChunk) {
+            self.budget = budget
+            self.maxPages = max(1, maxPages)
+        }
 
         mutating func markPage(_ number: Int) {
+            if let pages, number - pages.lowerBound >= maxPages { close() }
             pendingMarker = "[page \(number)]"
         }
 

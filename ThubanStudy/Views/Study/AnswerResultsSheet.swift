@@ -107,6 +107,8 @@ struct AnswerResultsSheet: View {
         if !row.verdict.message.isEmpty { message += " and the check said: \"\(row.verdict.message)\"" }
         message += "."
         session.studyState.composerText = message
+        session.studyState.composer.setText(message)
+        session.studyState.composer.focus()
         dismiss()
     }
 }

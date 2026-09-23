@@ -153,7 +153,6 @@ struct TutorComposer: View {
     @Bindable var session: ClassSession
 
     @State private var confirmingSolution = false
-    @FocusState private var editorFocused: Bool
 
     private var state: StudyState { session.studyState }
     private var canSend: Bool {
@@ -164,35 +163,28 @@ struct TutorComposer: View {
         @Bindable var state = state
         VStack(alignment: .leading, spacing: 8.z) {
             HStack(alignment: .bottom, spacing: 8.z) {
-                ZStack(alignment: .topLeading) {
-                    if state.composerText.isEmpty {
-                        Text("Ask the tutor…")
-                            .font(ThubanFont.body(14))
-                            .foregroundStyle(theme.inkFaintColor)
-                            .padding(.horizontal, 10.z)
-                            .padding(.vertical, 8.z)
-                            .allowsHitTesting(false)
+                // Text with inline, rendered math: "$" (or the √x button) starts a formula.
+                HStack(alignment: .bottom, spacing: 0) {
+                    ComposerWebView(controller: state.composer)
+                        .frame(height: min(max(state.composer.contentHeight, 38), 110) * AppZoom.shared.scale)
+                    Button {
+                        state.composer.insertMath()
+                    } label: {
+                        Text("√x")
+                            .font(.system(size: 13.z, weight: .semibold, design: .serif))
+                            .foregroundStyle(theme.inkDimColor)
+                            .frame(width: 28.z, height: 28.z)
                     }
-                    TextEditor(text: $state.composerText)
-                        .font(ThubanFont.body(14))
-                        .foregroundStyle(theme.inkColor)
-                        .scrollContentBackground(.hidden)
-                        .padding(.horizontal, 6.z)
-                        .padding(.vertical, 4.z)
-                        .frame(minHeight: 40.z, maxHeight: 120.z)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .focused($editorFocused)
-                        .onKeyPress(.return, phases: .down) { press in
-                            if press.modifiers.contains(.shift) { return .ignored }
-                            if canSend { send() }
-                            return .handled
-                        }
-                        .accessibilityLabel("Message to the tutor")
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 4.z)
+                    .padding(.bottom, 5.z)
+                    .help("Insert math (or type $)")
+                    .accessibilityLabel("Insert math")
                 }
                 .background(theme.bgColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous)
-                        .strokeBorder(editorFocused ? theme.accentColor : theme.line2Color, lineWidth: ThubanMetrics.hairline)
+                        .strokeBorder(theme.line2Color, lineWidth: ThubanMetrics.hairline)
                 )
 
                 if session.isTutorStreaming {
@@ -219,6 +211,22 @@ struct TutorComposer: View {
             footer
         }
         .padding(12.z)
+        .onAppear { wireComposer() }
+    }
+
+    private func wireComposer() {
+        let state = state
+        state.composer.onInput = { text in
+            if state.composerText != text { state.composerText = text }
+        }
+        state.composer.onSubmit = { text in
+            state.composerText = text
+            if canSend { send() }
+        }
+        state.composer.onReady = {
+            // A draft kept across a reload of the page (or typed before it was ready).
+            if !state.composerText.isEmpty { state.composer.setText(state.composerText) }
+        }
     }
 
     /// The footer degrades in three steps as the pane narrows (320 pt when the graph shares the window):
@@ -295,6 +303,7 @@ struct TutorComposer: View {
     private func send() {
         let text = state.composerText
         state.composerText = ""
+        state.composer.clear()
         session.sendToTutor(text, solutionRequested: false)
     }
 
@@ -302,6 +311,7 @@ struct TutorComposer: View {
         var text = state.composerText.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty { text = "Please give me the complete solution for this question." }
         state.composerText = ""
+        state.composer.clear()
         session.sendToTutor(text, solutionRequested: true)
     }
 }

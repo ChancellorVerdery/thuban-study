@@ -285,6 +285,13 @@ enum SmokeHarness {
             let window = try await waitForMainWindow()
             window.makeKeyAndOrderFront(nil)
             await waitUntil(timeout: 8) { !session.questions.isEmpty && session.studyState.form.bridge.isReady }
+            // THUBAN_SMOKE_COMPOSER: a draft (with $…$ math) in the tutor composer, captured.
+            if let draft = ProcessInfo.processInfo.environment["THUBAN_SMOKE_COMPOSER"], !draft.isEmpty {
+                session.studyState.composerText = draft
+                session.studyState.composer.setText(draft)
+                await sleep(3)
+                _ = try await capture(window: window, name: "composer", in: directory)
+            }
             // THUBAN_SMOKE_STUDY_TYPE: study only this type (the Filter dropdown), then capture the first question.
             if let type = ProcessInfo.processInfo.environment["THUBAN_SMOKE_STUDY_TYPE"], !type.isEmpty {
                 await session.setStudyFilter(QuestionFilter(types: [type]))
