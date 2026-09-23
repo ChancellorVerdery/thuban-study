@@ -919,7 +919,8 @@ public enum GraphReader {
                 if b - a > 2 { runs += 1; runLength = 1 } else { runLength += b - a; longest = max(longest, runLength) }
             }
             let coverage = Double(rows.count) / Double(max(1, columns))
-            var curve = GraphReading.Curve(color: name, rows: rows, pixelCount: total, points: polyline(rows, reading: reading))
+            let hue = Double(group[0]) * 30 + 15
+            var curve = GraphReading.Curve(color: name, rows: rows, pixelCount: total, points: polyline(rows, reading: reading, bitmap: bitmap, hue: hue))
             curve.dashed = coverage < 0.85 && runs >= 4 && Double(longest) < 0.25 * Double(columns)
             curves.append(curve)
         }
@@ -928,7 +929,7 @@ public enum GraphReader {
 
     /// A left-to-right polyline through the pixels: one point per column at the median row, two where the run
     /// is tall (a steep part or an asymptote), thinned to about 80 points.
-    static func polyline(_ rows: [Int: [Int]], reading: GraphReading) -> [[Double]] {
+    static func polyline(_ rows: [Int: [Int]], reading: GraphReading, bitmap: Bitmap? = nil, hue: Double? = nil) -> [[Double]] {
         let columns = rows.keys.sorted()
         guard !columns.isEmpty else { return [] }
         // Flat stretches: one point per column at the middle of the ink. Steep stretches (runs of columns where
@@ -941,7 +942,11 @@ public enum GraphReader {
             let column = columns[index]
             if !isTall(column) {
                 let list = rows[column]!
-                pixels.append((Double(column), Double(list[list.count / 2])))
+                var centre = Double(list[list.count / 2])
+                if let bitmap, let hue, let weighted = weightedCentre(bitmap, hue: hue, fixed: column, from: list.first! - 2, to: list.last! + 2, alongRows: true) {
+                    centre = weighted
+                }
+                pixels.append((Double(column), centre))
                 index += 1
                 continue
             }
@@ -962,11 +967,16 @@ public enum GraphReader {
                 descending = Double(top.reduce(0, +)) / Double(top.count) > Double(bottom.reduce(0, +)) / Double(bottom.count)
             }
             for r in (descending ? orderedRows.reversed() : orderedRows) {
-                let list = byRow[r]!
-                pixels.append((Double(list.reduce(0, +)) / Double(list.count), Double(r)))
+                let list = byRow[r]!.sorted()
+                var centre = Double(list.reduce(0, +)) / Double(list.count)
+                if let bitmap, let hue, let weighted = weightedCentre(bitmap, hue: hue, fixed: r, from: list.first! - 2, to: list.last! + 2, alongRows: false) {
+                    centre = weighted
+                }
+                pixels.append((centre, Double(r)))
             }
             index = end + 1
         }
+        pixels = smoothStroke(pixels)
         // Thin by distance along the stroke (about every 2.5 px), keeping both ends.
         var kept: [(Double, Double)] = []
         for point in pixels {
@@ -981,6 +991,59 @@ public enum GraphReader {
     }
 
     static func round4(_ value: Double) -> Double { (value * 10_000).rounded() / 10_000 }
+
+    /// The anti-aliased centre of a stroke across one column (or row): pixels weighted by how strongly they carry
+    /// the curve's own hue, so an overlapping line of another colour (a red asymptote under a blue curve) cannot
+    /// pull the centre. Nil when nothing of the hue is there.
+    static func weightedCentre(_ bitmap: Bitmap, hue: Double, fixed: Int, from: Int, to: Int, alongRows: Bool) -> Double? {
+        var weight = 0.0, sum = 0.0
+        let limit = alongRows ? bitmap.height : bitmap.width
+        for position in max(0, from)...min(limit - 1, max(from, to)) {
+            let (column, row) = alongRows ? (fixed, position) : (position, fixed)
+            guard column >= 0, column < bitmap.width, row >= 0, row < bitmap.height else { continue }
+            let p = bitmap.rgb(column, row)
+            let hi = max(p.r, p.g, p.b), lo = min(p.r, p.g, p.b)
+            let chroma = Double(hi - lo)
+            guard chroma > 12 else { continue }
+            let d = Double(hi - lo)
+            var h: Double
+            if hi == p.r { h = 60 * (Double(p.g - p.b) / d) }
+            else if hi == p.g { h = 60 * (2 + Double(p.b - p.r) / d) }
+            else { h = 60 * (4 + Double(p.r - p.g) / d) }
+            if h < 0 { h += 360 }
+            var gap = abs(h - hue); gap = min(gap, 360 - gap)
+            guard gap <= 40 else { continue }
+            let w = chroma * (1 - gap / 60)
+            weight += w
+            sum += w * Double(position)
+        }
+        return weight > 0 ? sum / weight : nil
+    }
+
+    /// Removes pixel quantisation and stray jumps from a traced stroke: a running median (outliers such as a
+    /// row where another colour crossed), then a Gaussian average along the stroke. Ends stay where they are.
+    static func smoothStroke(_ points: [(Double, Double)]) -> [(Double, Double)] {
+        let n = points.count
+        guard n >= 7 else { return points }
+        func median(_ values: [Double]) -> Double { let s = values.sorted(); return s[s.count / 2] }
+        var filtered = points
+        for i in 2..<(n - 2) {
+            filtered[i] = (median((i - 2...i + 2).map { points[$0].0 }), median((i - 2...i + 2).map { points[$0].1 }))
+        }
+        let sigma = 2.5, reach = 7
+        var smoothed = filtered
+        for i in 1..<(n - 1) {
+            // Symmetric window, shrinking towards the ends so the endpoints are not dragged inwards.
+            let k = min(reach, i, n - 1 - i)
+            var wx = 0.0, sx = 0.0, sy = 0.0
+            for j in (i - k)...(i + k) {
+                let w = exp(-Double((j - i) * (j - i)) / (2 * sigma * sigma))
+                wx += w; sx += w * filtered[j].0; sy += w * filtered[j].1
+            }
+            smoothed[i] = (sx / wx, sy / wx)
+        }
+        return smoothed
+    }
 
     // MARK: - Matching
 
@@ -1062,12 +1125,19 @@ public enum GraphReader {
     static func recognizeLabels(in image: CGImage, region: CGRect) async throws -> [Label] {
         guard let cropped = image.cropping(to: region) else { return [] }
         let factor = max(1, min(4, 1200 / max(cropped.width, cropped.height)))
+        // Small crops sit on a white margin (a glyph touching the crop's edge is often not recognised).
+        let margin = cropped.width <= 60 && cropped.height <= 60 ? 12 * factor : 0
         let target: CGImage = {
-            guard factor > 1, let context = ImageCodec.rgbaContext(width: cropped.width * factor, height: cropped.height * factor) else { return cropped }
+            guard factor > 1 || margin > 0,
+                  let context = ImageCodec.rgbaContext(width: cropped.width * factor + 2 * margin, height: cropped.height * factor + 2 * margin) else { return cropped }
             context.interpolationQuality = .high
-            context.draw(cropped, in: CGRect(x: 0, y: 0, width: cropped.width * factor, height: cropped.height * factor))
+            context.draw(cropped, in: CGRect(x: margin, y: margin, width: cropped.width * factor, height: cropped.height * factor))
             return context.makeImage() ?? cropped
         }()
+        // Vision's box is relative to the padded image; map it back to the crop.
+        let paddedWidth = Double(cropped.width * factor + 2 * margin), paddedHeight = Double(cropped.height * factor + 2 * margin)
+        let marginX = Double(margin) / paddedWidth, marginY = Double(margin) / paddedHeight
+        let innerX = Double(cropped.width * factor) / paddedWidth, innerY = Double(cropped.height * factor) / paddedHeight
         let width = Double(cropped.width), height = Double(cropped.height)
         let small = cropped.width <= 60 && cropped.height <= 60
         return try await ParserSupport.offloaded {
@@ -1082,7 +1152,9 @@ public enum GraphReader {
                 var labels: [Label] = []
                 for observation in request.results ?? [] {
                     guard let candidate = observation.topCandidates(1).first else { continue }
-                    let box = observation.boundingBox
+                    let padded = observation.boundingBox
+                    let box = CGRect(x: (padded.minX - marginX) / innerX, y: (padded.minY - marginY) / innerY,
+                                     width: padded.width / innerX, height: padded.height / innerY)
                     let raw = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
                     // The digits' centre, not the text box's: a leading minus sign would pull a label left of its tick.
                     var midX = box.midX

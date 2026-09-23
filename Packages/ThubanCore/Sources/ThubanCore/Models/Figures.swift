@@ -129,6 +129,10 @@ public struct StandardChart: Codable, Sendable, Equatable {
     /// stated slope (it did not match the picture, or could not be evaluated).
     public var fieldSamples: [[Double]]?
     public var fieldFromPicture: Bool?
+    /// `chartType` "phaseLine": the phase line as the picture draws it.
+    public var phaseLine: PhaseLine?
+
+    public var isPhaseLine: Bool { chartType == "phaseLine" && phaseLine != nil }
 
     public var isSlopeField: Bool { chartType == "slopeField" }
     public var isStated: Bool { provenance == Self.stated }
@@ -189,7 +193,7 @@ public struct StandardChart: Codable, Sendable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case chartType, xLabel, yLabel, series, xRange, yRange, confidence, slope, arrows, xStep, yStep, fieldColumns, fieldRows, notes
         case provenance, definition, checks, verification, xTicks, yTicks, candidates
-        case xAxisLabels, yAxisLabels, fieldSamples, fieldFromPicture
+        case xAxisLabels, yAxisLabels, fieldSamples, fieldFromPicture, phaseLine
     }
 
     public init(from decoder: Decoder) throws {
@@ -219,6 +223,7 @@ public struct StandardChart: Codable, Sendable, Equatable {
         yAxisLabels = try c.decodeIfPresent([ChartTick].self, forKey: .yAxisLabels)
         fieldSamples = try c.decodeIfPresent([[Double]].self, forKey: .fieldSamples)
         fieldFromPicture = try c.decodeIfPresent(Bool.self, forKey: .fieldFromPicture)
+        phaseLine = try c.decodeIfPresent(PhaseLine.self, forKey: .phaseLine)
     }
 }
 

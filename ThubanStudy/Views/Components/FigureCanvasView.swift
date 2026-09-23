@@ -13,7 +13,11 @@ struct FigureCanvasView: View {
     var body: some View {
         ZStack {
             theme.panelColor
-            if let scene = FigureCache.cachedScene(for: chart) ?? scene {
+            if let phase = chart.phaseLine, chart.isPhaseLine {
+                Canvas(opaque: false, rendersAsynchronously: true) { context, size in
+                    PhaseLineRenderer(phase: phase, theme: theme).draw(in: &context, size: size)
+                }
+            } else if let scene = FigureCache.cachedScene(for: chart) ?? scene {
                 Canvas(opaque: false, rendersAsynchronously: true) { context, size in
                     FigureCanvasRenderer(scene: scene, theme: theme).draw(in: &context, size: size)
                 }
@@ -84,7 +88,7 @@ struct FigureCanvasRenderer {
         var axes = Path()
         if window.y.contains(0) { axes.move(to: CGPoint(x: 0, y: py(0))); axes.addLine(to: CGPoint(x: size.width, y: py(0))) }
         if window.x.contains(0) { axes.move(to: CGPoint(x: px(0), y: 0)); axes.addLine(to: CGPoint(x: px(0), y: size.height)) }
-        context.stroke(axes, with: .color(ink), lineWidth: 1.2)
+        context.stroke(axes, with: .color(ink), lineWidth: 1.8)
 
         // The field under the curves.
         if scene.hasField {
@@ -106,16 +110,16 @@ struct FigureCanvasRenderer {
                 if scene.arrowheads {
                     // A head a draughtsman would draw: 45 % of the half-length long, as wide as it is long, never
                     // smaller than a few pixels so it stays readable in a dense field.
-                    let headLength = max(4, half * 0.55)
+                    let headLength = max(6, half * 0.55)
                     let base = CGPoint(x: tip.x - dx * headLength, y: tip.y - dy * headLength)
-                    let w = max(2.4, headLength * 0.5)
+                    let w = max(3.6, headLength * 0.5)
                     heads.move(to: tip)
                     heads.addLine(to: CGPoint(x: base.x - dy * w, y: base.y + dx * w))
                     heads.addLine(to: CGPoint(x: base.x + dy * w, y: base.y - dx * w))
                     heads.closeSubpath()
                 }
             }
-            context.stroke(segments, with: .color(field), style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
+            context.stroke(segments, with: .color(field), style: StrokeStyle(lineWidth: 2.1, lineCap: .round))
             context.fill(heads, with: .color(field))
         }
 
@@ -132,12 +136,12 @@ struct FigureCanvasRenderer {
                     path.move(to: point(piece[0]))
                     for p in piece.dropFirst() { path.addLine(to: point(p)) }
                 }
-                let dash: [CGFloat] = mark.style == .dashed ? [8, 5] : mark.style == .dotted ? [1.5, 4] : []
-                context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round, dash: dash))
+                let dash: [CGFloat] = mark.style == .dashed ? [12, 7.5] : mark.style == .dotted ? [2.25, 6] : []
+                context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 3.75, lineCap: .round, lineJoin: .round, dash: dash))
             case .dots:
                 for p in mark.pieces.flatMap({ $0 }) {
                     let c = point(p)
-                    context.fill(Path(ellipseIn: CGRect(x: c.x - 3.5, y: c.y - 3.5, width: 7, height: 7)), with: .color(color))
+                    context.fill(Path(ellipseIn: CGRect(x: c.x - 5.25, y: c.y - 5.25, width: 10.5, height: 10.5)), with: .color(color))
                 }
             case .bars:
                 for p in mark.pieces.flatMap({ $0 }) {
@@ -145,7 +149,7 @@ struct FigureCanvasRenderer {
                     let top = min(py(p[1]), py(0)), bottom = max(py(p[1]), py(0))
                     let rect = CGRect(x: left, y: top, width: right - left, height: bottom - top)
                     context.fill(Path(rect), with: .color(color.opacity(0.55)))
-                    context.stroke(Path(rect), with: .color(color), lineWidth: 1)
+                    context.stroke(Path(rect), with: .color(color), lineWidth: 1.5)
                 }
             }
         }
@@ -161,7 +165,8 @@ struct FigureCanvasRenderer {
         let xTicks: [ChartTick] = scene.xTickLabels ?? FigureScene.ticks(in: window.x, step: scene.xStep)
             .filter { abs($0) > scene.xStep * 1e-6 }.map { ChartTick(value: $0, text: ChartGeometry.number($0).replacingOccurrences(of: "-", with: "−")) }
         var lastX = -CGFloat.infinity
-        for tick in xTicks.sorted(by: { $0.value < $1.value }) where window.x.contains(tick.value) {
+        let xSlack = (window.x.upperBound - window.x.lowerBound) * 0.02, ySlack = (window.y.upperBound - window.y.lowerBound) * 0.02
+        for tick in xTicks.sorted(by: { $0.value < $1.value }) where tick.value >= window.x.lowerBound - xSlack && tick.value <= window.x.upperBound + xSlack {
             // A label at the very edge is kept, nudged inside the frame; crowded labels are thinned.
             let at = min(max(px(tick.value), 10), size.width - 10)
             guard at - lastX >= 26 else { continue }
@@ -172,7 +177,7 @@ struct FigureCanvasRenderer {
         let yTicks: [ChartTick] = scene.yTickLabels ?? FigureScene.ticks(in: window.y, step: scene.yStep)
             .filter { abs($0) > scene.yStep * 1e-6 }.map { ChartTick(value: $0, text: ChartGeometry.number($0).replacingOccurrences(of: "-", with: "−")) }
         var lastY = CGFloat.infinity
-        for tick in yTicks.sorted(by: { $0.value < $1.value }) where window.y.contains(tick.value) {
+        for tick in yTicks.sorted(by: { $0.value < $1.value }) where tick.value >= window.y.lowerBound - ySlack && tick.value <= window.y.upperBound + ySlack {
             let at = min(max(py(tick.value), 8), size.height - 8)
             guard lastY - at >= 14 else { continue }
             lastY = at
@@ -191,5 +196,58 @@ struct FigureCanvasRenderer {
         context.draw(Text(yName).font(axisNameFont).foregroundColor(ink),
                      at: CGPoint(x: yNameLeft ? yAxisX - 8 : min(yAxisX + 8, size.width - 12), y: xAxisY < 26 ? 30 : 10),
                      anchor: yNameLeft ? .trailing : .leading)
+    }
+}
+
+/// Draws a phase line: the axis in ink at the original's position and extent, a tick and label at each marked
+/// point, and a filled arrowhead on each stretch pointing the way solutions move.
+struct PhaseLineRenderer {
+    var phase: PhaseLine
+    var theme: ResolvedTheme
+
+    func draw(in context: inout GraphicsContext, size: CGSize) {
+        let ink = Color(hex: theme.ink), dim = Color(hex: theme.inkDim), accent = Color(hex: theme.accent)
+        let vertical = phase.vertical
+        let length = vertical ? size.height : size.width
+        let across = vertical ? size.width : size.height
+        let a = CGFloat(phase.start) * length, b = CGFloat(phase.end) * length
+        let offset = CGFloat(phase.offset) * across
+        // Position along the line (fraction of the drawn line) to a point in the view.
+        func point(_ t: Double, _ shift: CGFloat = 0) -> CGPoint {
+            let along = a + CGFloat(t) * (b - a)
+            return vertical ? CGPoint(x: offset + shift, y: along) : CGPoint(x: along, y: offset + shift)
+        }
+        var axis = Path()
+        axis.move(to: point(0)); axis.addLine(to: point(1))
+        context.stroke(axis, with: .color(ink), lineWidth: 1.8)
+
+        let scale = min(across * 0.12, 16)
+        for mark in phase.marks {
+            var tick = Path()
+            tick.move(to: point(mark.position, -scale * 0.45)); tick.addLine(to: point(mark.position, scale * 0.45))
+            context.stroke(tick, with: .color(ink), lineWidth: 1.8)
+            guard !mark.text.isEmpty else { continue }
+            let symbolic = mark.text.count == 1 && mark.text.first!.isLetter
+            let font = symbolic ? Font.system(size: 14, design: .serif).italic() : Font.system(size: 12).monospacedDigit()
+            context.draw(Text(mark.text).font(font).foregroundColor(dim), at: point(mark.position, -scale * 0.9), anchor: vertical ? .trailing : .top)
+        }
+        for arrow in phase.arrows {
+            // Up the screen (smaller y) is increasing on a vertical line; right is increasing on a horizontal one.
+            let forward: CGFloat = vertical ? (arrow.increasing ? -1 : 1) : (arrow.increasing ? 1 : -1)
+            let centre = point(arrow.position)
+            let headLength = scale * 1.4, halfWidth = scale * 0.55
+            var head = Path()
+            if vertical {
+                head.move(to: CGPoint(x: centre.x, y: centre.y + forward * headLength / 2))
+                head.addLine(to: CGPoint(x: centre.x - halfWidth, y: centre.y - forward * headLength / 2))
+                head.addLine(to: CGPoint(x: centre.x + halfWidth, y: centre.y - forward * headLength / 2))
+            } else {
+                head.move(to: CGPoint(x: centre.x + forward * headLength / 2, y: centre.y))
+                head.addLine(to: CGPoint(x: centre.x - forward * headLength / 2, y: centre.y - halfWidth))
+                head.addLine(to: CGPoint(x: centre.x - forward * headLength / 2, y: centre.y + halfWidth))
+            }
+            head.closeSubpath()
+            context.fill(head, with: .color(accent))
+        }
     }
 }

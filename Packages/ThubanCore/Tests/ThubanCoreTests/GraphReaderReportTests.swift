@@ -13,6 +13,12 @@ final class GraphReaderReportTests: XCTestCase {
         var lines: [String] = []
         for file in files {
             let data = try Data(contentsOf: URL(fileURLWithPath: directory).appendingPathComponent(file))
+            if ProcessInfo.processInfo.environment["THUBAN_FIGURE_PHASE"] != nil {
+                let phase = await PhaseLineReader.read(png: data)
+                lines.append("\(file): phase \(phase.map { "marks \($0.marks.map { "\($0.text)@\($0.position)" }) arrows \($0.arrows.map { "\($0.increasing ? "up" : "down")@\($0.position)" })" } ?? "none")")
+                if ProcessInfo.processInfo.environment["THUBAN_FIGURE_DIAGNOSE"] != nil { lines.append("    " + (await GraphReader.diagnose(png: data))) }
+                continue
+            }
             guard let reading = await GraphReader.read(png: data) else {
                 lines.append("\(file): no reading — \(await GraphReader.diagnose(png: data))")
                 continue

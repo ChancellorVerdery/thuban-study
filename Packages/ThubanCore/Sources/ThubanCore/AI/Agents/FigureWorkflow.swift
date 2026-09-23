@@ -69,8 +69,20 @@ public enum FigureWorkflow {
     public static func reconcileStored(document: ImportedDocument, store: Store, engine: MathEngine,
                                        only: ((Figure) -> Bool)? = nil) async throws -> [Outcome] {
         var outcomes: [Outcome] = []
-        for var figure in try await store.figures(for: document.id) where figure.chart != nil && (only?(figure) ?? true) {
-            guard let chart = figure.chart, let png = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)), !png.isEmpty else { continue }
+        for var figure in try await store.figures(for: document.id) where (only?(figure) ?? true) {
+            guard let png = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)), !png.isEmpty else { continue }
+            // Phase lines, whether stored as diagrams or as thin "charts", are read from the picture.
+            if figure.chart == nil || FigureAgent.isThin(figure.chart!), figure.kind != .photo, figure.kind != .table,
+               let phase = await PhaseLineReader.read(png: png, caption: figure.caption) {
+                figure.kind = .chart
+                figure.chart = phase.chart
+                if figure.status == .keptOriginal || figure.status == .pending || figure.status == .skipped { figure.status = .reviewing }
+                try await store.update(figure)
+                outcomes.append(Outcome(figureId: figure.id, index: figure.pageOrIndex, kind: .chart, isFigure: true,
+                                        verification: figure.chart?.verification, caption: figure.caption, definition: nil))
+                continue
+            }
+            guard let chart = figure.chart else { continue }
             let checked = await FigureAgent.check(chart, png: png, engine: engine)
             if FigureAgent.isThin(checked) {
                 // Not a plot after all (a phase line drawn as two points): keep the original image.

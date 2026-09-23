@@ -29,9 +29,14 @@ enum FigureDump {
         do {
             for studyClass in try await app.store.allClasses() {
                 for figure in try await app.store.figures(in: studyClass.id) {
-                    guard var chart = figure.chart else { continue }
                     let number = figure.pageOrIndex + 1
                     if let only, !only.isEmpty, !only.contains(number) { continue }
+                    var stored = figure.chart
+                    if ProcessInfo.processInfo.environment["THUBAN_FIGURE_DUMP_RECONCILE"] != nil, stored == nil || FigureAgent.isThin(stored!),
+                       let png = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)), let phase = await PhaseLineReader.read(png: png, caption: figure.caption) {
+                        stored = phase.chart
+                    }
+                    guard var chart = stored else { continue }
                     if ProcessInfo.processInfo.environment["THUBAN_FIGURE_DUMP_RECONCILE"] != nil,
                        let png = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)) {
                         chart = await FigureAgent.check(chart, png: png, engine: app.engine)
@@ -50,7 +55,7 @@ enum FigureDump {
                     }()
                     let height: CGFloat = 300, width = height * aspect
                     let view = DumpPair(original: original, scene: scene, theme: app.theme, size: CGSize(width: width, height: height),
-                                        title: "#\(number) · \(chart.chartType) · \(figure.caption?.prefix(90) ?? "")")
+                                        title: "#\(number) · \(chart.chartType) · \(figure.caption?.prefix(90) ?? "")", phase: chart.phaseLine)
                     pairs.append(view)
                     let renderer = ImageRenderer(content: view)
                     renderer.scale = 2
@@ -92,6 +97,7 @@ private struct DumpPair: View {
     var theme: ResolvedTheme
     var size: CGSize
     var title: String
+    var phase: PhaseLine? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -103,7 +109,11 @@ private struct DumpPair: View {
                 .frame(width: size.width, height: size.height)
                 .background(Color.white)
                 Canvas { context, canvasSize in
-                    FigureCanvasRenderer(scene: scene, theme: theme).draw(in: &context, size: canvasSize)
+                    if let phase = phase {
+                        PhaseLineRenderer(phase: phase, theme: theme).draw(in: &context, size: canvasSize)
+                    } else {
+                        FigureCanvasRenderer(scene: scene, theme: theme).draw(in: &context, size: canvasSize)
+                    }
                 }
                 .frame(width: size.width, height: size.height)
                 .background(Color(hex: theme.panel))

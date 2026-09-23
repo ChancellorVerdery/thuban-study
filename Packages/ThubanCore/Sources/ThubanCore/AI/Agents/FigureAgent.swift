@@ -299,7 +299,16 @@ public actor FigureAgent {
             }
         }
         for image in results.keys.sorted() {
-            guard var analysis = results[image], analysis.isFigure, analysis.kind == .chart else { continue }
+            guard var analysis = results[image], analysis.isFigure else { continue }
+            // A phase line (drawn as a diagram, or as a "chart" that is only a vertical line) is read from its picture.
+            if analysis.kind == .diagram || analysis.chart.map(Self.isThin) == true || (analysis.kind == .chart && analysis.chart == nil),
+               let phase = await PhaseLineReader.read(png: pngs[image - 1], caption: analysis.caption) {
+                analysis.kind = .chart
+                analysis.chart = phase.chart
+                results[image] = analysis
+                continue
+            }
+            guard analysis.kind == .chart else { continue }
             if analysis.chart == nil {
                 analysis.chart = await FigureReconciler.chartFromPixels(png: pngs[image - 1], hints: context.siblingField, engine: engine)
             }
@@ -316,7 +325,7 @@ public actor FigureAgent {
 
     /// No equation, no field, no initial condition, and only a handful of points per series.
     public static func isThin(_ chart: StandardChart) -> Bool {
-        guard (chart.slope ?? "").isEmpty, !chart.isSlopeField else { return false }
+        guard (chart.slope ?? "").isEmpty, !chart.isSlopeField, !chart.isPhaseLine else { return false }
         // A vertical line ("x = 0": a phase line's axis) or a handful of points is not a plot.
         let verticalLine = try! NSRegularExpression(pattern: #"^\s*x\s*=\s*-?[0-9.]*\s*$"#)
         return chart.series.allSatisfy { series in
@@ -330,6 +339,7 @@ public actor FigureAgent {
     /// The picture decides: the chart reconciled against its pixels (`FigureReconciler`) when the picture can be
     /// read, else checked against the agent's own read points (`FigureVerifier`).
     public static func check(_ chart: StandardChart, png: Data, engine: MathEngine) async -> StandardChart {
+        if chart.isPhaseLine { return chart }
         if let reconciled = await FigureReconciler.reconcile(chart, png: png, engine: engine) { return reconciled }
         var checked = chart
         checked.verification = await FigureVerifier.verify(chart, engine: engine)
