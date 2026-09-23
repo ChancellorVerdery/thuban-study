@@ -89,6 +89,13 @@ public enum FigureWorkflow {
                                         verification: figure.chart?.verification, caption: figure.caption, definition: nil))
                 continue
             }
+            // A figure the agent never described (its call failed or skipped it): the picture alone, when it is a plot.
+            if figure.chart == nil, figure.status == .pending, figure.kind == .unknown || figure.kind == .chart,
+               let fromPixels = await FigureReconciler.chartFromPixels(png: png, engine: engine) {
+                figure.kind = .chart
+                figure.chart = fromPixels
+                figure.status = .reviewing
+            }
             guard let chart = figure.chart else { continue }
             let text = questions.filter { $0.figureIds.contains(figure.id) }.map(questionText).joined(separator: "\n\n")
             let checked = await FigureAgent.check(chart, png: png, engine: engine, questionText: text)

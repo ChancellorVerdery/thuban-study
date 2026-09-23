@@ -866,12 +866,71 @@ public enum GraphReader {
     static let hueNames = ["red", "orange", "yellow", "green", "green", "teal", "blue", "blue", "blue", "purple", "purple", "pink"]
 
     /// Coloured pixels grouped by hue; each group thin enough to be a line becomes a curve.
+    /// Coloured pixels that are the fringes of sub-pixel antialiased black text (blue on one side of a glyph,
+    /// orange on the other) rather than a drawn curve: connected groups of colour that mostly touch dark ink. A
+    /// curve touches ink only where it crosses an axis or a tick.
+    static func fringePixels(_ bitmap: Bitmap) -> Set<Int> {
+        let w = bitmap.width, h = bitmap.height
+        var coloured = [Bool](repeating: false, count: w * h)
+        for row in 0..<h { for column in 0..<w where bitmap.hueBin(column, row) != nil { coloured[row * w + column] = true } }
+        // Text is near-black at its core even when blurred; grey (a field's arrows, gridlines) does not count.
+        func touchesInk(_ column: Int, _ row: Int) -> Bool {
+            for dy in -2...2 { for dx in -2...2 {
+                let c = column + dx, r = row + dy
+                guard c >= 0, r >= 0, c < w, r < h else { continue }
+                let p = bitmap.rgb(c, r)
+                let hi = max(p.r, p.g, p.b), lo = min(p.r, p.g, p.b)
+                if hi < 100 && hi - lo < 50 { return true }
+            } }
+            return false
+        }
+        var seen = [Bool](repeating: false, count: w * h)
+        var fringe = Set<Int>()
+        var small: [(members: [Int], touching: Int)] = []
+        var large: [Int] = []
+        for start in 0..<(w * h) where coloured[start] && !seen[start] {
+            var stack = [start], members: [Int] = []
+            seen[start] = true
+            while let index = stack.popLast() {
+                members.append(index)
+                let column = index % w, row = index / w
+                for dy in -1...1 { for dx in -1...1 where dx != 0 || dy != 0 {
+                    let c = column + dx, r = row + dy
+                    guard c >= 0, r >= 0, c < w, r < h else { continue }
+                    let n = r * w + c
+                    if coloured[n] && !seen[n] { seen[n] = true; stack.append(n) }
+                } }
+            }
+            // A drawn curve is one long stroke; only small pieces can be a glyph's fringe.
+            let touching = members.count < 60 ? members.filter { touchesInk($0 % w, $0 / w) }.count : 0
+            if Double(touching) > 0.4 * Double(members.count) { fringe.formUnion(members); continue }
+            if members.count < 30 { small.append((members, touching)) } else if members.count >= 60 { large.append(contentsOf: members) }
+        }
+        // A small piece of colour away from every sizeable stroke that touches ink (a glyph's fringe the blur
+        // lightened) or is a mere speck is not part of a curve. Pieces of a curve broken where it crosses an axis
+        // lie beside the rest of it; a dashed curve's dashes touch no ink.
+        guard !large.isEmpty else { return fringe }
+        var nearLarge = [Bool](repeating: false, count: w * h)
+        let reach = 6
+        for index in large {
+            let column = index % w, row = index / w
+            for r in max(0, row - reach)...min(h - 1, row + reach) {
+                for c in max(0, column - reach)...min(w - 1, column + reach) { nearLarge[r * w + c] = true }
+            }
+        }
+        for piece in small where piece.touching > 0 || piece.members.count < 8 {
+            if !piece.members.contains(where: { nearLarge[$0] }) { fringe.formUnion(piece.members) }
+        }
+        return fringe
+    }
+
     static func extractCurves(_ bitmap: Bitmap, reading: GraphReading) -> [GraphReading.Curve] {
         var byBin: [Int: [Int: [Int]]] = [:]
         var counts = [Int](repeating: 0, count: 12)
+        let fringe = fringePixels(bitmap)
         for row in 0..<bitmap.height {
             for column in 0..<bitmap.width {
-                guard let bin = bitmap.hueBin(column, row) else { continue }
+                guard !fringe.contains(row * bitmap.width + column), let bin = bitmap.hueBin(column, row) else { continue }
                 byBin[bin, default: [:]][column, default: []].append(row)
                 counts[bin] += 1
             }
@@ -1172,10 +1231,24 @@ public enum GraphReader {
         // Small crops sit on a white margin (a glyph touching the crop's edge is often not recognised).
         let margin = cropped.width <= 60 && cropped.height <= 60 ? 12 * factor : 0
         let target: CGImage = {
-            guard factor > 1 || margin > 0,
-                  let context = ImageCodec.rgbaContext(width: cropped.width * factor + 2 * margin, height: cropped.height * factor + 2 * margin) else { return cropped }
+            guard let context = ImageCodec.rgbaContext(width: cropped.width * factor + 2 * margin, height: cropped.height * factor + 2 * margin) else { return cropped }
+            context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+            context.fill(CGRect(x: 0, y: 0, width: context.width, height: context.height))
             context.interpolationQuality = .high
             context.draw(cropped, in: CGRect(x: margin, y: margin, width: cropped.width * factor, height: cropped.height * factor))
+            // Labels are ink: saturated colour (the curves, and the colour fringes of sub-pixel antialiased text)
+            // is painted white so a steep curve is never read as a "1" and fringed digits read cleanly.
+            if let data = context.data {
+                let bytes = data.bindMemory(to: UInt8.self, capacity: context.bytesPerRow * context.height)
+                for row in 0..<context.height {
+                    var i = row * context.bytesPerRow
+                    for _ in 0..<context.width {
+                        let r = Int(bytes[i]), g = Int(bytes[i + 1]), b = Int(bytes[i + 2])
+                        if max(r, g, b) - min(r, g, b) > 60 { bytes[i] = 255; bytes[i + 1] = 255; bytes[i + 2] = 255 }
+                        i += 4
+                    }
+                }
+            }
             return context.makeImage() ?? cropped
         }()
         // Vision's box is relative to the padded image; map it back to the crop.

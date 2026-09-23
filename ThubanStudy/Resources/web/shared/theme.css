@@ -180,3 +180,10 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent, #e0b15
 
 /* Static math rendered by MathLive (renderMathInElement) inherits the surrounding text color. */
 .ML__latex { color: inherit; }
+
+/* MathLive's static math lays fractions out with struts and inline tables sized for content-box; the page-wide
+   border-box rule shifts the denominator onto the baseline. */
+.ML__latex, .ML__latex * { box-sizing: content-box; }
+/* The fraction's strut cell is 1 px text; below 100 % zoom WebKit drops sub-pixel text from the line box and the
+   denominator falls onto the baseline. 2 px keeps it a real line at every app zoom (down to 50 %). */
+.ML__vlist-s { font-size: 2px !important; }

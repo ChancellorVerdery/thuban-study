@@ -31,6 +31,11 @@ final class GraphReaderReportTests: XCTestCase {
             line += " xl \(reading.xTickLabels.map(\.text)) yl \(reading.yTickLabels.map(\.text))"
             line += " curves: " + reading.curves.map { "\($0.color)(\($0.pixelCount)px, \($0.points.count)pts, x \(fmt($0.points.first?[0] ?? .nan))…\(fmt($0.points.last?[0] ?? .nan)), y@0 \(fmt(yAtZero($0)))" }.joined(separator: "; ")
             if ProcessInfo.processInfo.environment["THUBAN_FIGURE_DIAGNOSE"] != nil { line += "\n    " + (await GraphReader.diagnose(png: data)) }
+            if ProcessInfo.processInfo.environment["THUBAN_FIGURE_POINTS"] != nil {
+                for curve in reading.curves {
+                    line += "\n    \(curve.color): " + stride(from: 0, to: curve.points.count, by: 4).map { "(\(fmt(curve.points[$0][0])),\(fmt(curve.points[$0][1])))" }.joined(separator: " ")
+                }
+            }
             lines.append(line)
         }
         let report = lines.joined(separator: "\n")

@@ -132,7 +132,8 @@ struct QuestionPane: View {
     /// the bottom of the page's viewport) the web view is capped to the visible height instead, so the keyboard
     /// docks at the bottom of the pane and the page scrolls internally above it.
     private func formHeight(availableHeight: CGFloat) -> CGFloat {
-        let natural = max(state.formHeight, 240)
+        // The page reports CSS pixels; the web view draws them at the app zoom (`pageZoom`).
+        let natural = max(state.formHeight * AppZoom.shared.scale, 240)
         guard session.showKeyboard, availableHeight > 240 else { return natural }
         return min(natural, availableHeight - 6)
     }

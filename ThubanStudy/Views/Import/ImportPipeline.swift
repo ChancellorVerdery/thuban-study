@@ -485,6 +485,16 @@ final class ImportPipeline {
                     guard var figure = try? await session.store.figure(id: member.id) else { continue }
                     guard let analysis = analyses[offset + 1] else {
                         Self.logger.notice("The figure agent left image \(offset + 1) of a group undescribed in \(filename, privacy: .public)")
+                        // The picture alone, when it is a plot: its axes and traced curves, checked like any chart.
+                        if let fromPixels = await FigureReconciler.chartFromPixels(png: member.extracted.pngData, engine: session.engine) {
+                            let text = group.questions.map(Self.questionText).joined(separator: "\n\n")
+                            figure.kind = .chart
+                            figure.chart = await FigureAgent.check(fromPixels, png: member.extracted.pngData, engine: session.engine, questionText: text)
+                            figure.status = .reviewing
+                            figure.acceptIfConfident()
+                            charts += 1
+                            try await session.store.update(figure)
+                        }
                         continue
                     }
                     if !analysis.isFigure {

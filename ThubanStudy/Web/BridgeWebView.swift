@@ -50,7 +50,10 @@ struct BridgeWebView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         // The page follows the app zoom (⌘+ / ⌘−); reading it here re-runs this update when it changes.
         let zoom = AppZoom.shared.scale
-        if webView.pageZoom != zoom { webView.pageZoom = zoom }
+        if context.coordinator.lastZoom != zoom {
+            context.coordinator.lastZoom = zoom
+            webView.pageZoom = zoom
+        }
         if context.coordinator.lastTheme != theme {
             context.coordinator.lastTheme = theme
             bridge.setTheme(theme)
@@ -74,6 +77,7 @@ struct BridgeWebView: NSViewRepresentable {
         private static let logger = Logger(subsystem: "com.thuban.study", category: "webview")
         let bridge: WebBridge
         var lastTheme: ResolvedTheme?
+        var lastZoom: CGFloat?
         var loadedPage: String?
 
         init(bridge: WebBridge) {
