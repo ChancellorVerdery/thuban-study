@@ -157,6 +157,20 @@ public struct FigureScene: Sendable, Equatable {
             if let slope, !slope.isEmpty, chart.fieldFromPicture != true, let start = series.throughPoint,
                let path = try? await engine.integrateSlope(slope, through: start, xRange: window.x, yRange: window.y, steps: 800), path.count >= 2 {
                 marks.append(mark(.line, split(path, window: window)))
+                continue
+            }
+            // A solution sketch: the curve solves the chart's differential equation, over the stretch it is drawn.
+            if let ode = chart.odeSlope?.nilIfBlank, let start = series.throughPoint {
+                var xRange = window.x
+                if let domain = series.domain, domain.count == 2, domain[0] < domain[1] {
+                    xRange = max(window.x.lowerBound, domain[0])...min(window.x.upperBound, domain[1])
+                }
+                let margin = (window.y.upperBound - window.y.lowerBound) * 0.5
+                if let path = try? await engine.integrateSlope(ode, through: start, xRange: xRange,
+                                                               yRange: (window.y.lowerBound - margin)...(window.y.upperBound + margin), steps: 800),
+                   path.count >= 2 {
+                    marks.append(mark(.line, split(path, window: window)))
+                }
             }
         }
 

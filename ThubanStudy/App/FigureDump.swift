@@ -28,6 +28,7 @@ enum FigureDump {
             .split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
         do {
             for studyClass in try await app.store.allClasses() {
+                let questions = (try? await app.store.questions(in: studyClass.id, filter: QuestionFilter())) ?? []
                 for figure in try await app.store.figures(in: studyClass.id) {
                     let number = figure.pageOrIndex + 1
                     if let only, !only.isEmpty, !only.contains(number) { continue }
@@ -39,7 +40,8 @@ enum FigureDump {
                     guard var chart = stored else { continue }
                     if ProcessInfo.processInfo.environment["THUBAN_FIGURE_DUMP_RECONCILE"] != nil,
                        let png = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)) {
-                        chart = await FigureAgent.check(chart, png: png, engine: app.engine)
+                        let text = questions.filter { $0.figureIds.contains(figure.id) }.map(FigureWorkflow.questionText).joined(separator: "\n\n")
+                        chart = await FigureAgent.check(chart, png: png, engine: app.engine, questionText: text)
                         if FigureAgent.isThin(chart) {
                             lines.append(String(format: "#%03d diagram (kept original)", number))
                             continue
@@ -69,7 +71,8 @@ enum FigureDump {
                                  + " xl " + (chart.xAxisLabels.map { $0.map(\.text).joined(separator: ",") } ?? "auto")
                                  + " yl " + (chart.yAxisLabels.map { $0.map(\.text).joined(separator: ",") } ?? "auto")
                                  + " field " + (chart.fieldFromPicture == true ? "picture" : "formula")
-                                 + " | " + (chart.verification?.summary.prefix(140).description ?? "-"))
+                                 + " | " + (chart.verification?.summary.prefix(700).description ?? "-")
+                                 + " || def " + (chart.definition ?? "-"))
                 }
             }
         } catch {

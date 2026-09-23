@@ -277,7 +277,7 @@ public actor FigureAgent {
                 retry.append(image)
                 continue
             }
-            let checked = await Self.check(chart, png: pngs[image - 1], engine: engine)
+            let checked = await Self.check(chart, png: pngs[image - 1], engine: engine, questionText: context.questionTexts.joined(separator: "\n\n"))
             results[image]?.chart = checked
             if let verdict = checked.verification, !verdict.passed {
                 feedback.append((pngs.count > 1 ? "Image \(image): " : "") + verdict.summary)
@@ -293,7 +293,7 @@ public actor FigureAgent {
             for image in retry {
                 guard var analysis = again[image] else { continue }
                 if let chart = analysis.chart {
-                    analysis.chart = await Self.check(chart, png: pngs[image - 1], engine: engine)
+                    analysis.chart = await Self.check(chart, png: pngs[image - 1], engine: engine, questionText: context.questionTexts.joined(separator: "\n\n"))
                 }
                 results[image] = analysis
             }
@@ -338,9 +338,13 @@ public actor FigureAgent {
 
     /// The picture decides: the chart reconciled against its pixels (`FigureReconciler`) when the picture can be
     /// read, else checked against the agent's own read points (`FigureVerifier`).
-    public static func check(_ chart: StandardChart, png: Data, engine: MathEngine) async -> StandardChart {
+    /// Curves the picture only gives as traced points are then replaced by the exact curves the question's text
+    /// defines, when those land on the drawn curve (`CurveFitter`).
+    public static func check(_ chart: StandardChart, png: Data, engine: MathEngine, questionText: String = "") async -> StandardChart {
         if chart.isPhaseLine { return chart }
-        if let reconciled = await FigureReconciler.reconcile(chart, png: png, engine: engine) { return reconciled }
+        if let reconciled = await FigureReconciler.reconcile(chart, png: png, engine: engine) {
+            return await CurveFitter.fit(reconciled, questionText: questionText, engine: engine) ?? reconciled
+        }
         var checked = chart
         checked.verification = await FigureVerifier.verify(chart, engine: engine)
         return checked

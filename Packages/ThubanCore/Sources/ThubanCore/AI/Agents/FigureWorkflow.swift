@@ -69,6 +69,7 @@ public enum FigureWorkflow {
     public static func reconcileStored(document: ImportedDocument, store: Store, engine: MathEngine,
                                        only: ((Figure) -> Bool)? = nil) async throws -> [Outcome] {
         var outcomes: [Outcome] = []
+        let questions = (try? await store.questions(in: document.classId, filter: QuestionFilter(documentIds: [document.id]))) ?? []
         for var figure in try await store.figures(for: document.id) where (only?(figure) ?? true) {
             guard let png = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)), !png.isEmpty else { continue }
             // Phase lines, whether stored as diagrams or as thin "charts", are read from the picture.
@@ -83,7 +84,8 @@ public enum FigureWorkflow {
                 continue
             }
             guard let chart = figure.chart else { continue }
-            let checked = await FigureAgent.check(chart, png: png, engine: engine)
+            let text = questions.filter { $0.figureIds.contains(figure.id) }.map(questionText).joined(separator: "\n\n")
+            let checked = await FigureAgent.check(chart, png: png, engine: engine, questionText: text)
             if FigureAgent.isThin(checked) {
                 // Not a plot after all (a phase line drawn as two points): keep the original image.
                 figure.kind = .diagram

@@ -22,6 +22,8 @@ public struct ChartSeries: Codable, Sendable, Equatable {
     public var through: [Double]?
     /// "solid" (default) | "dashed" | "dotted" — how the curve is drawn in the original.
     public var style: String?
+    /// `[xMin, xMax]`: the stretch of x a solution curve is drawn over (nil: the whole window).
+    public var domain: [Double]?
 
     public init(name: String, points: [[Double]]? = nil, latex: String? = nil, color: String? = nil, through: [Double]? = nil, style: String? = nil) {
         self.name = name
@@ -131,6 +133,9 @@ public struct StandardChart: Codable, Sendable, Equatable {
     public var fieldFromPicture: Bool?
     /// `chartType` "phaseLine": the phase line as the picture draws it.
     public var phaseLine: PhaseLine?
+    /// Solution sketches without a field: the right-hand side of `dy/dx = f(x, y)` the drawn curves solve (from the
+    /// question, possibly with a fitted time scale). Series with `through` are integrated with it (`CurveFitter`).
+    public var odeSlope: String?
 
     public var isPhaseLine: Bool { chartType == "phaseLine" && phaseLine != nil }
 
@@ -193,7 +198,7 @@ public struct StandardChart: Codable, Sendable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case chartType, xLabel, yLabel, series, xRange, yRange, confidence, slope, arrows, xStep, yStep, fieldColumns, fieldRows, notes
         case provenance, definition, checks, verification, xTicks, yTicks, candidates
-        case xAxisLabels, yAxisLabels, fieldSamples, fieldFromPicture, phaseLine
+        case xAxisLabels, yAxisLabels, fieldSamples, fieldFromPicture, phaseLine, odeSlope
     }
 
     public init(from decoder: Decoder) throws {
@@ -224,6 +229,7 @@ public struct StandardChart: Codable, Sendable, Equatable {
         fieldSamples = try c.decodeIfPresent([[Double]].self, forKey: .fieldSamples)
         fieldFromPicture = try c.decodeIfPresent(Bool.self, forKey: .fieldFromPicture)
         phaseLine = try c.decodeIfPresent(PhaseLine.self, forKey: .phaseLine)
+        odeSlope = try c.decodeIfPresent(String.self, forKey: .odeSlope)
     }
 }
 
