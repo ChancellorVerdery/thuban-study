@@ -76,6 +76,7 @@ final class AppModel {
 
     private(set) var modelPolicy: ModelPolicy = .default
     private(set) var tutorMayEditGraph = true
+    private(set) var showFigureDescriptions = false
     private(set) var desmosKey = ""
 
     // MARK: Shell UI state
@@ -134,6 +135,7 @@ final class AppModel {
             }
             modelPolicy = try await store.get(.modelPolicy, as: ModelPolicy.self) ?? .default
             tutorMayEditGraph = try await store.get(.tutorMayEditGraph, as: Bool.self) ?? true
+            showFigureDescriptions = try await store.get(.showFigureDescriptions, as: Bool.self) ?? false
             let storedKey = try await store.get(.desmosKey, as: String.self) ?? ""
             desmosKey = storedKey.isEmpty ? (Self.bundledDesmosKey ?? "") : storedKey
             await migrateCredentialsFromKeychainOnce()
@@ -272,6 +274,11 @@ final class AppModel {
     func setModelPolicy(_ policy: ModelPolicy) {
         modelPolicy = policy
         Task { try? await store.set(.modelPolicy, policy) }
+    }
+
+    func setShowFigureDescriptions(_ shown: Bool) {
+        showFigureDescriptions = shown
+        Task { try? await store.set(.showFigureDescriptions, shown) }
     }
 
     func setTutorMayEditGraph(_ allowed: Bool) {

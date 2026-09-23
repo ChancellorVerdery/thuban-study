@@ -11,7 +11,7 @@ struct QuestionPane: View {
     private var form: QuestionFormWebView.Controller { state.form }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12.z) {
             header
             if session.isLoadingQuestions && session.questions.isEmpty {
                 loading("Loading the question bank…")
@@ -28,7 +28,7 @@ struct QuestionPane: View {
             }
             progressRow
         }
-        .padding(16)
+        .padding(16.z)
         .background(theme.bgColor)
         .onAppear { wireForm() }
         .onChange(of: session.currentInstance) { _, instance in
@@ -74,8 +74,8 @@ struct QuestionPane: View {
     // MARK: Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8.z) {
+            HStack(alignment: .firstTextBaseline, spacing: 8.z) {
                 Text(session.questionEyebrow.isEmpty ? "Study" : session.questionEyebrow)
                     .font(ThubanFont.micro)
                     .textCase(.uppercase)
@@ -86,7 +86,7 @@ struct QuestionPane: View {
                 Spacer(minLength: 0)
             }
             if let question = session.currentQuestion {
-                HStack(spacing: 6) {
+                HStack(spacing: 6.z) {
                     Chip.type(question)
                     if question.kind == .mathTemplate, let instance = session.currentInstance {
                         Chip("Regenerated · seed \(instance.seed.prefix(4))", kind: .neutral)
@@ -104,7 +104,7 @@ struct QuestionPane: View {
                     }
                     if question.difficulty > 0 {
                         Text(String(repeating: "●", count: min(5, max(1, question.difficulty))))
-                            .font(.system(size: 7))
+                            .font(.system(size: 7.z))
                             .foregroundStyle(theme.inkFaintColor)
                             .accessibilityLabel("Difficulty \(question.difficulty) of 5")
                     }
@@ -134,7 +134,7 @@ struct QuestionPane: View {
 
     private func formScroll(availableHeight: CGFloat) -> some View {
         ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 12.z) {
                 if !state.figures.isEmpty {
                     FigureStrip(figures: state.figures)
                 }
@@ -144,7 +144,7 @@ struct QuestionPane: View {
                         .opacity(session.isInstantiating && session.currentInstance == nil ? 0 : 1)
                     if session.isInstantiating && session.currentInstance == nil {
                         loading("Preparing fresh numbers…")
-                            .frame(height: 240)
+                            .frame(height: 240.z)
                     }
                 }
                 .thubanPanel(padding: 0)
@@ -153,19 +153,19 @@ struct QuestionPane: View {
                     if session.isInstantiating && session.currentInstance != nil {
                         ProgressView()
                             .controlSize(.small)
-                            .padding(10)
+                            .padding(10.z)
                             .accessibilityLabel("Preparing fresh numbers")
                     }
                 }
             }
-            .padding(.bottom, 4)
+            .padding(.bottom, 4.z)
         }
         .scrollIndicators(.automatic)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func loading(_ text: String) -> some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 10.z) {
             ProgressView()
                 .controlSize(.regular)
             Text(text)
@@ -182,13 +182,13 @@ struct QuestionPane: View {
         // The single row is preferred; when the pane is narrow (graph open at the minimum window width) the
         // regenerate label shortens and the source caption drops to its own line instead of wrapping the buttons.
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 10) {
+            HStack(spacing: 10.z) {
                 actionButtons(compact: false)
                 Spacer(minLength: 8)
                 sourceCaption
             }
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 6.z) {
+                HStack(spacing: 10.z) {
                     actionButtons(compact: true)
                     Spacer(minLength: 0)
                 }
@@ -202,7 +202,7 @@ struct QuestionPane: View {
         Button {
             Task { await session.checkAnswers() }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 6.z) {
                 if state.isGrading {
                     ProgressView().controlSize(.small)
                 }
@@ -219,7 +219,7 @@ struct QuestionPane: View {
             Button {
                 Task { await session.regenerate() }
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: 6.z) {
                     Icon(.mathEngine, size: 16)
                     Text(compact ? "Regenerate" : "Regenerate numbers")
                         .lineLimit(1)
@@ -253,9 +253,9 @@ struct QuestionPane: View {
 
     private var progressRow: some View {
         let counts = session.progressCounts
-        return VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: 6.z) {
             ProgressBar(value: session.masteredFraction)
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 Text(progressCaption(counts))
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
@@ -267,14 +267,14 @@ struct QuestionPane: View {
                     Button {
                         session.previous()
                     } label: {
-                        HStack(spacing: 4) { Glyph(.chevronLeft, size: 14); Text("Previous") }
+                        HStack(spacing: 4.z) { Glyph(.chevronLeft, size: 14); Text("Previous") }
                     }
                     .buttonStyle(GhostButtonStyle(height: 26, horizontalPadding: 8))
                     .fixedSize()
                     Button {
                         session.next()
                     } label: {
-                        HStack(spacing: 4) { Text("Next question"); Glyph(.chevronRight, size: 14) }
+                        HStack(spacing: 4.z) { Text("Next question"); Glyph(.chevronRight, size: 14) }
                     }
                     .buttonStyle(GhostButtonStyle(height: 26, tinted: true, horizontalPadding: 8))
                     .fixedSize()
@@ -295,14 +295,19 @@ struct QuestionPane: View {
 // MARK: - Figures
 
 /// Figures attached to the question: accepted charts redraw in the app's graph style, everything else shows the
-/// original clipping.
+/// original clipping. Several figures sit side by side, as many to a row as fit (answer-choice sketches read
+/// as a set); a single one takes the full width.
 struct FigureStrip: View {
     var figures: [Figure]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(figures) { figure in
-                FigureCard(figure: figure)
+        if figures.count == 1, let figure = figures.first {
+            FigureCard(figure: figure)
+        } else {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 230.z), spacing: 10.z, alignment: .top)], alignment: .leading, spacing: 10.z) {
+                ForEach(Array(figures.enumerated()), id: \.element.id) { offset, figure in
+                    FigureCard(figure: figure, number: offset + 1)
+                }
             }
         }
     }
@@ -312,13 +317,22 @@ struct FigureCard: View {
     @Environment(AppModel.self) private var app
     @Environment(\.thubanTheme) private var theme
     var figure: Figure
+    /// Position among the question's figures (nil when it is the only one).
+    var number: Int? = nil
+
+    /// The written description, only when the student turned descriptions on in Settings.
+    private var description: String? {
+        app.showFigureDescriptions ? figure.caption?.nilIfEmpty : nil
+    }
+
+    private var title: String { number.map { "Figure \($0)" } ?? "Figure" }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 8.z) {
+            HStack(spacing: 6.z) {
                 Icon(.figureClip, size: 14)
                     .foregroundStyle(theme.brassInkColor)
-                Text(figure.caption?.nilIfEmpty ?? "Figure")
+                Text(description ?? title)
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
                     .lineLimit(2)
@@ -330,15 +344,15 @@ struct FigureCard: View {
             if isStandardized, let chart = figure.chart {
                 StandardChartView(chart: chart)
                     .aspectRatio(originalAspect, contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: 360)
+                    .frame(maxWidth: .infinity, maxHeight: 360.z)
             } else if let image = FigureCache.image(figure.originalPath) {
                 Image(nsImage: image)
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
-                    .frame(maxWidth: .infinity, maxHeight: 320)
+                    .frame(maxWidth: .infinity, maxHeight: 320.z)
                     .clipShape(RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
-                    .accessibilityLabel(figure.caption ?? "Figure")
+                    .accessibilityLabel(description ?? title)
             } else {
                 Text("The figure file is missing.")
                     .font(ThubanFont.small)

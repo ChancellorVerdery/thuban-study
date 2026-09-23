@@ -107,18 +107,18 @@ struct QuestionBankView: View {
     // MARK: Bank layout
 
     private var bank: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 0.z) {
             BankHeader(model: model, session: session, searchFocused: $searchFocused)
-                .padding(.horizontal, 24)
-                .padding(.top, 22)
-                .padding(.bottom, 14)
+                .padding(.horizontal, 24.z)
+                .padding(.top, 22.z)
+                .padding(.bottom, 14.z)
             BankFilterRows(model: model)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 14)
-            HStack(alignment: .top, spacing: 16) {
+                .padding(.horizontal, 24.z)
+                .padding(.bottom, 14.z)
+            HStack(alignment: .top, spacing: 16.z) {
                 BankSourceRail(model: model)
-                    .frame(width: 220)
-                VStack(spacing: 0) {
+                    .frame(width: 220.z)
+                VStack(spacing: 0.z) {
                     if model.allQuestions.isEmpty, !model.isLoading {
                         emptyBank
                     } else if model.filtered.isEmpty {
@@ -138,14 +138,14 @@ struct QuestionBankView: View {
                 }
                 .thubanPanel(padding: 0)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 20)
+            .padding(.horizontal, 24.z)
+            .padding(.bottom, 20.z)
             if let error = model.error {
                 Text(error)
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.negTextColor)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 12)
+                    .padding(.horizontal, 24.z)
+                    .padding(.bottom, 12.z)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -223,8 +223,8 @@ private struct BankHeader: View {
     var searchFocused: FocusState<Bool>.Binding
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .center, spacing: 16.z) {
+            VStack(alignment: .leading, spacing: 4.z) {
                 Text("Question bank")
                     .font(ThubanFont.display(28))
                     .foregroundStyle(theme.inkColor)
@@ -235,7 +235,7 @@ private struct BankHeader: View {
             }
             Spacer(minLength: 12)
             BankSearchField(text: $model.searchText, focused: searchFocused)
-                .frame(width: 260)
+                .frame(width: 260.z)
             Button("Import more") { session.section = .importDocs }
                 .buttonStyle(.thubanSecondary)
             Button("Study all") { Task { await session.studyAll() } }
@@ -253,7 +253,7 @@ private struct BankSearchField: View {
     var focused: FocusState<Bool>.Binding
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8.z) {
             Glyph(.search, size: 15)
                 .foregroundStyle(theme.inkFaintColor)
             TextField("Search questions  ⌘F", text: $text)
@@ -266,7 +266,7 @@ private struct BankSearchField: View {
                 IconButton(glyph: .close, label: "Clear search", size: 22, iconSize: 12) { text = "" }
             }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 10.z)
         .frame(height: ThubanMetrics.buttonHeight)
         .background(theme.panelColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
         .overlay(
@@ -284,7 +284,7 @@ private struct BankFilterRows: View {
     @Bindable var model: QuestionBankModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8.z) {
             filterRow("Type") {
                 FilterChip(label: "All", count: model.allQuestions.count, isOn: model.types.isEmpty) { model.types = [] }
                 ForEach(model.typeChips, id: \.type) { chip in
@@ -313,15 +313,15 @@ private struct BankFilterRows: View {
     }
 
     private func filterRow<Chips: View>(_ label: String, @ViewBuilder chips: () -> Chips) -> some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .center, spacing: 8.z) {
             Text(label)
                 .font(ThubanFont.micro)
                 .textCase(.uppercase)
                 .kerning(0.5)
                 .foregroundStyle(theme.inkDimColor)
-                .frame(width: 56, alignment: .leading)
+                .frame(width: 56.z, alignment: .leading)
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) { chips() }
+                HStack(spacing: 6.z) { chips() }
             }
             .scrollClipDisabled()
         }
@@ -348,19 +348,19 @@ private struct FilterChip: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            HStack(spacing: 6.z) {
                 Text(label)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .frame(maxWidth: 220)
+                    .frame(maxWidth: 220.z)
                 Text("\(count)")
                     .font(ThubanFont.mono(11))
                     .foregroundStyle(isOn ? theme.brassInkColor : theme.inkDimColor)
             }
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: 12.z, weight: .semibold))
             .foregroundStyle(isOn ? theme.brassInkColor : theme.inkDimColor)
-            .padding(.horizontal, 9)
-            .frame(height: 26)
+            .padding(.horizontal, 9.z)
+            .frame(height: 26.z)
             .background(
                 isOn ? theme.accentTintColor : (hovering ? theme.panel2Color : theme.panelColor),
                 in: RoundedRectangle(cornerRadius: ThubanMetrics.chipRadius, style: .continuous)
@@ -385,15 +385,15 @@ private struct BankSourceRail: View {
     @Bindable var model: QuestionBankModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 4.z) {
             Text("Sources")
                 .font(ThubanFont.micro)
                 .textCase(.uppercase)
                 .kerning(0.5)
                 .foregroundStyle(theme.inkDimColor)
-                .padding(.horizontal, 10)
-                .padding(.top, 12)
-                .padding(.bottom, 6)
+                .padding(.horizontal, 10.z)
+                .padding(.top, 12.z)
+                .padding(.bottom, 6.z)
             RailRow(icon: .questionBank, label: "All sources", count: model.allQuestions.count, isActive: model.documentIds.isEmpty) {
                 model.showSource(nil)
             }
@@ -404,8 +404,8 @@ private struct BankSourceRail: View {
                 }
             }
             Rectangle().fill(theme.lineColor).frame(height: ThubanMetrics.hairline)
-                .padding(.vertical, 6)
-                .padding(.horizontal, 10)
+                .padding(.vertical, 6.z)
+                .padding(.horizontal, 10.z)
             RailRow(icon: .figureClip, label: "Figures", count: model.figureCount, isActive: false) {
                 model.screen = .figures
             }
@@ -413,8 +413,8 @@ private struct BankSourceRail: View {
             .help(model.figureCount == 0 ? "No figures were clipped from this class's documents" : "Review the figures clipped from this class's documents")
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 6)
-        .padding(.bottom, 8)
+        .padding(.horizontal, 6.z)
+        .padding(.bottom, 8.z)
         .frame(maxHeight: .infinity, alignment: .top)
         .thubanPanel(padding: 0)
     }
@@ -432,11 +432,11 @@ private struct RailRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 Icon(icon, size: 15)
                     .foregroundStyle(isActive ? theme.brassInkColor : theme.inkDimColor)
                 Text(label)
-                    .font(.system(size: 13, weight: isActive ? .semibold : .regular))
+                    .font(.system(size: 13.z, weight: isActive ? .semibold : .regular))
                     .foregroundStyle(theme.inkColor)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -445,8 +445,8 @@ private struct RailRow: View {
                     .font(ThubanFont.mono(11))
                     .foregroundStyle(theme.inkDimColor)
             }
-            .padding(.horizontal, 10)
-            .frame(height: 30)
+            .padding(.horizontal, 10.z)
+            .frame(height: 30.z)
             .background(
                 isActive ? theme.accentTintColor : (hovering ? theme.panel2Color : .clear),
                 in: RoundedRectangle(cornerRadius: ThubanMetrics.chipRadius, style: .continuous)
@@ -474,7 +474,7 @@ private struct BankFooter: View {
     private var selected: [Question] { model.questions(for: model.selection) }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8.z) {
             Text(model.pageLabel)
                 .font(ThubanFont.small)
                 .foregroundStyle(theme.inkDimColor)
@@ -500,20 +500,20 @@ private struct BankFooter: View {
                 .disabled(!model.canGoForward)
                 .opacity(model.canGoForward ? 1 : 0.4)
         }
-        .padding(.horizontal, 12)
-        .frame(height: 40)
+        .padding(.horizontal, 12.z)
+        .frame(height: 40.z)
         .thubanHairline(.top, color: theme.lineColor)
     }
 
     /// "N selected · Study · Edit… · Reset · Delete…" — the row actions, for the whole selection.
     private var selectionBar: some View {
-        HStack(spacing: 4) {
-            Rectangle().fill(theme.lineColor).frame(width: ThubanMetrics.hairline, height: 18)
+        HStack(spacing: 4.z) {
+            Rectangle().fill(theme.lineColor).frame(width: ThubanMetrics.hairline, height: 18.z)
             Text("\(selected.count) selected")
                 .font(ThubanFont.small)
                 .foregroundStyle(theme.inkColor)
                 .monospacedDigit()
-                .padding(.horizontal, 4)
+                .padding(.horizontal, 4.z)
             Button("Study") { onStudy(selected) }
                 .buttonStyle(GhostButtonStyle(height: 26, tinted: true, horizontalPadding: 6))
                 .help(selected.count == 1 ? "Open in Study" : "Study just these questions")

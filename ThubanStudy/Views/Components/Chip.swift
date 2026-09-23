@@ -17,9 +17,9 @@ struct Chip: View {
     }
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 5.z) {
             if dot {
-                Circle().fill(kind.colors(theme).text).frame(width: 6, height: 6)
+                Circle().fill(kind.colors(theme).text).frame(width: 6.z, height: 6.z)
             }
             if let icon { Icon(icon, size: 13) }
             Text(text)

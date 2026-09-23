@@ -267,4 +267,17 @@ public struct Figure: Codable, Identifiable, Sendable, Equatable {
         self.status = status
         self.caption = caption
     }
+
+    /// Charts at or above this confidence (the picture check's verdict) are accepted without review.
+    public static let autoAcceptConfidence = 0.75
+
+    /// Accepts a figure awaiting review whose chart is confident enough and did not fail its check. Decisions
+    /// already made (accepted, kept original, skipped) are left alone. Returns whether it was accepted.
+    @discardableResult
+    public mutating func acceptIfConfident() -> Bool {
+        guard status == .pending || status == .reviewing, kind == .chart, let chart,
+              chart.confidence >= Self.autoAcceptConfidence, chart.verification?.passed != false else { return false }
+        status = .accepted
+        return true
+    }
 }

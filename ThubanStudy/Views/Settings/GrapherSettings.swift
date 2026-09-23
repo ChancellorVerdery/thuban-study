@@ -85,10 +85,10 @@ struct GrapherSettings: View {
     private var isDirty: Bool { trimmedDraft != app.desmosKey }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
+        VStack(alignment: .leading, spacing: 28.z) {
             SettingsGroup("Desmos API key", caption: "The grapher and the scientific calculator load the Desmos API with this key.") {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 12.z) {
+                    HStack(spacing: 10.z) {
                         keyField
                         Button(isRevealed ? "Hide" : "Reveal") { isRevealed.toggle() }
                             .buttonStyle(.thubanGhost)
@@ -107,7 +107,7 @@ struct GrapherSettings: View {
             }
 
             SettingsGroup("Where it is used") {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 8.z) {
                     usageRow(icon: .graph2D, title: "2D grapher", detail: "Desmos GraphingCalculator, keypad off, the app's own toolbar.")
                     usageRow(icon: .graph3D, title: "3D grapher", detail: "Desmos Calculator3D, kept in step with the 2D expression list.")
                     usageRow(icon: .calculator, title: "Calculator", detail: "Desmos ScientificCalculator; falls back to the math engine when unavailable.")
@@ -163,17 +163,17 @@ struct GrapherSettings: View {
         case .idle:
             EmptyView()
         case .running:
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 ProgressView().controlSize(.small)
                 SettingsNote("Loading the Desmos script with this key…")
             }
         case .ready(let mode):
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 Glyph(.check, size: 14).foregroundStyle(theme.posTextColor)
                 SettingsNote("Desmos loaded and the \(mode.label) calculator answered.", tone: .positive)
             }
         case .failed(let message):
-            HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .top, spacing: 8.z) {
                 Glyph(.close, size: 14).foregroundStyle(theme.negTextColor)
                 SettingsNote(message, tone: .negative)
             }
@@ -185,7 +185,7 @@ struct GrapherSettings: View {
     private var hiddenTester: some View {
         if let controller = test.controller {
             GraphWebView(controller: controller)
-                .frame(width: 2, height: 2)
+                .frame(width: 2.z, height: 2.z)
                 .opacity(0.01)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
@@ -193,11 +193,11 @@ struct GrapherSettings: View {
     }
 
     private func usageRow(icon: IconName, title: String, detail: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 10.z) {
             Icon(icon, size: 16)
                 .foregroundStyle(theme.brassInkColor)
-                .padding(.top, 2)
-            VStack(alignment: .leading, spacing: 2) {
+                .padding(.top, 2.z)
+            VStack(alignment: .leading, spacing: 2.z) {
                 Text(title)
                     .font(ThubanFont.body(14, weight: .semibold))
                     .foregroundStyle(theme.inkColor)

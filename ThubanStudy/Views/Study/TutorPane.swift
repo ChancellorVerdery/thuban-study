@@ -13,7 +13,7 @@ struct TutorPane: View {
     private var state: StudyState { session.studyState }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 0.z) {
             header
             ChatWebView(controller: state.chat)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -42,7 +42,7 @@ struct TutorPane: View {
     // MARK: Header
 
     private var header: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8.z) {
             Icon(.tutor, size: 18)
                 .foregroundStyle(theme.brassInkColor)
             Text("Tutor")
@@ -70,7 +70,7 @@ struct TutorPane: View {
                     .environment(\.thubanTheme, theme)
                 }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 14.z)
         .frame(height: ThubanMetrics.sectionBarHeight)
         .thubanHairline(.bottom, color: theme.lineColor)
     }
@@ -84,7 +84,7 @@ struct TutorPane: View {
     // MARK: Cards
 
     private var connectCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8.z) {
             Text("Connect your Claude account")
                 .font(ThubanFont.display(15))
                 .foregroundStyle(theme.inkColor)
@@ -92,7 +92,7 @@ struct TutorPane: View {
                 .font(ThubanFont.body(13))
                 .foregroundStyle(theme.inkDimColor)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 Button("Open Settings") { openWindow(id: "settings") }
                     .buttonStyle(PrimaryButtonStyle(height: 30))
                 Button("Dismiss") { state.tutorError = nil }
@@ -100,13 +100,13 @@ struct TutorPane: View {
             }
         }
         .thubanPanel(padding: 12)
-        .padding(.horizontal, 12)
-        .padding(.bottom, 10)
+        .padding(.horizontal, 12.z)
+        .padding(.bottom, 10.z)
     }
 
     /// Credentials exist but stopped working: same shape as the connect card, with the reason and a way to Settings.
     private func reconnectCard(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8.z) {
             Text("Sign in to Claude again")
                 .font(ThubanFont.display(15))
                 .foregroundStyle(theme.inkColor)
@@ -114,7 +114,7 @@ struct TutorPane: View {
                 .font(ThubanFont.body(13))
                 .foregroundStyle(theme.inkDimColor)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 Button("Open Settings") { openWindow(id: "settings") }
                     .buttonStyle(PrimaryButtonStyle(height: 30))
                 Button("Dismiss") { state.tutorError = nil }
@@ -122,12 +122,12 @@ struct TutorPane: View {
             }
         }
         .thubanPanel(padding: 12)
-        .padding(.horizontal, 12)
-        .padding(.bottom, 10)
+        .padding(.horizontal, 12.z)
+        .padding(.bottom, 10.z)
     }
 
     private func failureCard(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: 8.z) {
             Text(message)
                 .font(ThubanFont.small)
                 .foregroundStyle(theme.negTextColor)
@@ -137,10 +137,10 @@ struct TutorPane: View {
                 state.tutorError = nil
             }
         }
-        .padding(10)
+        .padding(10.z)
         .background(theme.negSoftColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
-        .padding(.horizontal, 12)
-        .padding(.bottom, 10)
+        .padding(.horizontal, 12.z)
+        .padding(.bottom, 10.z)
     }
 }
 
@@ -162,24 +162,24 @@ struct TutorComposer: View {
 
     var body: some View {
         @Bindable var state = state
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .bottom, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8.z) {
+            HStack(alignment: .bottom, spacing: 8.z) {
                 ZStack(alignment: .topLeading) {
                     if state.composerText.isEmpty {
                         Text("Ask the tutor…")
                             .font(ThubanFont.body(14))
                             .foregroundStyle(theme.inkFaintColor)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
+                            .padding(.horizontal, 10.z)
+                            .padding(.vertical, 8.z)
                             .allowsHitTesting(false)
                     }
                     TextEditor(text: $state.composerText)
                         .font(ThubanFont.body(14))
                         .foregroundStyle(theme.inkColor)
                         .scrollContentBackground(.hidden)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
-                        .frame(minHeight: 40, maxHeight: 120)
+                        .padding(.horizontal, 6.z)
+                        .padding(.vertical, 4.z)
+                        .frame(minHeight: 40.z, maxHeight: 120.z)
                         .fixedSize(horizontal: false, vertical: true)
                         .focused($editorFocused)
                         .onKeyPress(.return, phases: .down) { press in
@@ -200,7 +200,7 @@ struct TutorComposer: View {
                         session.cancelTutor()
                     } label: {
                         Glyph(.close, size: 16)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 36.z, height: 36.z)
                     }
                     .buttonStyle(SecondaryButtonStyle(height: 36))
                     .accessibilityLabel("Stop the tutor")
@@ -208,7 +208,7 @@ struct TutorComposer: View {
                 } else {
                     Button(action: send) {
                         Glyph(.send, size: 16)
-                            .frame(width: 20, height: 20)
+                            .frame(width: 20.z, height: 20.z)
                     }
                     .buttonStyle(PrimaryButtonStyle(height: 36))
                     .disabled(!canSend)
@@ -218,7 +218,7 @@ struct TutorComposer: View {
             }
             footer
         }
-        .padding(12)
+        .padding(12.z)
     }
 
     /// The footer degrades in three steps as the pane narrows (320 pt when the graph shares the window):
@@ -226,18 +226,18 @@ struct TutorComposer: View {
     /// Nothing clips mid-glyph: the link keeps its intrinsic size and the captions truncate with an ellipsis.
     private var footer: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 solutionLink
                 explicitRequestCaption
                 Spacer(minLength: 12)
                 newlineHint
             }
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 solutionLink
                 explicitRequestCaption
                 Spacer(minLength: 0)
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 3.z) {
                 solutionLink
                 explicitRequestCaption
             }
@@ -249,12 +249,12 @@ struct TutorComposer: View {
         Button {
             confirmingSolution = true
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: 5.z) {
                 Glyph(.lock, size: 13)
                 Text("Ask for the solution")
                     .lineLimit(1)
             }
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: 12.z, weight: .semibold))
             .foregroundStyle(theme.brassInkColor)
             .fixedSize()
         }
@@ -278,7 +278,7 @@ struct TutorComposer: View {
 
     private var explicitRequestCaption: some View {
         Text("Only on your explicit request")
-            .font(.system(size: 12))
+            .font(.system(size: 12.z))
             .foregroundStyle(theme.inkDimColor)
             .lineLimit(1)
             .truncationMode(.tail)
@@ -286,7 +286,7 @@ struct TutorComposer: View {
 
     private var newlineHint: some View {
         Text("Shift+Enter for a new line")
-            .font(.system(size: 12))
+            .font(.system(size: 12.z))
             .foregroundStyle(theme.inkDimColor)
             .lineLimit(1)
             .fixedSize()
@@ -318,7 +318,7 @@ struct ConfirmPopover: View {
     var cancel: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12.z) {
             Text(title)
                 .font(ThubanFont.display(16))
                 .foregroundStyle(theme.inkColor)
@@ -326,7 +326,7 @@ struct ConfirmPopover: View {
                 .font(ThubanFont.body(13))
                 .foregroundStyle(theme.inkDimColor)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 Spacer()
                 Button("Cancel", action: cancel)
                     .buttonStyle(SecondaryButtonStyle(height: 30))
@@ -336,8 +336,8 @@ struct ConfirmPopover: View {
                     .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(16)
-        .frame(width: 320)
+        .padding(16.z)
+        .frame(width: 320.z)
         .background(theme.panelColor)
     }
 }

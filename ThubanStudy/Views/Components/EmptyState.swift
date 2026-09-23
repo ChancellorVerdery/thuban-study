@@ -16,11 +16,11 @@ struct EmptyState<Actions: View>: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 10.z) {
             if let icon {
                 Icon(icon, size: 28)
                     .foregroundStyle(theme.brassInkColor)
-                    .padding(.bottom, 4)
+                    .padding(.bottom, 4.z)
             }
             Text(title)
                 .font(ThubanFont.display(20))
@@ -30,12 +30,12 @@ struct EmptyState<Actions: View>: View {
                     .font(ThubanFont.body(14))
                     .foregroundStyle(theme.inkDimColor)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 420)
+                    .frame(maxWidth: 420.z)
             }
             actions()
-                .padding(.top, 8)
+                .padding(.top, 8.z)
         }
-        .padding(32)
+        .padding(32.z)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

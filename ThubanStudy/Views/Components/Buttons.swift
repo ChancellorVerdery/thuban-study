@@ -9,9 +9,9 @@ struct PrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 14, weight: .semibold))
+            .font(.system(size: 14.z, weight: .semibold))
             .foregroundStyle(theme.onAccentColor)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 16.z)
             .frame(height: height)
             .background(
                 configuration.isPressed ? theme.accentDeepColor : theme.accentColor,
@@ -30,9 +30,9 @@ struct SecondaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 14, weight: .semibold))
+            .font(.system(size: 14.z, weight: .semibold))
             .foregroundStyle(theme.inkColor)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 14.z)
             .frame(height: height)
             .background(
                 configuration.isPressed ? theme.panel2Color : theme.panelColor,
@@ -71,7 +71,7 @@ struct GhostButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 14.z, weight: .semibold))
                 .foregroundStyle(tinted ? theme.brassInkColor : theme.inkDimColor)
                 .padding(.horizontal, horizontalPadding)
                 .frame(height: height)

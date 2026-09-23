@@ -16,7 +16,7 @@ struct GraphPane: View {
     private var state: StudyState { session.studyState }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 0.z) {
             header
             if app.hasDesmosKey, let controller {
                 GraphWebView(controller: controller)
@@ -119,7 +119,7 @@ struct GraphPane: View {
             headerRow(title: false, chipText: nil, resetIcon: true)
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 12.z)
         .frame(height: ThubanMetrics.sectionBarHeight)
         .thubanHairline(.bottom, color: theme.lineColor)
         .animation(.easeInOut(duration: 0.15), value: session.tutorEditedRecently)
@@ -148,7 +148,7 @@ struct GraphPane: View {
                     } else {
                         Circle()
                             .fill(theme.brassInkColor)
-                            .frame(width: 8, height: 8)
+                            .frame(width: 8.z, height: 8.z)
                             .help("Tutor is editing")
                     }
                 }
@@ -183,7 +183,7 @@ struct GraphPane: View {
     // MARK: Notices
 
     private var missingKeyNotice: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 10.z) {
             Icon(.graph2D, size: 26)
                 .foregroundStyle(theme.brassInkColor)
             Text("The grapher needs a Desmos API key")
@@ -193,11 +193,11 @@ struct GraphPane: View {
                 .font(ThubanFont.body(14))
                 .foregroundStyle(theme.inkDimColor)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 320)
+                .frame(maxWidth: 320.z)
             Button("Open Settings › Grapher") { openWindow(id: "settings") }
                 .buttonStyle(.thubanSecondary)
         }
-        .padding(24)
+        .padding(24.z)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -205,10 +205,10 @@ struct GraphPane: View {
         Text(message)
             .font(ThubanFont.small)
             .foregroundStyle(theme.negTextColor)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 10.z)
+            .padding(.vertical, 6.z)
             .background(theme.negSoftColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.chipRadius, style: .continuous))
-            .padding(12)
+            .padding(12.z)
             .accessibilityLabel("Graph error: \(message)")
     }
 }

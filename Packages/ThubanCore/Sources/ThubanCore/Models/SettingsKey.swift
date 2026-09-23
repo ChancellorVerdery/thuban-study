@@ -25,6 +25,8 @@ public struct SettingsKey: RawRepresentable, Hashable, Codable, Sendable, Custom
     public static let tutorMayEditGraph: SettingsKey = "tutorMayEditGraph"
     /// Main window frame as `[Double]` (x, y, w, h).
     public static let windowFrame: SettingsKey = "windowFrame"
+    /// Bool: show figures' written descriptions (captions and spoken labels) while studying. Off by default.
+    public static let showFigureDescriptions: SettingsKey = "showFigureDescriptions"
     /// Bool: first-run onboarding completed.
     public static let onboardingDone: SettingsKey = "onboardingDone"
 }

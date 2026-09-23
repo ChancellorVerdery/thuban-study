@@ -11,9 +11,9 @@ struct AnswerResultsSheet: View {
 
     var body: some View {
         ModalCard(title: title, width: 560) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 16.z) {
                 summaryRow
-                VStack(spacing: 8) {
+                VStack(spacing: 8.z) {
                     ForEach(results.rows) { row in
                         VerdictRow(row: row)
                     }
@@ -50,7 +50,7 @@ struct AnswerResultsSheet: View {
     // MARK: Summary
 
     private var summaryRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 10.z) {
             Text(summaryText)
                 .font(ThubanFont.body(14))
                 .foregroundStyle(theme.inkDimColor)
@@ -79,14 +79,14 @@ struct AnswerResultsSheet: View {
     // MARK: Rules
 
     private var rules: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6.z) {
             Text("Rules the engine applied")
                 .font(ThubanFont.micro)
                 .textCase(.uppercase)
                 .kerning(0.5)
                 .foregroundStyle(theme.inkDimColor)
             ForEach(results.rules, id: \.self) { rule in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 8.z) {
                     Glyph(.dot, size: 10)
                         .foregroundStyle(theme.brassInkColor)
                     Text(rule)
@@ -117,12 +117,12 @@ private struct VerdictRow: View {
     var row: GradeResults.Row
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6.z) {
+            HStack(alignment: .firstTextBaseline, spacing: 8.z) {
                 Text("(\(row.partId))")
                     .font(ThubanFont.display(14))
                     .foregroundStyle(theme.inkColor)
-                    .frame(width: 28, alignment: .leading)
+                    .frame(width: 28.z, alignment: .leading)
                 Text(row.input.isEmpty ? "— no answer —" : row.input)
                     .font(ThubanFont.mono(13))
                     .foregroundStyle(row.input.isEmpty ? theme.inkFaintColor : theme.inkColor)
@@ -136,7 +136,7 @@ private struct VerdictRow: View {
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, 36)
+                    .padding(.leading, 36.z)
             }
             if let canonical = canonicalLine {
                 Text(canonical)
@@ -144,11 +144,11 @@ private struct VerdictRow: View {
                     .foregroundStyle(theme.inkDimColor)
                     .lineLimit(2)
                     .truncationMode(.middle)
-                    .padding(.leading, 36)
+                    .padding(.leading, 36.z)
                     .textSelection(.enabled)
             }
         }
-        .padding(12)
+        .padding(12.z)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(theme.panel2Color, in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
         .accessibilityElement(children: .combine)

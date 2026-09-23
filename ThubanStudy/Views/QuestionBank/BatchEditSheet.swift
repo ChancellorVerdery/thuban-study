@@ -36,13 +36,13 @@ struct BatchEditSheet: View {
 
     var body: some View {
         ModalCard(title: "Edit \(questions.count) questions", width: 520) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 16.z) {
                 Text(summary)
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
 
                 LabeledField("Type") {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 8.z) {
                         Toggle("Change", isOn: $changeType)
                             .toggleStyle(.checkbox)
                             .fixedSize()
@@ -66,7 +66,7 @@ struct BatchEditSheet: View {
                 }
 
                 LabeledField("Difficulty") {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 8.z) {
                         Toggle("Change", isOn: $changeDifficulty)
                             .toggleStyle(.checkbox)
                             .fixedSize()

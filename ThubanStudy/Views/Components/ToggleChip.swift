@@ -13,14 +13,14 @@ struct ToggleChip: View {
         Button {
             isOn.toggle()
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 6.z) {
                 Icon(icon, size: 16)
                 Text(label)
             }
-            .font(.system(size: 13, weight: .semibold))
+            .font(.system(size: 13.z, weight: .semibold))
             .foregroundStyle(isOn ? theme.brassInkColor : theme.inkDimColor)
-            .padding(.horizontal, 10)
-            .frame(height: 32)
+            .padding(.horizontal, 10.z)
+            .frame(height: 32.z)
             .background(
                 isOn ? theme.accentTintColor : (hovering ? theme.panel2Color : .clear),
                 in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous)

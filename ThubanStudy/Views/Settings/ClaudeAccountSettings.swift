@@ -11,9 +11,9 @@ struct ClaudeAccountSettings: View {
     @State private var isShowingAPIKey = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
+        VStack(alignment: .leading, spacing: 28.z) {
             SettingsGroup("Status") {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 10.z) {
                     ConnectionStatusCard(
                         connection: app.connection,
                         accountLabel: app.connectedAccountLabel,
@@ -31,7 +31,7 @@ struct ClaudeAccountSettings: View {
             }
 
             SettingsGroup("How sign-in works") {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 8.z) {
                     explainer("Connecting opens claude.ai in your browser. You sign in there, authorize Thuban Study, and paste the code it shows back here.")
                     explainer("Tokens and API keys are kept in a private file in the app's data folder (readable by your account only), never in the database or the export archive.")
                     explainer("Access tokens renew themselves a few minutes before they expire. Disconnecting deletes the file.")
@@ -54,10 +54,10 @@ struct ClaudeAccountSettings: View {
     }
 
     private func explainer(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: 8.z) {
             Glyph(.dot, size: 12)
                 .foregroundStyle(theme.brassInkColor)
-                .padding(.top, 4)
+                .padding(.top, 4.z)
             Text(text)
                 .font(ThubanFont.body(14))
                 .foregroundStyle(theme.inkDimColor)
@@ -77,13 +77,13 @@ struct ConnectionStatusCard: View {
     var onDisconnect: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .top, spacing: 14.z) {
             statusBadge
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 6.z) {
                 Text(headline)
                     .font(ThubanFont.display(18))
                     .foregroundStyle(theme.inkColor)
-                HStack(spacing: 8) {
+                HStack(spacing: 8.z) {
                     switch connection {
                     case .oauth:
                         Chip("Claude account", kind: .pos, dot: true)
@@ -106,7 +106,7 @@ struct ConnectionStatusCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 12)
-            VStack(alignment: .trailing, spacing: 8) {
+            VStack(alignment: .trailing, spacing: 8.z) {
                 switch connection {
                 case .notConnected, .keychainDenied:
                     Button("Connect Claude account", action: onConnect)
@@ -136,7 +136,7 @@ struct ConnectionStatusCard: View {
         ZStack {
             Circle()
                 .fill(connection.isConnected ? theme.posSoftColor : theme.panel2Color)
-                .frame(width: 40, height: 40)
+                .frame(width: 40.z, height: 40.z)
             if connection.isConnected {
                 Glyph(.check, size: 20)
                     .foregroundStyle(theme.posTextColor)
@@ -189,11 +189,11 @@ struct APIKeyDisclosure: View {
     @State private var isSaving = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0.z) {
             Button {
                 withAnimation(.easeOut(duration: 0.15)) { isExpanded.toggle() }
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: 8.z) {
                     Glyph(isExpanded ? .chevronDown : .chevronRight, size: 14)
                         .foregroundStyle(theme.inkFaintColor)
                     Text("Use an API key instead")
@@ -210,8 +210,8 @@ struct APIKeyDisclosure: View {
             .accessibilityLabel(isExpanded ? "Hide API key field" : "Show API key field")
 
             if isExpanded {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 10.z) {
+                    HStack(spacing: 10.z) {
                         SecureField("sk-ant-…", text: $apiKey)
                             .thubanField(mono: true)
                             .onSubmit { save() }
@@ -228,7 +228,7 @@ struct APIKeyDisclosure: View {
                         SettingsNote(note.text, tone: note.tone)
                     }
                 }
-                .padding(.top, 14)
+                .padding(.top, 14.z)
             }
         }
         .thubanPanel()

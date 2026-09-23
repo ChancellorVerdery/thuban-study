@@ -91,6 +91,22 @@ final class CurveFitterTests: XCTestCase {
         XCTAssertEqual(alone[0].points?.count, upper.count)
     }
 
+    func testConfidentChartsAreAcceptedWithoutReview() {
+        var chart = StandardChart(chartType: "function", confidence: 0.75)
+        chart.verification = ChartVerification(passed: true, summary: "")
+        var figure = Figure(documentId: nil, pageOrIndex: 0, originalPath: "x.png", kind: .chart, chart: chart, status: .reviewing)
+        XCTAssertTrue(figure.acceptIfConfident())
+        XCTAssertEqual(figure.status, .accepted)
+        // Below the bar, a failed check, or the student's own decision: left alone.
+        var low = figure; low.status = .reviewing; low.chart?.confidence = 0.74
+        XCTAssertFalse(low.acceptIfConfident())
+        var failed = figure; failed.status = .reviewing; failed.chart?.verification = ChartVerification(passed: false, summary: "")
+        XCTAssertFalse(failed.acceptIfConfident())
+        var kept = figure; kept.status = .keptOriginal
+        XCTAssertFalse(kept.acceptIfConfident())
+        XCTAssertEqual(kept.status, .keptOriginal)
+    }
+
     func testCurveNoEquationFollowsStaysTraced() async {
         // A sine wave is no solution of an autonomous equation.
         let points = stride(from: -3.0, through: 3.0, by: 0.05).map { [$0, sin(2 * $0)] }

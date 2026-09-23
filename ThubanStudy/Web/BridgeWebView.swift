@@ -34,6 +34,7 @@ struct BridgeWebView: NSViewRepresentable {
         webView.setValue(false, forKey: "drawsBackground")
         webView.underPageBackgroundColor = .clear
         webView.allowsMagnification = false
+        webView.pageZoom = AppZoom.shared.scale
         webView.allowsBackForwardNavigationGestures = false
         #if DEBUG
         webView.isInspectable = true
@@ -47,6 +48,9 @@ struct BridgeWebView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        // The page follows the app zoom (⌘+ / ⌘−); reading it here re-runs this update when it changes.
+        let zoom = AppZoom.shared.scale
+        if webView.pageZoom != zoom { webView.pageZoom = zoom }
         if context.coordinator.lastTheme != theme {
             context.coordinator.lastTheme = theme
             bridge.setTheme(theme)

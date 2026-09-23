@@ -7,11 +7,11 @@ struct AboutSettings: View {
     @Environment(\.thubanTheme) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
+        VStack(alignment: .leading, spacing: 28.z) {
             identityCard
 
             SettingsGroup("Links") {
-                VStack(spacing: 0) {
+                VStack(spacing: 0.z) {
                     ForEach(Array(AboutLink.all.enumerated()), id: \.element.id) { index, link in
                         AboutLinkRow(link: link)
                         if index < AboutLink.all.count - 1 {
@@ -23,7 +23,7 @@ struct AboutSettings: View {
             }
 
             SettingsGroup("Acknowledgements", caption: "Open-source projects and services Thuban Study is built on. Licenses are noted per project.") {
-                VStack(spacing: 0) {
+                VStack(spacing: 0.z) {
                     ForEach(Array(Acknowledgement.all.enumerated()), id: \.element.id) { index, item in
                         AcknowledgementRow(item: item)
                         if index < Acknowledgement.all.count - 1 {
@@ -37,7 +37,7 @@ struct AboutSettings: View {
     }
 
     private var identityCard: some View {
-        HStack(alignment: .center, spacing: 18) {
+        HStack(alignment: .center, spacing: 18.z) {
             ZStack {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(theme.bgColor)
@@ -47,14 +47,14 @@ struct AboutSettings: View {
                     )
                 ThubanMarkView(size: 40, color: theme.accentColor)
             }
-            .frame(width: 72, height: 72)
+            .frame(width: 72.z, height: 72.z)
             .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 6.z) {
                 Text(AppInfo.name)
                     .font(ThubanFont.display(24))
                     .foregroundStyle(theme.inkColor)
-                HStack(spacing: 8) {
+                HStack(spacing: 8.z) {
                     Text("Version \(AppInfo.version)")
                         .font(ThubanFont.body(14))
                         .foregroundStyle(theme.inkDimColor)
@@ -128,8 +128,8 @@ private struct AboutLinkRow: View {
         Button {
             NSWorkspace.shared.open(link.url)
         } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 12.z) {
+                VStack(alignment: .leading, spacing: 2.z) {
                     Text(link.title)
                         .font(ThubanFont.body(14, weight: .semibold))
                         .foregroundStyle(theme.brassInkColor)
@@ -144,8 +144,8 @@ private struct AboutLinkRow: View {
                 Glyph(.chevronRight, size: 14)
                     .foregroundStyle(theme.inkFaintColor)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 16.z)
+            .padding(.vertical, 12.z)
             .background(hovering ? theme.panel2Color : .clear)
             .contentShape(Rectangle())
         }
@@ -183,8 +183,8 @@ private struct AcknowledgementRow: View {
     var item: Acknowledgement
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .center, spacing: 12.z) {
+            VStack(alignment: .leading, spacing: 2.z) {
                 Text(item.name)
                     .font(ThubanFont.body(14, weight: .semibold))
                     .foregroundStyle(theme.inkColor)
@@ -200,8 +200,8 @@ private struct AcknowledgementRow: View {
                     .accessibilityLabel("Open the \(item.name) website")
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 16.z)
+        .padding(.vertical, 10.z)
         .accessibilityElement(children: .contain)
     }
 }

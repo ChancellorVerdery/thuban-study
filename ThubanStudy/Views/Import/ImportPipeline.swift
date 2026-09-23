@@ -446,6 +446,7 @@ final class ImportPipeline {
                     if let caption = analysis.caption, !caption.isEmpty { figure.caption = caption }
                     if analysis.kind == .chart, let chart = analysis.chart {
                         figure.status = .reviewing
+                        figure.acceptIfConfident()
                         charts += 1
                         if let verdict = chart.verification, !verdict.passed {
                             let owner = group.questions.first?.sourceRef?.nilIfEmpty ?? group.questions.first.map { "“\($0.stem.prefix(40))…”" } ?? "no question"

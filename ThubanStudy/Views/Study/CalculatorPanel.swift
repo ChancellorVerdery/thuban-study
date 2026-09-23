@@ -16,7 +16,7 @@ struct CalculatorPanel: View {
     private var state: StudyState { session.studyState }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 0.z) {
             header
             if let controller {
                 CalculatorWebView(controller: controller)
@@ -65,7 +65,7 @@ struct CalculatorPanel: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8.z) {
             Icon(.calculator, size: 16)
                 .foregroundStyle(theme.brassInkColor)
             Text("Calculator")
@@ -78,9 +78,9 @@ struct CalculatorPanel: View {
                 session.showCalculator = false
             }
         }
-        .padding(.leading, 12)
-        .padding(.trailing, 6)
-        .frame(height: 38)
+        .padding(.leading, 12.z)
+        .padding(.trailing, 6.z)
+        .frame(height: 38.z)
         .background(theme.panel2Color)
         .thubanHairline(.bottom, color: theme.lineColor)
         .contentShape(Rectangle())

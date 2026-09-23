@@ -9,13 +9,13 @@ struct SettingsView: View {
 
     var body: some View {
         let theme = app.theme
-        HStack(spacing: 0) {
+        HStack(spacing: 0.z) {
             SettingsNav(selection: $pane)
             SettingsContent(pane: pane)
         }
         .environment(\.thubanTheme, theme)
         .foregroundStyle(theme.inkColor)
-        .frame(minWidth: 760, minHeight: 560)
+        .frame(minWidth: 760.z, minHeight: 560.z)
         .background(theme.bgColor)
         .preferredColorScheme(theme.isDark ? .dark : .light)
     }
@@ -66,20 +66,20 @@ private struct SettingsNav: View {
     @Binding var selection: SettingsPane
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 2.z) {
             Text("Settings")
                 .font(ThubanFont.display(20))
                 .foregroundStyle(theme.inkColor)
-                .padding(.horizontal, 12)
-                .padding(.top, 20)
-                .padding(.bottom, 14)
+                .padding(.horizontal, 12.z)
+                .padding(.top, 20.z)
+                .padding(.bottom, 14.z)
             ForEach(SettingsPane.allCases) { pane in
                 SettingsNavRow(pane: pane, isSelected: pane == selection) { selection = pane }
             }
             Spacer()
         }
-        .padding(.horizontal, 12)
-        .frame(width: 240)
+        .padding(.horizontal, 12.z)
+        .frame(width: 240.z)
         .frame(maxHeight: .infinity)
         .background(theme.panelColor)
         .thubanHairline(.trailing, color: theme.lineColor)
@@ -95,18 +95,18 @@ private struct SettingsNavRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 9) {
+            HStack(spacing: 9.z) {
                 if let icon = pane.icon {
                     Icon(icon, size: 16)
                         .foregroundStyle(isSelected ? theme.brassInkColor : theme.inkFaintColor)
                 }
                 Text(pane.rawValue)
-                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                    .font(.system(size: 14.z, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? theme.inkColor : theme.inkDimColor)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 10)
-            .frame(height: 32)
+            .padding(.horizontal, 10.z)
+            .frame(height: 32.z)
             .background(
                 isSelected ? theme.panel2Color : (hovering ? theme.panel2Color.opacity(0.6) : .clear),
                 in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous)
@@ -132,8 +132,8 @@ private struct SettingsContent: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 28.z) {
+                VStack(alignment: .leading, spacing: 6.z) {
                     Text(pane.rawValue)
                         .font(ThubanFont.display(28))
                         .foregroundStyle(theme.inkColor)
@@ -151,9 +151,9 @@ private struct SettingsContent: View {
                 case .about: AboutSettings()
                 }
             }
-            .padding(.vertical, 32)
-            .padding(.horizontal, 40)
-            .frame(maxWidth: 860, alignment: .leading)
+            .padding(.vertical, 32.z)
+            .padding(.horizontal, 40.z)
+            .frame(maxWidth: 860.z, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
             .id(pane)
         }
@@ -177,8 +177,8 @@ struct SettingsGroup<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 10.z) {
+            VStack(alignment: .leading, spacing: 4.z) {
                 Text(title)
                     .font(ThubanFont.display(18))
                     .foregroundStyle(theme.inkColor)
@@ -209,8 +209,8 @@ struct SettingsRow<Control: View>: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .center, spacing: 16.z) {
+            VStack(alignment: .leading, spacing: 3.z) {
                 Text(title)
                     .font(ThubanFont.body(14, weight: .semibold))
                     .foregroundStyle(theme.inkColor)
@@ -224,7 +224,7 @@ struct SettingsRow<Control: View>: View {
             Spacer(minLength: 12)
             control()
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 12.z)
     }
 }
 
@@ -262,15 +262,16 @@ struct ThubanFieldStyle: ViewModifier {
     @Environment(\.thubanTheme) private var theme
     var invalid: Bool = false
     var mono: Bool = false
-    var height: CGFloat = ThubanMetrics.buttonHeight
+    /// Design points at 100 % zoom; nil = the standard control height.
+    var height: CGFloat? = nil
 
     func body(content: Content) -> some View {
         content
             .textFieldStyle(.plain)
             .font(mono ? ThubanFont.mono(13) : ThubanFont.body(14))
             .foregroundStyle(theme.inkColor)
-            .padding(.horizontal, 10)
-            .frame(height: height)
+            .padding(.horizontal, 10.z)
+            .frame(height: height?.z ?? ThubanMetrics.buttonHeight)
             .background(theme.panelColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous)
@@ -280,7 +281,7 @@ struct ThubanFieldStyle: ViewModifier {
 }
 
 extension View {
-    func thubanField(invalid: Bool = false, mono: Bool = false, height: CGFloat = ThubanMetrics.buttonHeight) -> some View {
+    func thubanField(invalid: Bool = false, mono: Bool = false, height: CGFloat? = nil) -> some View {
         modifier(ThubanFieldStyle(invalid: invalid, mono: mono, height: height))
     }
 }
@@ -292,9 +293,9 @@ struct DangerOutlineButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 14, weight: .semibold))
+            .font(.system(size: 14.z, weight: .semibold))
             .foregroundStyle(theme.negTextColor)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 14.z)
             .frame(height: ThubanMetrics.buttonHeight)
             .background(
                 configuration.isPressed ? theme.negSoftColor : theme.panelColor,

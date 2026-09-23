@@ -10,7 +10,7 @@ struct ShellView: View {
     var body: some View {
         @Bindable var app = app
         let theme = app.theme
-        VStack(spacing: 0) {
+        VStack(spacing: 0.z) {
             TitleBar()
             if let session = app.selectedSession {
                 SectionBar(session: session)
@@ -62,15 +62,15 @@ struct TitleBar: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 12.z) {
             Spacer().frame(width: ThubanMetrics.trafficLightInset - 16)
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 ThubanMarkView(size: 20, color: theme.brassInkColor)
                 Text("Thuban Study")
                     .font(ThubanFont.display(16))
                     .foregroundStyle(theme.inkColor)
             }
-            .padding(.trailing, 12)
+            .padding(.trailing, 12.z)
 
             ClassTabStrip()
 
@@ -80,7 +80,7 @@ struct TitleBar: View {
             Button {
                 openWindow(id: "settings")
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: 6.z) {
                     Icon(.themePalette, size: 16)
                     Text("Settings")
                 }
@@ -88,7 +88,7 @@ struct TitleBar: View {
             .buttonStyle(GhostButtonStyle(height: 34))
             .accessibilityLabel("Settings")
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 16.z)
         .frame(height: ThubanMetrics.titleBarHeight)
         .frame(maxWidth: .infinity)
         .background(theme.panelColor)
@@ -123,9 +123,9 @@ struct ClassTabStrip: View {
     @State private var renaming: StudyClass?
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 4.z) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
+                HStack(spacing: 4.z) {
                     ForEach(app.classes) { studyClass in
                         ClassTab(studyClass: studyClass, isActive: studyClass.id == app.selectedClassID) {
                             app.selectClass(studyClass.id)
@@ -166,16 +166,16 @@ struct ClassTab: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 7) {
+            HStack(spacing: 7.z) {
                 Icon(.classTab, size: 16)
                     .foregroundStyle(tint)
                 Text(studyClass.name)
                     .lineLimit(1)
             }
-            .font(.system(size: 14, weight: .semibold))
+            .font(.system(size: 14.z, weight: .semibold))
             .foregroundStyle(isActive ? theme.inkColor : theme.inkDimColor)
-            .padding(.horizontal, 14)
-            .frame(height: 34)
+            .padding(.horizontal, 14.z)
+            .frame(height: 34.z)
             .background(
                 isActive ? theme.panel2Color : (hovering ? theme.panel2Color.opacity(0.6) : .clear),
                 in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous)
@@ -206,7 +206,7 @@ struct SectionBar: View {
     @Bindable var session: ClassSession
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 10.z) {
             SegmentedPicker(selection: $session.section, options: [
                 SegmentOption(.study, "Study"),
                 SegmentOption(.questionBank, "Question Bank", icon: .questionBank),
@@ -219,16 +219,16 @@ struct SectionBar: View {
                 ToggleChip(label: "Keyboard", icon: .mathKeyboard, isOn: $session.showKeyboard)
                 Rectangle()
                     .fill(theme.lineColor)
-                    .frame(width: 1, height: 20)
-                    .padding(.horizontal, 2)
+                    .frame(width: 1.z, height: 20.z)
+                    .padding(.horizontal, 2.z)
                 Text(session.questionCount == 0 ? "No questions yet" : "Question \(session.questionNumber) of \(session.questionCount)")
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
                     .monospacedDigit()
             }
         }
-        .padding(.leading, 20)
-        .padding(.trailing, 16)
+        .padding(.leading, 20.z)
+        .padding(.trailing, 16.z)
         .frame(height: ThubanMetrics.sectionBarHeight)
         .frame(maxWidth: .infinity)
         .background(theme.bgColor)
@@ -245,12 +245,12 @@ struct WelcomeView: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 0.z) {
             Spacer()
-            VStack(alignment: .leading, spacing: 20) {
-                HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 20.z) {
+                HStack(spacing: 12.z) {
                     ThubanMarkView(size: 36, color: theme.brassInkColor)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 2.z) {
                         Text("Welcome to Thuban Study")
                             .font(ThubanFont.display(28))
                             .foregroundStyle(theme.inkColor)
@@ -259,8 +259,8 @@ struct WelcomeView: View {
                             .foregroundStyle(theme.inkDimColor)
                     }
                 }
-                Rectangle().fill(theme.lineColor).frame(height: 1)
-                HStack(alignment: .top, spacing: 16) {
+                Rectangle().fill(theme.lineColor).frame(height: 1.z)
+                HStack(alignment: .top, spacing: 16.z) {
                     WelcomeStep(
                         number: "1",
                         title: "Connect Claude",
@@ -295,11 +295,11 @@ struct WelcomeView: View {
                 }
             }
             .thubanPanel(padding: 24)
-            .frame(maxWidth: 760)
+            .frame(maxWidth: 760.z)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(32)
+        .padding(32.z)
     }
 }
 
@@ -320,12 +320,12 @@ private struct WelcomeStep<Action: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 10.z) {
+            HStack(spacing: 8.z) {
                 Text(number)
                     .font(ThubanFont.display(15))
                     .foregroundStyle(done ? theme.posTextColor : theme.brassInkColor)
-                    .frame(width: 26, height: 26)
+                    .frame(width: 26.z, height: 26.z)
                     .background(done ? theme.posSoftColor : theme.accentTintColor, in: Circle())
                 Text(title)
                     .font(ThubanFont.display(18))

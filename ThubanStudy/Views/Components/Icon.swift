@@ -39,7 +39,7 @@ struct Icon: View {
             .resizable()
             .interpolation(.high)
             .scaledToFit()
-            .frame(width: size, height: size)
+            .frame(width: size.z, height: size.z)
             .accessibilityHidden(true)
     }
 }
@@ -104,7 +104,7 @@ struct Glyph: View {
                 context.stroke(path, with: .foreground, style: style)
             }
         }
-        .frame(width: size, height: size)
+        .frame(width: size.z, height: size.z)
         .accessibilityHidden(true)
     }
 }

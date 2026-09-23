@@ -98,10 +98,10 @@ private struct NumberCell: View {
     var isCurrent: Bool
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 4.z) {
             Circle()
                 .fill(isCurrent ? theme.accentColor : .clear)
-                .frame(width: 6, height: 6)
+                .frame(width: 6.z, height: 6.z)
                 .accessibilityHidden(true)
             Text("\(number)")
                 .font(ThubanFont.mono(12))
@@ -118,7 +118,7 @@ private struct StemCell: View {
     var row: QuestionBankModel.Row
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8.z) {
             Text(row.stemLine.isEmpty ? "Untitled question" : row.stemLine)
                 .font(ThubanFont.body(14, weight: row.isCurrent ? .semibold : .regular))
                 .foregroundStyle(theme.inkColor)
@@ -126,10 +126,10 @@ private struct StemCell: View {
                 .truncationMode(.tail)
             if row.question.parts.count > 1 {
                 Text("\(row.question.parts.count) parts")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 11.z, weight: .semibold))
                     .foregroundStyle(theme.inkFaintColor)
-                    .padding(.horizontal, 5)
-                    .frame(height: 16)
+                    .padding(.horizontal, 5.z)
+                    .frame(height: 16.z)
                     .background(theme.panel2Color, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
             }
             if !row.question.figureIds.isEmpty {
@@ -139,6 +139,6 @@ private struct StemCell: View {
             }
         }
         .help(row.stemLine)
-        .padding(.vertical, 2)
+        .padding(.vertical, 2.z)
     }
 }

@@ -13,7 +13,7 @@ struct ImportProgressSheet: View {
 
     var body: some View {
         ModalCard(title: pipeline.isRunning ? "Importing into \(session.studyClass?.name ?? "this class")" : "Import finished", width: 560) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 16.z) {
                 if let notice = pipeline.escalationNotice {
                     EscalationCard(notice: notice, onKeep: { pipeline.keepEscalation() }, onSonnet: { pipeline.pinSonnetForRun() })
                 }
@@ -43,7 +43,7 @@ struct ImportProgressSheet: View {
 
     private var activityList: some View {
         ScrollView {
-            VStack(spacing: 0) {
+            VStack(spacing: 0.z) {
                 ForEach(Array(pipeline.activities.enumerated()), id: \.element.id) { index, activity in
                     ActivityRow(activity: activity)
                     if index < pipeline.activities.count - 1 {
@@ -52,12 +52,12 @@ struct ImportProgressSheet: View {
                 }
             }
         }
-        .frame(maxHeight: 300)
+        .frame(maxHeight: 300.z)
         .thubanPanel(padding: 0)
     }
 
     private var summary: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8.z) {
             ProgressBar(value: pipeline.fractionFinished, height: 6)
             HStack {
                 Text(pipeline.summaryLine)
@@ -80,10 +80,10 @@ private struct ActivityRow: View {
     var activity: ImportPipeline.FileActivity
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 12.z) {
             phaseMark
-                .frame(width: 20, height: 20)
-            VStack(alignment: .leading, spacing: 3) {
+                .frame(width: 20.z, height: 20.z)
+            VStack(alignment: .leading, spacing: 3.z) {
                 Text(activity.filename)
                     .font(ThubanFont.body(14, weight: .semibold))
                     .foregroundStyle(theme.inkColor)
@@ -103,8 +103,8 @@ private struct ActivityRow: View {
                 Chip("\(activity.questionCount) question\(activity.questionCount == 1 ? "" : "s")", kind: .pos)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 14.z)
+        .padding(.vertical, 10.z)
         .accessibilityElement(children: .combine)
     }
 
@@ -112,7 +112,7 @@ private struct ActivityRow: View {
     private var phaseMark: some View {
         switch activity.phase {
         case .waiting:
-            Circle().strokeBorder(theme.line2Color, lineWidth: 1.5).frame(width: 12, height: 12)
+            Circle().strokeBorder(theme.line2Color, lineWidth: 1.5).frame(width: 12.z, height: 12.z)
         case .done:
             Glyph(.check, size: 16).foregroundStyle(theme.posTextColor)
         case .failed:
@@ -136,8 +136,8 @@ private struct EscalationCard: View {
     var onSonnet: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 10.z) {
+            HStack(spacing: 8.z) {
                 Chip("Escalated to Opus", kind: .warn)
                 Text(notice.filename)
                     .font(ThubanFont.body(14, weight: .semibold))
@@ -149,7 +149,7 @@ private struct EscalationCard: View {
                 .font(ThubanFont.body(14))
                 .foregroundStyle(theme.inkDimColor)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 Button("Keep Opus", action: onKeep)
                     .buttonStyle(PrimaryButtonStyle(height: 30))
                 Button("Use Sonnet anyway", action: onSonnet)
@@ -157,7 +157,7 @@ private struct EscalationCard: View {
                     .help("Pins Sonnet for the remaining files of this run")
             }
         }
-        .padding(14)
+        .padding(14.z)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(theme.warnSoftColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous))
         .overlay(

@@ -5,6 +5,10 @@ import ThubanCore
 struct ThubanStudyApp: App {
     @State private var appModel = AppModel()
 
+    init() {
+        AppZoom.shared.installShortcuts()
+    }
+
     var body: some Scene {
         WindowGroup("Thuban Study") {
             ShellView()
@@ -17,6 +21,7 @@ struct ThubanStudyApp: App {
         .windowResizability(.contentMinSize)
         .defaultSize(width: 1280, height: 820)
         .commands {
+            ZoomCommands()
             CommandGroup(replacing: .newItem) {
                 Button("New Class") { appModel.perform(.newClass) }
                     .keyboardShortcut("n", modifiers: .command)

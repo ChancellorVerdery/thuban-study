@@ -8,7 +8,7 @@ struct AppearanceSettings: View {
     @State private var isEditingCustom = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
+        VStack(alignment: .leading, spacing: 28.z) {
             SettingsGroup("Mode", caption: modeCaption) {
                 SegmentedPicker(
                     selection: Binding(get: { app.themeSelection.mode }, set: { app.setAppearanceMode($0) }),
@@ -17,8 +17,8 @@ struct AppearanceSettings: View {
             }
 
             SettingsGroup("Scheme", caption: "Colors only. Every card uses the same Thuban layout; the ninth is yours.") {
-                let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
-                LazyVGrid(columns: columns, spacing: 12) {
+                let columns = Array(repeating: GridItem(.flexible(), spacing: 12.z), count: 3)
+                LazyVGrid(columns: columns, spacing: 12.z) {
                     ForEach(SchemeCardModel.cards(for: app.themeSelection)) { card in
                         SchemeCard(card: card, isSelected: card.id == app.themeSelection.schemeId) {
                             if card.id == ThubanScheme.customId {
@@ -67,10 +67,10 @@ struct SchemeCard: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 10.z) {
+                HStack(spacing: 8.z) {
                     Text(card.label)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 14.z, weight: .semibold))
                         .foregroundStyle(isSelected ? theme.brassInkColor : theme.inkColor)
                         .lineLimit(1)
                     Spacer(minLength: 0)
@@ -80,11 +80,11 @@ struct SchemeCard: View {
                         Chip("In use", kind: .accent)
                     }
                 }
-                HStack(spacing: 6) {
+                HStack(spacing: 6.z) {
                     ForEach(Array(card.dots.enumerated()), id: \.offset) { _, hex in
                         Circle()
                             .fill(Color(hex: hex))
-                            .frame(width: 14, height: 14)
+                            .frame(width: 14.z, height: 14.z)
                             .overlay(Circle().strokeBorder(theme.lineColor, lineWidth: ThubanMetrics.hairline))
                     }
                     Spacer(minLength: 0)
@@ -95,9 +95,9 @@ struct SchemeCard: View {
                     }
                 }
                 SplitGroundSwatch(lightBg: card.lightBg, lightPanel: card.lightPanel, darkBg: card.darkBg, darkPanel: card.darkPanel)
-                    .frame(height: 36)
+                    .frame(height: 36.z)
             }
-            .padding(12)
+            .padding(12.z)
             .background(
                 isSelected ? theme.accentTintColor : (hovering ? theme.panel2Color : theme.panelColor),
                 in: RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous)
@@ -124,7 +124,7 @@ struct SplitGroundSwatch: View {
     var darkPanel: String
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 0.z) {
             half(bg: lightBg, panel: lightPanel)
             half(bg: darkBg, panel: darkPanel)
         }
@@ -141,8 +141,8 @@ struct SplitGroundSwatch: View {
             Color(hex: bg)
             RoundedRectangle(cornerRadius: 3, style: .continuous)
                 .fill(Color(hex: panel))
-                .padding(.horizontal, 7)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 7.z)
+                .padding(.vertical, 6.z)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
@@ -155,24 +155,24 @@ struct ThemePreviewCard: View {
     @Environment(\.thubanTheme) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 4) {
+        VStack(alignment: .leading, spacing: 14.z) {
+            HStack(spacing: 4.z) {
                 ThubanMarkView(size: 16, color: theme.brassInkColor)
-                    .padding(.trailing, 6)
+                    .padding(.trailing, 6.z)
                 previewTab("Multivariable Calculus", active: true)
                 previewTab("Organic Chemistry II", active: false)
                 previewTab("US History since 1877", active: false)
                 Spacer(minLength: 0)
                 Chip("Connected", kind: .pos, dot: true)
             }
-            .padding(.horizontal, 12)
-            .frame(height: 44)
+            .padding(.horizontal, 12.z)
+            .frame(height: 44.z)
             .frame(maxWidth: .infinity)
             .background(theme.panelColor)
             .thubanHairline(.bottom, color: theme.lineColor)
 
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 12.z) {
+                HStack(spacing: 10.z) {
                     Button("Check answers") {}
                         .buttonStyle(.thubanPrimary)
                     Button("Regenerate numbers") {}
@@ -181,15 +181,15 @@ struct ThemePreviewCard: View {
                     Chip("Regenerated · seed 4f2a", kind: .accent, icon: .mathEngine)
                 }
                 .allowsHitTesting(false)
-                HStack(spacing: 18) {
-                    HStack(spacing: 6) {
-                        Circle().fill(theme.posColor).frame(width: 8, height: 8)
+                HStack(spacing: 18.z) {
+                    HStack(spacing: 6.z) {
+                        Circle().fill(theme.posColor).frame(width: 8.z, height: 8.z)
                         Text("+12 mastered")
                             .font(ThubanFont.body(14, weight: .semibold))
                             .foregroundStyle(theme.posTextColor)
                     }
-                    HStack(spacing: 6) {
-                        Circle().fill(theme.negColor).frame(width: 8, height: 8)
+                    HStack(spacing: 6.z) {
+                        Circle().fill(theme.negColor).frame(width: 8.z, height: 8.z)
                         Text("−3 needs review")
                             .font(ThubanFont.body(14, weight: .semibold))
                             .foregroundStyle(theme.negTextColor)
@@ -201,8 +201,8 @@ struct ThemePreviewCard: View {
                 }
                 ProgressBar(value: 0.5)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
+            .padding(.horizontal, 16.z)
+            .padding(.bottom, 16.z)
         }
         .background(theme.bgColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous))
@@ -215,16 +215,16 @@ struct ThemePreviewCard: View {
     }
 
     private func previewTab(_ name: String, active: Bool) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 6.z) {
             Icon(.classTab, size: 13)
                 .foregroundStyle(active ? theme.brassInkColor : theme.inkDimColor)
             Text(name)
                 .lineLimit(1)
         }
-        .font(.system(size: 12, weight: .semibold))
+        .font(.system(size: 12.z, weight: .semibold))
         .foregroundStyle(active ? theme.inkColor : theme.inkDimColor)
-        .padding(.horizontal, 10)
-        .frame(height: 28)
+        .padding(.horizontal, 10.z)
+        .frame(height: 28.z)
         .background(active ? theme.panel2Color : .clear, in: RoundedRectangle(cornerRadius: ThubanMetrics.chipRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: ThubanMetrics.chipRadius, style: .continuous)

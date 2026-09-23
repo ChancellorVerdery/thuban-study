@@ -14,12 +14,14 @@ struct FigureCanvasView: View {
         ZStack {
             theme.panelColor
             if let phase = chart.phaseLine, chart.isPhaseLine {
+                let zoom = AppZoom.shared.scale
                 Canvas(opaque: false, rendersAsynchronously: true) { context, size in
-                    PhaseLineRenderer(phase: phase, theme: theme).draw(in: &context, size: size)
+                    PhaseLineRenderer(phase: phase, theme: theme, zoom: zoom).draw(in: &context, size: size)
                 }
             } else if let scene = FigureCache.cachedScene(for: chart) ?? scene {
+                let zoom = AppZoom.shared.scale
                 Canvas(opaque: false, rendersAsynchronously: true) { context, size in
-                    FigureCanvasRenderer(scene: scene, theme: theme).draw(in: &context, size: size)
+                    FigureCanvasRenderer(scene: scene, theme: theme, zoom: zoom).draw(in: &context, size: size)
                 }
             } else {
                 ProgressView().controlSize(.small)
@@ -38,6 +40,8 @@ struct FigureCanvasView: View {
     }
 
     private var accessibilityText: String {
+        // Series names and the equation describe what the figure shows: spoken only when descriptions are on.
+        guard app.showFigureDescriptions else { return chart.isSlopeField ? "Direction field" : "Graph" }
         var parts: [String] = [chart.isSlopeField ? "Direction field" : "Graph"]
         if let slope = chart.slope, chart.isSlopeField { parts.append("dy/dx = \(slope)") }
         parts += chart.series.map(\.name).filter { !$0.isEmpty }
@@ -49,9 +53,11 @@ struct FigureCanvasView: View {
 struct FigureCanvasRenderer {
     var scene: FigureScene
     var theme: ResolvedTheme
+    /// The app zoom (`AppZoom`): label sizes are design points at 100 %.
+    var zoom: CGFloat = 1
 
-    private let labelFont = Font.system(size: 10, weight: .regular, design: .default).monospacedDigit()
-    private let axisNameFont = Font.system(size: 13, weight: .regular, design: .serif).italic()
+    private var labelFont: Font { Font.system(size: 10 * zoom, weight: .regular, design: .default).monospacedDigit() }
+    private var axisNameFont: Font { Font.system(size: 13 * zoom, weight: .regular, design: .serif).italic() }
 
     func draw(in context: inout GraphicsContext, size: CGSize) {
         guard size.width > 20, size.height > 20 else { return }
@@ -158,7 +164,7 @@ struct FigureCanvasRenderer {
         func label(_ text: String, at position: CGPoint, anchor: UnitPoint) {
             // Symbols ("c") are set in italic like the original's; numbers in the label font.
             let symbolic = text.count == 1 && text.first!.isLetter
-            let font = symbolic ? Font.system(size: 12, design: .serif).italic() : labelFont
+            let font = symbolic ? Font.system(size: 12 * zoom, design: .serif).italic() : labelFont
             context.draw(Text(text).font(font).foregroundColor(dim), at: position, anchor: anchor)
         }
         let xLabelY = min(xAxisY + 3, size.height - 13)
@@ -204,6 +210,7 @@ struct FigureCanvasRenderer {
 struct PhaseLineRenderer {
     var phase: PhaseLine
     var theme: ResolvedTheme
+    var zoom: CGFloat = 1
 
     func draw(in context: inout GraphicsContext, size: CGSize) {
         let ink = Color(hex: theme.ink), dim = Color(hex: theme.inkDim), accent = Color(hex: theme.accent)
@@ -228,7 +235,7 @@ struct PhaseLineRenderer {
             context.stroke(tick, with: .color(ink), lineWidth: 1.8)
             guard !mark.text.isEmpty else { continue }
             let symbolic = mark.text.count == 1 && mark.text.first!.isLetter
-            let font = symbolic ? Font.system(size: 14, design: .serif).italic() : Font.system(size: 12).monospacedDigit()
+            let font = symbolic ? Font.system(size: 14 * zoom, design: .serif).italic() : Font.system(size: 12 * zoom).monospacedDigit()
             context.draw(Text(mark.text).font(font).foregroundColor(dim), at: point(mark.position, -scale * 0.9), anchor: vertical ? .trailing : .top)
         }
         for arrow in phase.arrows {

@@ -11,9 +11,9 @@ struct AgentsSettings: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
+        VStack(alignment: .leading, spacing: 28.z) {
             SettingsGroup("Models", caption: "Sonnet by default. The import agent may escalate itself to Opus for dense material (proofs, multivariable calculus, organic mechanisms).") {
-                VStack(spacing: 0) {
+                VStack(spacing: 0.z) {
                     SettingsRow("Tutor model", detail: "The model beside you while you work questions.") {
                         Picker("Tutor model", selection: policy.defaultModel) {
                             Text("Sonnet").tag(ClaudeModel.sonnet)
@@ -21,7 +21,7 @@ struct AgentsSettings: View {
                         }
                         .labelsHidden()
                         .pickerStyle(.menu)
-                        .frame(width: 140)
+                        .frame(width: 140.z)
                         .accessibilityLabel("Tutor model")
                     }
                     Rectangle().fill(theme.lineColor).frame(height: ThubanMetrics.hairline)
@@ -37,20 +37,20 @@ struct AgentsSettings: View {
                         }
                         .labelsHidden()
                         .pickerStyle(.menu)
-                        .frame(width: 140)
+                        .frame(width: 140.z)
                         .accessibilityLabel("Pin import model")
                     }
                 }
                 .thubanPanel(padding: 16)
-                .padding(.top, 2)
-                HStack(spacing: 8) {
+                .padding(.top, 2.z)
+                HStack(spacing: 8.z) {
                     Chip("Tutor · \(app.modelPolicy.defaultModel.shortName)", kind: .accent, icon: .tutor)
                     Chip(importSummary, kind: .neutral, icon: .importDocs)
                 }
             }
 
             SettingsGroup("Tutor", caption: "The tutor guides and never solves; these only decide what it may touch.") {
-                VStack(spacing: 0) {
+                VStack(spacing: 0.z) {
                     SettingsRow("Tutor may open and edit the graph", detail: "Lets the tutor show the grapher and add or remove curves while explaining. Its edits are marked \"Added by Tutor\".") {
                         ThubanSwitch(label: "Tutor may open and edit the graph", isOn: Binding(
                             get: { app.tutorMayEditGraph },
@@ -59,7 +59,7 @@ struct AgentsSettings: View {
                     }
                 }
                 .thubanPanel(padding: 16)
-                .padding(.top, 2)
+                .padding(.top, 2.z)
             }
         }
     }

@@ -101,29 +101,32 @@ enum ThubanMetrics {
     static let controlRadius: CGFloat = 8
     static let chipRadius: CGFloat = 6
     static let modalRadius: CGFloat = 14
-    static let titleBarHeight: CGFloat = 52
-    static let sectionBarHeight: CGFloat = 44
+    /// Bars and controls grow with the app zoom (`AppZoom`); the traffic lights do not.
+    @MainActor static var titleBarHeight: CGFloat { max(52, 52.z) }
+    @MainActor static var sectionBarHeight: CGFloat { 44.z }
     static let trafficLightInset: CGFloat = 78
-    static let buttonHeight: CGFloat = 36
+    @MainActor static var buttonHeight: CGFloat { 36.z }
     static let hairline: CGFloat = 1
 }
 
 // MARK: - Fonts
 
+/// Sizes are design points at 100 %; each font is returned at the current app zoom (`AppZoom`).
+@MainActor
 enum ThubanFont {
     /// Display: class names, page titles, big numbers.
     static func display(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
-        .system(size: size, weight: weight, design: .serif)
+        .system(size: size.z, weight: weight, design: .serif)
     }
     static func body(_ size: CGFloat = 15, weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight)
+        .system(size: size.z, weight: weight)
     }
     static func mono(_ size: CGFloat = 13, weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .monospaced)
+        .system(size: size.z, weight: weight, design: .monospaced)
     }
     /// 12 pt, 600, uppercase eyebrow labels (apply `.textCase(.uppercase)` + `.kerning(0.5)` at the call site).
-    static let micro: Font = .system(size: 12, weight: .semibold)
-    static let small: Font = .system(size: 13)
+    static var micro: Font { .system(size: 12.z, weight: .semibold) }
+    static var small: Font { .system(size: 13.z) }
 }
 
 // MARK: - Modifiers
@@ -135,7 +138,7 @@ struct ThubanPanelModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .padding(padding)
+            .padding(padding.z)
             .background(theme.panelColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous)
@@ -167,10 +170,10 @@ struct ThubanChipModifier: ViewModifier {
     func body(content: Content) -> some View {
         let colors = kind.colors(theme)
         content
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: 12.z, weight: .semibold))
             .foregroundStyle(colors.text)
-            .padding(.horizontal, 8)
-            .frame(height: 22)
+            .padding(.horizontal, 8.z)
+            .frame(height: 22.z)
             .background(colors.fill, in: RoundedRectangle(cornerRadius: ThubanMetrics.chipRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: ThubanMetrics.chipRadius, style: .continuous)

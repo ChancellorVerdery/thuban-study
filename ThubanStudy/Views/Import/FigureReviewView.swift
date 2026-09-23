@@ -155,6 +155,7 @@ final class FigureReviewModel {
             figure.chart = analysis.isFigure ? analysis.chart : nil
             if let caption = analysis.caption, !caption.isEmpty { figure.caption = caption }
             figure.status = !analysis.isFigure ? .skipped : (analysis.chart != nil ? .reviewing : .keptOriginal)
+            figure.acceptIfConfident()
             await persist(figure)
         } catch {
             self.error = error.localizedDescription
@@ -243,28 +244,28 @@ struct FigureReviewView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 0.z) {
             breadcrumb
-                .padding(.horizontal, 24)
-                .padding(.top, 18)
-                .padding(.bottom, 12)
+                .padding(.horizontal, 24.z)
+                .padding(.top, 18.z)
+                .padding(.bottom, 12.z)
             if model.isLoading, model.figures.isEmpty {
                 Spacer()
                 ProgressView().controlSize(.small)
                 Spacer()
             } else if let figure = model.current {
                 GeometryReader { proxy in
-                    HStack(alignment: .top, spacing: 16) {
+                    HStack(alignment: .top, spacing: 16.z) {
                         ScrollView {
                             FigureReviewPane(model: model, figure: figure,
                                              availableWidth: max(0, proxy.size.width - 260 - 16), availableHeight: proxy.size.height)
-                                .padding(.bottom, 20)
+                                .padding(.bottom, 20.z)
                         }
                         FigureRail(model: model)
-                            .frame(width: 260)
+                            .frame(width: 260.z)
                     }
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 24.z)
             } else {
                 EmptyState(icon: .figureClip, title: "No figures", message: "No figures were clipped from these documents.") {
                     Button("Back") { onClose() }
@@ -275,8 +276,8 @@ struct FigureReviewView: View {
                 Text(error)
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.negTextColor)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 12)
+                    .padding(.horizontal, 24.z)
+                    .padding(.bottom, 12.z)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -292,7 +293,7 @@ struct FigureReviewView: View {
     }
 
     private var breadcrumb: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8.z) {
             Button(breadcrumbRoot) { onClose() }
                 .buttonStyle(GhostButtonStyle(height: 28, tinted: true, horizontalPadding: 6))
                 .keyboardShortcut(.cancelAction)
@@ -343,7 +344,7 @@ private struct FigureReviewPane: View {
 
     /// The largest size at which two panes of the original's proportions fit side by side in the page.
     private var paneSize: CGSize {
-        let chrome: CGFloat = 14 * 2 + 12 * 2 + 20 + 8 + 40 // panel padding, image padding, header, caption
+        let chrome: CGFloat = (14 * 2 + 12 * 2 + 20 + 8 + 40).z // panel padding, image padding, header, caption
         let width = max(180, (availableWidth - 16) / 2 - 14 * 2 - 12 * 2)
         let maxHeight = max(220, availableHeight * 0.7 - chrome)
         var height = width / aspect
@@ -353,8 +354,8 @@ private struct FigureReviewPane: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 16) {
+        VStack(alignment: .leading, spacing: 16.z) {
+            HStack(alignment: .top, spacing: 16.z) {
                 Spacer(minLength: 0)
                 originalPanel
                 standardizedPanel
@@ -400,7 +401,7 @@ private struct FigureReviewPane: View {
     }
 
     private var originalPanel: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8.z) {
             Text("Original (clipped from page \(figure.pageOrIndex))")
                 .font(ThubanFont.micro)
                 .textCase(.uppercase)
@@ -412,7 +413,7 @@ private struct FigureReviewPane: View {
                         .resizable()
                         .interpolation(.high)
                         .scaledToFit()
-                        .accessibilityLabel(figure.caption ?? "Original figure")
+                        .accessibilityLabel(app.showFigureDescriptions ? (figure.caption ?? "Original figure") : "Original figure")
                 } else {
                     Text("The clipped image is missing.")
                         .font(ThubanFont.small)
@@ -420,10 +421,10 @@ private struct FigureReviewPane: View {
                 }
             }
             .frame(width: paneSize.width, height: paneSize.height)
-            .padding(12)
+            .padding(12.z)
             .overlay(RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous).stroke(theme.lineColor, lineWidth: 1))
             .background(theme.panel2Color, in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
-            if let caption = figure.caption, !caption.isEmpty {
+            if app.showFigureDescriptions, let caption = figure.caption, !caption.isEmpty {
                 Text(caption)
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
@@ -436,7 +437,7 @@ private struct FigureReviewPane: View {
     }
 
     private var standardizedPanel: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8.z) {
             HStack {
                 Text("Standardized")
                     .font(ThubanFont.micro)
@@ -466,7 +467,7 @@ private struct FigureReviewPane: View {
     }
 
     private func detectionChips(_ chart: StandardChart) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8.z) {
             Chip(chart.isSlopeField ? (chart.arrows ? "Direction field" : "Slope field") : chart.chartType.capitalized, kind: .accent)
             if chart.isSlopeField, let slope = chart.slope?.nilIfEmpty {
                 Chip("dy/dx = \(slope)", kind: .neutral)
@@ -488,7 +489,7 @@ private struct FigureReviewPane: View {
     }
 
     private var actions: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 10.z) {
             Button("Accept standardized graph") { Task { await model.decide(.accepted) } }
                 .buttonStyle(.thubanPrimary)
                 .keyboardShortcut(.defaultAction)
@@ -553,7 +554,7 @@ private struct SeriesTable: View {
     var onEdit: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 10.z) {
             HStack {
                 Text("Extracted series")
                     .font(ThubanFont.display(16))
@@ -567,13 +568,13 @@ private struct SeriesTable: View {
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
             } else {
-                VStack(spacing: 0) {
+                VStack(spacing: 0.z) {
                     ForEach(Array(chart.series.enumerated()), id: \.offset) { offset, series in
-                        HStack(alignment: .top, spacing: 12) {
+                        HStack(alignment: .top, spacing: 12.z) {
                             Text(series.name.nilIfEmpty ?? "Series \(offset + 1)")
                                 .font(ThubanFont.body(14, weight: .semibold))
                                 .foregroundStyle(theme.inkColor)
-                                .frame(width: 160, alignment: .leading)
+                                .frame(width: 160.z, alignment: .leading)
                                 .lineLimit(1)
                             Text(preview(series))
                                 .font(ThubanFont.mono(12))
@@ -581,8 +582,8 @@ private struct SeriesTable: View {
                                 .lineLimit(2)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12.z)
+                        .padding(.vertical, 8.z)
                         if offset < chart.series.count - 1 {
                             Rectangle().fill(theme.lineColor).frame(height: ThubanMetrics.hairline)
                         }
@@ -626,14 +627,14 @@ private struct SeriesValuesSheet: View {
     var body: some View {
         ModalCard(title: "Edit series values", width: 620) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 16.z) {
                     ForEach($series) { $draft in
                         SeriesDraftEditor(draft: $draft)
                     }
                     Button {
                         series.append(SeriesDraft(name: "Series \(series.count + 1)"))
                     } label: {
-                        HStack(spacing: 6) { Glyph(.plus, size: 14); Text("Add series") }
+                        HStack(spacing: 6.z) { Glyph(.plus, size: 14); Text("Add series") }
                     }
                     .buttonStyle(.thubanGhostTinted)
                     if let problem {
@@ -642,9 +643,9 @@ private struct SeriesValuesSheet: View {
                             .foregroundStyle(theme.negTextColor)
                     }
                 }
-                .padding(.trailing, 4)
+                .padding(.trailing, 4.z)
             }
-            .frame(maxHeight: 460)
+            .frame(maxHeight: 460.z)
         } actions: {
             Button("Cancel") { dismiss() }
                 .buttonStyle(.thubanSecondary)
@@ -723,18 +724,18 @@ private struct SeriesDraftEditor: View {
     @Binding var draft: SeriesDraft
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 10.z) {
+            HStack(spacing: 10.z) {
                 TextField("Series name", text: $draft.name)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 200)
+                    .frame(width: 200.z)
                 Picker("Kind", selection: $draft.isFunction) {
                     Text("Points").tag(false)
                     Text("Function of x").tag(true)
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
-                .frame(width: 200)
+                .frame(width: 200.z)
                 Spacer()
             }
             if draft.isFunction {
@@ -742,10 +743,10 @@ private struct SeriesDraftEditor: View {
                     .textFieldStyle(.roundedBorder)
                     .font(ThubanFont.mono(13))
             } else {
-                Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 6) {
+                Grid(alignment: .leading, horizontalSpacing: 8.z, verticalSpacing: 6.z) {
                     GridRow {
-                        Text("x").font(ThubanFont.micro).foregroundStyle(theme.inkDimColor).frame(width: 120, alignment: .leading)
-                        Text("y").font(ThubanFont.micro).foregroundStyle(theme.inkDimColor).frame(width: 120, alignment: .leading)
+                        Text("x").font(ThubanFont.micro).foregroundStyle(theme.inkDimColor).frame(width: 120.z, alignment: .leading)
+                        Text("y").font(ThubanFont.micro).foregroundStyle(theme.inkDimColor).frame(width: 120.z, alignment: .leading)
                         Text("")
                     }
                     ForEach($draft.points) { $cell in
@@ -753,11 +754,11 @@ private struct SeriesDraftEditor: View {
                             TextField("x", text: $cell.x)
                                 .textFieldStyle(.roundedBorder)
                                 .font(ThubanFont.mono(12))
-                                .frame(width: 120)
+                                .frame(width: 120.z)
                             TextField("y", text: $cell.y)
                                 .textFieldStyle(.roundedBorder)
                                 .font(ThubanFont.mono(12))
-                                .frame(width: 120)
+                                .frame(width: 120.z)
                             IconButton(glyph: .close, label: "Remove point", size: 22, iconSize: 11) {
                                 draft.points.removeAll { $0.id == cell.id }
                                 if draft.points.isEmpty { draft.points = [SeriesDraft.Cell(x: "", y: "")] }
@@ -768,12 +769,12 @@ private struct SeriesDraftEditor: View {
                 Button {
                     draft.points.append(SeriesDraft.Cell(x: "", y: ""))
                 } label: {
-                    HStack(spacing: 6) { Glyph(.plus, size: 12); Text("Add point") }
+                    HStack(spacing: 6.z) { Glyph(.plus, size: 12); Text("Add point") }
                 }
                 .buttonStyle(GhostButtonStyle(height: 26, tinted: true, horizontalPadding: 6))
             }
         }
-        .padding(12)
+        .padding(12.z)
         .background(theme.panel2Color.opacity(0.5), in: RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous)
@@ -790,14 +791,14 @@ private struct FigureRail: View {
     var model: FigureReviewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12.z) {
             Text("Figures")
                 .font(ThubanFont.micro)
                 .textCase(.uppercase)
                 .kerning(0.5)
                 .foregroundStyle(theme.inkDimColor)
             ScrollView {
-                VStack(spacing: 2) {
+                VStack(spacing: 2.z) {
                     ForEach(Array(model.figures.enumerated()), id: \.element.id) { offset, figure in
                         FigureRailRow(
                             figure: figure,
@@ -829,16 +830,16 @@ private struct FigureRailRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 Icon(.figureClip, size: 14)
                     .foregroundStyle(isCurrent ? theme.brassInkColor : theme.inkDimColor)
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: 1.z) {
                     Text("Figure \(number) · p. \(figure.pageOrIndex)")
-                        .font(.system(size: 13, weight: isCurrent ? .semibold : .regular))
+                        .font(.system(size: 13.z, weight: isCurrent ? .semibold : .regular))
                         .foregroundStyle(theme.inkColor)
                     if let documentName {
                         Text(documentName)
-                            .font(.system(size: 11))
+                            .font(.system(size: 11.z))
                             .foregroundStyle(theme.inkFaintColor)
                             .lineLimit(1)
                             .truncationMode(.middle)
@@ -847,8 +848,8 @@ private struct FigureRailRow: View {
                 Spacer(minLength: 4)
                 FigureStatusChip(status: figure.status)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 8.z)
+            .padding(.vertical, 5.z)
             .background(
                 isCurrent ? theme.accentTintColor : (hovering ? theme.panel2Color : .clear),
                 in: RoundedRectangle(cornerRadius: ThubanMetrics.chipRadius, style: .continuous)

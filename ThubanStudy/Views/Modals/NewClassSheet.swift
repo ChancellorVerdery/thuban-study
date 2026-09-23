@@ -16,7 +16,7 @@ struct NewClassSheet: View {
 
     var body: some View {
         ModalCard(title: "New class", width: 520) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 16.z) {
                 LabeledField("Class name") {
                     TextField("Multivariable Calculus", text: $form.name)
                         .thubanField()
@@ -25,7 +25,7 @@ struct NewClassSheet: View {
                         .accessibilityLabel("Class name")
                 }
 
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .top, spacing: 12.z) {
                     LabeledField("Course code · optional") {
                         TextField("MATH 2210", text: $form.courseCode)
                             .thubanField()
@@ -41,7 +41,7 @@ struct NewClassSheet: View {
                 }
 
                 LabeledField("Tutor style") {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 8.z) {
                         SegmentedPicker(
                             selection: $form.tutorStyle,
                             options: TutorStyle.allCases.map { SegmentOption($0, $0.displayName) },
@@ -152,7 +152,7 @@ private struct TermPicker: View {
     private let suggestions = AcademicTerms.suggestions()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6.z) {
             Picker("Term", selection: $choice) {
                 ForEach(suggestions, id: \.self) { term in
                     Text(term).tag(TermChoice.named(term))
@@ -183,7 +183,7 @@ private struct TintRow: View {
     @Binding var selectedId: String
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 10.z) {
             ForEach(options) { option in
                 let selected = option.id == selectedId
                 Button {
@@ -192,14 +192,14 @@ private struct TintRow: View {
                     ZStack {
                         Circle()
                             .fill(Color(hex: option.hex ?? theme.accent))
-                            .frame(width: 22, height: 22)
+                            .frame(width: 22.z, height: 22.z)
                             .overlay(Circle().strokeBorder(theme.lineColor, lineWidth: ThubanMetrics.hairline))
                         if selected {
                             Glyph(.check, size: 12)
                                 .foregroundStyle(Color(hex: ClassTintOption.inkOn(option.hex ?? theme.accent)))
                         }
                     }
-                    .padding(3)
+                    .padding(3.z)
                     .overlay(
                         Circle().strokeBorder(selected ? theme.accentColor : .clear, lineWidth: 1.5)
                     )
@@ -213,7 +213,7 @@ private struct TintRow: View {
             Text(options.first { $0.id == selectedId }?.label ?? "")
                 .font(ThubanFont.small)
                 .foregroundStyle(theme.inkDimColor)
-                .padding(.leading, 4)
+                .padding(.leading, 4.z)
             Spacer(minLength: 0)
         }
     }
@@ -265,17 +265,17 @@ struct ModalCard<Content: View, Actions: View>: View {
     @ViewBuilder var actions: () -> Actions
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 18.z) {
             Text(title)
                 .font(ThubanFont.display(20))
                 .foregroundStyle(theme.inkColor)
             content()
-            HStack(spacing: 10) {
+            HStack(spacing: 10.z) {
                 Spacer()
                 actions()
             }
         }
-        .padding(24)
+        .padding(24.z)
         .frame(width: width)
         .background(theme.panelColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.modalRadius, style: .continuous))
         .overlay(
@@ -298,7 +298,7 @@ struct LabeledField<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6.z) {
             Text(label)
                 .font(ThubanFont.micro)
                 .textCase(.uppercase)

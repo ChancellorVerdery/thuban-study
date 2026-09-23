@@ -116,7 +116,7 @@ struct DataSettings: View {
     @State private var isConfirmingDelete = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
+        VStack(alignment: .leading, spacing: 28.z) {
             if let model {
                 locationGroup(model)
                 dangerGroup(model)
@@ -138,12 +138,12 @@ struct DataSettings: View {
 
     private func locationGroup(_ model: DataSettingsModel) -> some View {
         SettingsGroup("Location", caption: "All data is stored on this Mac. Nothing is synced or uploaded except the requests the tutor and import agent make to Claude.") {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top, spacing: 14) {
+            VStack(alignment: .leading, spacing: 14.z) {
+                HStack(alignment: .top, spacing: 14.z) {
                     Icon(.importDocs, size: 20)
                         .foregroundStyle(theme.brassInkColor)
-                        .padding(.top, 2)
-                    VStack(alignment: .leading, spacing: 8) {
+                        .padding(.top, 2.z)
+                    VStack(alignment: .leading, spacing: 8.z) {
                         Text("All data is stored on this Mac")
                             .font(ThubanFont.display(18))
                             .foregroundStyle(theme.inkColor)
@@ -153,7 +153,7 @@ struct DataSettings: View {
                             .textSelection(.enabled)
                             .lineLimit(2)
                             .truncationMode(.middle)
-                        HStack(spacing: 14) {
+                        HStack(spacing: 14.z) {
                             fact("Size", model.formattedSize)
                             fact("Classes", "\(app.classes.count)")
                             fact("Database", model.isInMemory ? "in memory (not saved)" : "thuban.sqlite")
@@ -165,7 +165,7 @@ struct DataSettings: View {
                     Spacer(minLength: 0)
                 }
                 Rectangle().fill(theme.lineColor).frame(height: ThubanMetrics.hairline)
-                HStack(spacing: 10) {
+                HStack(spacing: 10.z) {
                     Button(model.isExporting ? "Exporting…" : "Export…") { Task { await model.export() } }
                         .buttonStyle(.thubanPrimary)
                         .disabled(model.isExporting)
@@ -190,8 +190,8 @@ struct DataSettings: View {
 
     private func dangerGroup(_ model: DataSettingsModel) -> some View {
         SettingsGroup("Danger zone") {
-            HStack(alignment: .center, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 16.z) {
+                VStack(alignment: .leading, spacing: 4.z) {
                     Text("Delete all data")
                         .font(ThubanFont.body(14, weight: .semibold))
                         .foregroundStyle(theme.inkColor)
@@ -208,7 +208,7 @@ struct DataSettings: View {
                     .buttonStyle(.thubanDangerOutline)
                     .disabled(model.isDeleting)
             }
-            .padding(20)
+            .padding(20.z)
             .background(theme.panelColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous)
@@ -218,7 +218,7 @@ struct DataSettings: View {
     }
 
     private func fact(_ label: String, _ value: String) -> some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 5.z) {
             Text(label)
                 .font(ThubanFont.micro)
                 .textCase(.uppercase)
@@ -247,8 +247,8 @@ private struct DeleteAllDataSheet: View {
 
     var body: some View {
         ModalCard(title: "Delete all data?") {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14.z) {
+                HStack(alignment: .top, spacing: 12.z) {
                     DangerGlyph(size: 22)
                         .foregroundStyle(theme.negTextColor)
                     Text("Every class, question, attempt, transcript, imported file and setting on this Mac will be removed. Export first if you might want any of it back.")

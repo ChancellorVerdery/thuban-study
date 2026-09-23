@@ -24,19 +24,19 @@ struct SegmentedPicker<Value: Hashable>: View {
     var fillsWidth: Bool = false
 
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 2.z) {
             ForEach(options) { option in
                 let active = option.value == selection
                 Button {
                     selection = option.value
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 6.z) {
                         if let icon = option.icon { Icon(icon, size: 16) }
                         Text(option.label)
                     }
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13.z, weight: .semibold))
                     .foregroundStyle(active ? theme.inkColor : theme.inkDimColor)
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, 12.z)
                     .frame(maxWidth: fillsWidth ? .infinity : nil)
                     .frame(height: segmentHeight)
                     .background(active ? theme.panelColor : .clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
@@ -50,7 +50,7 @@ struct SegmentedPicker<Value: Hashable>: View {
                 .accessibilityAddTraits(active ? [.isSelected] : [])
             }
         }
-        .padding(3)
+        .padding(3.z)
         .background(theme.panel2Color, in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
     }
 }

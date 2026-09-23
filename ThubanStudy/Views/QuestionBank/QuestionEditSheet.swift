@@ -34,8 +34,8 @@ struct QuestionEditSheet: View {
     var body: some View {
         ModalCard(title: "Edit question", width: 640) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 16.z) {
+                    HStack(spacing: 8.z) {
                         if isTemplate { Chip.regenerates }
                         if isTemplate {
                             Text("Placeholders like {a} get fresh numbers each time; answers are engine expressions.")
@@ -55,7 +55,7 @@ struct QuestionEditSheet: View {
                             .textFieldStyle(.roundedBorder)
                     }
                     LabeledField("Type") {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 6.z) {
                             TextField("Initial value problems", text: $type)
                                 .textFieldStyle(.roundedBorder)
                             if !knownTypes.isEmpty {
@@ -81,10 +81,10 @@ struct QuestionEditSheet: View {
                             .foregroundStyle(theme.negTextColor)
                     }
                 }
-                .padding(.vertical, 2)
-                .padding(.trailing, 4)
+                .padding(.vertical, 2.z)
+                .padding(.trailing, 4.z)
             }
-            .frame(maxHeight: 520)
+            .frame(maxHeight: 520.z)
         } actions: {
             Button("Cancel") { dismiss() }
                 .buttonStyle(.thubanSecondary)
@@ -221,8 +221,8 @@ private struct PartEditor: View {
     var isTemplate: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 10.z) {
+            HStack(spacing: 8.z) {
                 Text("Part (\(part.id))")
                     .font(ThubanFont.display(15))
                     .foregroundStyle(theme.inkColor)
@@ -249,7 +249,7 @@ private struct PartEditor: View {
                 ConditionsEditor(draft: $part.conditions)
             }
         }
-        .padding(14)
+        .padding(14.z)
         .background(theme.panel2Color.opacity(0.5), in: RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous)
@@ -291,13 +291,13 @@ private struct ConditionsEditor: View {
     @Binding var draft: ConditionsDraft
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8.z) {
             Text("Conditions")
                 .font(ThubanFont.micro)
                 .textCase(.uppercase)
                 .kerning(0.5)
                 .foregroundStyle(theme.inkDimColor)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 6) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 6.z) {
                 Toggle("Rationalized denominator", isOn: $draft.rationalizedDenominator)
                 Toggle("Simplified", isOn: $draft.simplified)
                 Toggle("Fully factored", isOn: $draft.factored)
@@ -308,25 +308,25 @@ private struct ConditionsEditor: View {
             }
             .toggleStyle(.checkbox)
             .font(ThubanFont.small)
-            HStack(spacing: 12) {
-                HStack(spacing: 6) {
+            HStack(spacing: 12.z) {
+                HStack(spacing: 6.z) {
                     Text("Round to")
                         .font(ThubanFont.small)
                         .foregroundStyle(theme.inkDimColor)
                     TextField("exact", text: $draft.rounding)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 56)
+                        .frame(width: 56.z)
                     Text("decimals")
                         .font(ThubanFont.small)
                         .foregroundStyle(theme.inkDimColor)
                 }
-                HStack(spacing: 6) {
+                HStack(spacing: 6.z) {
                     Text("Units")
                         .font(ThubanFont.small)
                         .foregroundStyle(theme.inkDimColor)
                     TextField("none", text: $draft.units)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 90)
+                        .frame(width: 90.z)
                 }
             }
             if !draft.custom.isEmpty {
@@ -349,7 +349,7 @@ private struct EditorBox: View {
             .font(ThubanFont.body(14))
             .foregroundStyle(theme.inkColor)
             .scrollContentBackground(.hidden)
-            .padding(6)
+            .padding(6.z)
             .frame(minHeight: minHeight)
             .background(theme.panelColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
             .overlay(

@@ -168,8 +168,8 @@ struct CustomSchemeSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 12.z) {
+            VStack(alignment: .leading, spacing: 3.z) {
                 Text("Custom scheme")
                     .font(ThubanFont.display(20))
                     .foregroundStyle(theme.inkColor)
@@ -178,16 +178,16 @@ struct CustomSchemeSheet: View {
                     .foregroundStyle(theme.inkDimColor)
             }
 
-            HStack(alignment: .top, spacing: 20) {
+            HStack(alignment: .top, spacing: 20.z) {
                 SchemePreviewColumn(model: model)
-                    .frame(width: 300)
+                    .frame(width: 300.z)
                 SlotEditorColumn(model: model)
                     .frame(maxWidth: .infinity)
             }
 
             Rectangle().fill(theme.lineColor).frame(height: ThubanMetrics.hairline)
 
-            HStack(spacing: 10) {
+            HStack(spacing: 10.z) {
                 Text("Applies to every class tab.")
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
@@ -204,8 +204,8 @@ struct CustomSchemeSheet: View {
                 .disabled(model.hasInvalidDraft)
             }
         }
-        .padding(24)
-        .frame(width: 820)
+        .padding(24.z)
+        .frame(width: 820.z)
         .background(theme.panelColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.modalRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: ThubanMetrics.modalRadius, style: .continuous)
@@ -222,18 +222,18 @@ private struct SchemePreviewColumn: View {
     var model: CustomSchemeEditorModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 10.z) {
             previewBlock(title: "Light", resolved: model.lightTheme)
             previewBlock(title: "Dark", resolved: model.darkTheme)
             bulkActions
-                .padding(.top, 2)
+                .padding(.top, 2.z)
         }
     }
 
     /// Derive / Reset / Start from — they rewrite several slots at once, so they sit beside the previews.
     private var bulkActions: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 8.z) {
+            HStack(spacing: 8.z) {
                 Button("Derive from accent") { model.deriveFromAccent() }
                     .buttonStyle(SecondaryButtonStyle(height: 32))
                     .help("Set Highlight, Gain and Loss from the accent's hue family")
@@ -241,7 +241,7 @@ private struct SchemePreviewColumn: View {
                     .buttonStyle(GhostButtonStyle(height: 32))
                 Spacer(minLength: 0)
             }
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 Text("Start from:")
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
@@ -255,7 +255,7 @@ private struct SchemePreviewColumn: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
-                .frame(width: 130)
+                .frame(width: 130.z)
                 .accessibilityLabel("Start from preset")
                 Spacer(minLength: 0)
             }
@@ -263,7 +263,7 @@ private struct SchemePreviewColumn: View {
     }
 
     private func previewBlock(title: String, resolved: ResolvedTheme) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6.z) {
             MiniStudyCard()
                 .environment(\.thubanTheme, resolved)
             ContrastReadout(title: title, resolved: resolved)
@@ -276,10 +276,10 @@ struct MiniStudyCard: View {
     @Environment(\.thubanTheme) private var t
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8.z) {
             HStack {
                 Text("Question 7 of 24")
-                    .font(.system(size: 11))
+                    .font(.system(size: 11.z))
                     .foregroundStyle(t.inkDimColor)
                 Spacer()
                 Chip("Regenerated", kind: .accent)
@@ -288,7 +288,7 @@ struct MiniStudyCard: View {
                 .font(ThubanFont.display(13, weight: .medium))
                 .foregroundStyle(t.inkColor)
                 .lineLimit(2)
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 Text("28")
                     .font(ThubanFont.mono(12))
                     .foregroundStyle(t.inkColor)
@@ -296,11 +296,11 @@ struct MiniStudyCard: View {
                 Glyph(.check, size: 12)
                     .foregroundStyle(t.posTextColor)
             }
-            .padding(.horizontal, 8)
-            .frame(height: 26)
+            .padding(.horizontal, 8.z)
+            .frame(height: 26.z)
             .background(t.panelColor, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(t.accentColor, lineWidth: 1))
-            HStack(spacing: 6) {
+            HStack(spacing: 6.z) {
                 Button("Check answers") {}
                     .buttonStyle(PrimaryButtonStyle(height: 26))
                 Button("Hint") {}
@@ -309,26 +309,26 @@ struct MiniStudyCard: View {
                 Chip("Mastered", kind: .pos)
             }
             .allowsHitTesting(false)
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 Text("+12 mastered")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 11.z, weight: .semibold))
                     .foregroundStyle(t.posTextColor)
                 Text("−3 needs review")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 11.z, weight: .semibold))
                     .foregroundStyle(t.negTextColor)
                 Spacer()
                 Text("Source: HW 4 · Q3")
-                    .font(.system(size: 11))
+                    .font(.system(size: 11.z))
                     .foregroundStyle(t.brassInkColor)
             }
         }
-        .padding(8)
+        .padding(8.z)
         .background(t.panelColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous)
                 .strokeBorder(t.lineColor, lineWidth: ThubanMetrics.hairline)
         )
-        .padding(6)
+        .padding(6.z)
         .background(t.bgColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous)
@@ -366,18 +366,18 @@ struct ContrastReadout: View {
     }
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 10.z) {
             Text(title)
                 .font(ThubanFont.micro)
                 .textCase(.uppercase)
                 .kerning(0.5)
                 .foregroundStyle(theme.inkDimColor)
             ForEach(checks) { check in
-                HStack(spacing: 4) {
+                HStack(spacing: 4.z) {
                     Glyph(check.passes ? .check : .close, size: 11)
                         .foregroundStyle(check.passes ? theme.posTextColor : theme.negTextColor)
                     Text(check.label)
-                        .font(.system(size: 11))
+                        .font(.system(size: 11.z))
                         .foregroundStyle(theme.inkDimColor)
                     Text(String(format: "%.1f", check.ratio))
                         .font(ThubanFont.mono(11))
@@ -388,7 +388,7 @@ struct ContrastReadout: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 2)
+        .padding(.horizontal, 2.z)
     }
 }
 
@@ -399,7 +399,7 @@ private struct SlotEditorColumn: View {
     var model: CustomSchemeEditorModel
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 0.z) {
             ForEach(Array(ThubanScheme.Slot.allCases.enumerated()), id: \.element) { index, slot in
                 SlotRow(model: model, slot: slot)
                 if model.selectedSlot == slot {
@@ -428,24 +428,24 @@ private struct SlotRow: View {
     private var isValid: Bool { model.isValid(slot) }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 12.z) {
             Button {
                 model.select(slot)
             } label: {
-                HStack(spacing: 12) {
+                HStack(spacing: 12.z) {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(Color(hex: model.scheme[slot]))
-                        .frame(width: 24, height: 24)
+                        .frame(width: 24.z, height: 24.z)
                         .overlay(
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .strokeBorder(theme.lineColor, lineWidth: ThubanMetrics.hairline)
                         )
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 2.z) {
                         Text(slot.label)
                             .font(ThubanFont.body(14, weight: .semibold))
                             .foregroundStyle(isSelected ? theme.brassInkColor : theme.inkColor)
                         Text(CustomSchemeEditorModel.role(of: slot))
-                            .font(.system(size: 12))
+                            .font(.system(size: 12.z))
                             .foregroundStyle(theme.inkDimColor)
                             .lineLimit(1)
                     }
@@ -463,12 +463,12 @@ private struct SlotRow: View {
                 set: { model.setDraft($0, for: slot) }
             ))
             .thubanField(invalid: !isValid, mono: true, height: 30)
-            .frame(width: 100)
+            .frame(width: 100.z)
             .accessibilityLabel("\(slot.label) hex value")
             .accessibilityValue(isValid ? model.draft(for: slot) : "invalid")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12.z)
+        .padding(.vertical, 4.z)
         .background(isSelected ? theme.panel2Color : .clear)
     }
 }
@@ -480,14 +480,14 @@ private struct SlotEditorStrip: View {
     var slot: ThubanScheme.Slot
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6.z) {
             HueBar(hue: Binding(get: { model.editingHSL.h }, set: { model.setHue($0) }))
-                .frame(height: 16)
-            HStack(spacing: 14) {
+                .frame(height: 16.z)
+            HStack(spacing: 14.z) {
                 labeledSlider("Lightness", value: Binding(get: { model.editingHSL.l }, set: { model.setLightness($0) }))
                 labeledSlider("Saturation", value: Binding(get: { model.editingHSL.s }, set: { model.setSaturation($0) }))
             }
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 Text("Suggested")
                     .font(ThubanFont.micro)
                     .textCase(.uppercase)
@@ -497,10 +497,10 @@ private struct SlotEditorStrip: View {
                     Button {
                         model.apply(hex: suggestion.hex, to: slot)
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 6.z) {
                             Circle()
                                 .fill(Color(hex: suggestion.hex))
-                                .frame(width: 10, height: 10)
+                                .frame(width: 10.z, height: 10.z)
                                 .overlay(Circle().strokeBorder(theme.lineColor, lineWidth: ThubanMetrics.hairline))
                             Text(suggestion.label)
                         }
@@ -512,16 +512,16 @@ private struct SlotEditorStrip: View {
                 Spacer()
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12.z)
+        .padding(.vertical, 8.z)
         .background(theme.panel2Color)
     }
 
     private func labeledSlider(_ label: String, value: Binding<Double>) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 2.z) {
             HStack {
                 Text(label)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 12.z, weight: .semibold))
                     .foregroundStyle(theme.inkDimColor)
                 Spacer()
                 Text("\(Int((value.wrappedValue * 100).rounded()))%")
@@ -555,7 +555,7 @@ struct HueBar: View {
                     .overlay(Capsule().strokeBorder(theme.lineColor, lineWidth: ThubanMetrics.hairline))
                 Circle()
                     .fill(Color(hex: ColorMath.hslToHex(ColorMath.HSL(h: hue, s: 0.9, l: 0.55))))
-                    .frame(width: 18, height: 18)
+                    .frame(width: 18.z, height: 18.z)
                     .overlay(Circle().strokeBorder(theme.panelColor, lineWidth: 2))
                     .overlay(Circle().strokeBorder(theme.line2Color, lineWidth: ThubanMetrics.hairline))
                     .offset(x: min(max(0, x - 9), width - 18))

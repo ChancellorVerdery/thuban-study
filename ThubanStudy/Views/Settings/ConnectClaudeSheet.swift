@@ -85,7 +85,7 @@ struct ConnectClaudeSheet: View {
 
     var body: some View {
         ModalCard(title: "Connect Claude account", width: 560) {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 18.z) {
                 Text("Sign in on claude.ai, authorize Thuban Study, and paste the code it shows. Nothing else leaves this Mac.")
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
@@ -143,11 +143,11 @@ struct ConnectClaudeSheet: View {
     private var authorizeStep: some View {
         StepCard(number: 2, title: "Paste the authorization code") {
             if let url = model.signInURL {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 6.z) {
                     Text("If the browser did not open, use this link:")
                         .font(ThubanFont.small)
                         .foregroundStyle(theme.inkDimColor)
-                    HStack(spacing: 8) {
+                    HStack(spacing: 8.z) {
                         Text(url.absoluteString)
                             .font(ThubanFont.mono(11))
                             .foregroundStyle(theme.inkDimColor)
@@ -162,12 +162,12 @@ struct ConnectClaudeSheet: View {
                             .buttonStyle(GhostButtonStyle(height: 26))
                             .accessibilityLabel("Reopen sign-in page")
                     }
-                    .padding(8)
+                    .padding(8.z)
                     .background(theme.panel2Color, in: RoundedRectangle(cornerRadius: ThubanMetrics.chipRadius, style: .continuous))
                 }
             }
             LabeledField("Authorization code") {
-                HStack(spacing: 10) {
+                HStack(spacing: 10.z) {
                     TextField("Paste the code shown by claude.ai", text: Binding(
                         get: { model.pastedCode },
                         set: { model.pastedCode = $0 }
@@ -208,14 +208,14 @@ private struct StepperRail: View {
     var current: ConnectClaudeModel.Step
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 0.z) {
             ForEach(ConnectClaudeModel.Step.allCases) { step in
                 let state = state(of: step)
-                HStack(spacing: 8) {
+                HStack(spacing: 8.z) {
                     ZStack {
                         Circle()
                             .fill(state == .pending ? theme.panel2Color : (state == .done ? theme.posSoftColor : theme.accentTintColor))
-                            .frame(width: 26, height: 26)
+                            .frame(width: 26.z, height: 26.z)
                             .overlay(Circle().strokeBorder(state == .current ? theme.accentColor : theme.lineColor, lineWidth: ThubanMetrics.hairline))
                         if state == .done {
                             Glyph(.check, size: 13).foregroundStyle(theme.posTextColor)
@@ -226,7 +226,7 @@ private struct StepperRail: View {
                         }
                     }
                     Text(step.label)
-                        .font(.system(size: 13, weight: state == .current ? .semibold : .regular))
+                        .font(.system(size: 13.z, weight: state == .current ? .semibold : .regular))
                         .foregroundStyle(state == .pending ? theme.inkDimColor : theme.inkColor)
                 }
                 .accessibilityElement(children: .combine)
@@ -236,7 +236,7 @@ private struct StepperRail: View {
                         .fill(state == .done ? theme.accentColor : theme.lineColor)
                         .frame(height: ThubanMetrics.hairline)
                         .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 10)
+                        .padding(.horizontal, 10.z)
                 }
             }
         }
@@ -267,8 +267,8 @@ private struct StepCard<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 12.z) {
+            HStack(spacing: 8.z) {
                 Text("Step \(number)")
                     .font(ThubanFont.micro)
                     .textCase(.uppercase)
@@ -292,18 +292,18 @@ private struct ScopesCard: View {
     var scopes: [String]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8.z) {
             Text("Scopes")
                 .font(ThubanFont.micro)
                 .textCase(.uppercase)
                 .kerning(0.5)
                 .foregroundStyle(theme.inkDimColor)
             ForEach(scopes, id: \.self) { scope in
-                HStack(alignment: .top, spacing: 10) {
+                HStack(alignment: .top, spacing: 10.z) {
                     Text(scope)
                         .font(ThubanFont.mono(12))
                         .foregroundStyle(theme.inkColor)
-                        .frame(width: 150, alignment: .leading)
+                        .frame(width: 150.z, alignment: .leading)
                     Text(Self.explanation(for: scope))
                         .font(ThubanFont.small)
                         .foregroundStyle(theme.inkDimColor)
@@ -311,7 +311,7 @@ private struct ScopesCard: View {
                 }
             }
         }
-        .padding(14)
+        .padding(14.z)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(theme.panel2Color, in: RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous))
     }

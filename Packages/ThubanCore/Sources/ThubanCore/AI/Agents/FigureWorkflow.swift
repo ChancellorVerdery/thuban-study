@@ -78,6 +78,7 @@ public enum FigureWorkflow {
                 figure.kind = .chart
                 figure.chart = phase.chart
                 if figure.status == .keptOriginal || figure.status == .pending || figure.status == .skipped { figure.status = .reviewing }
+                figure.acceptIfConfident()
                 try await store.update(figure)
                 outcomes.append(Outcome(figureId: figure.id, index: figure.pageOrIndex, kind: .chart, isFigure: true,
                                         verification: figure.chart?.verification, caption: figure.caption, definition: nil))
@@ -93,6 +94,7 @@ public enum FigureWorkflow {
                 figure.status = .keptOriginal
             } else {
                 figure.chart = checked
+                figure.acceptIfConfident()
             }
             try await store.update(figure)
             outcomes.append(Outcome(figureId: figure.id, index: figure.pageOrIndex, kind: figure.kind, isFigure: true,
@@ -170,6 +172,7 @@ public enum FigureWorkflow {
                 figure.chart = analysis.isFigure ? analysis.chart : nil
                 if let caption = analysis.caption, !caption.isEmpty { figure.caption = caption }
                 figure.status = !analysis.isFigure ? .skipped : (analysis.chart != nil ? .reviewing : .keptOriginal)
+                figure.acceptIfConfident()
                 try await store.update(figure)
                 outcomes.append(Outcome(figureId: figure.id, index: figure.pageOrIndex, kind: figure.kind, isFigure: analysis.isFigure,
                                         verification: figure.chart?.verification, caption: figure.caption, definition: figure.chart?.definition))

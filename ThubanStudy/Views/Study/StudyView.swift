@@ -15,7 +15,7 @@ struct StudyView: View {
     var body: some View {
         @Bindable var state = state
         GeometryReader { geometry in
-            HStack(spacing: 0) {
+            HStack(spacing: 0.z) {
                 QuestionPane(session: session)
                     .frame(minWidth: StudyLayout.questionMinWidth, maxWidth: .infinity)
 
@@ -35,7 +35,7 @@ struct StudyView: View {
                 if session.showCalculator {
                     CalculatorPanel(session: session)
                         .padding(.trailing, tutorWidth(total: geometry.size.width) + 16)
-                        .padding(.bottom, 16)
+                        .padding(.bottom, 16.z)
                         .transition(.opacity)
                 }
             }
@@ -129,7 +129,7 @@ struct PaneDivider: View {
             Rectangle().fill(Color.clear)
             Rectangle()
                 .fill(hovering || startWidth != nil ? theme.accentColor : theme.lineColor)
-                .frame(width: 1)
+                .frame(width: 1.z)
         }
         .frame(width: Self.thickness)
         .frame(maxHeight: .infinity)

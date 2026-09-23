@@ -41,9 +41,9 @@ struct ImportView: View {
     }
 
     private func content(pipeline: ImportPipeline) -> some View {
-        HStack(alignment: .top, spacing: 0) {
+        HStack(alignment: .top, spacing: 0.z) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 20.z) {
                     header
                     ImportDropZone(session: session)
                     ImportBatchCard(session: session, onReviewFigures: { reviewingDocument = $0 })
@@ -53,17 +53,17 @@ struct ImportView: View {
                             .foregroundStyle(theme.negTextColor)
                     }
                 }
-                .padding(24)
+                .padding(24.z)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             ImportRail(session: session)
-                .frame(width: 320)
+                .frame(width: 320.z)
                 .thubanHairline(.leading, color: theme.lineColor)
         }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 4.z) {
             Text("Import documents")
                 .font(ThubanFont.display(28))
                 .foregroundStyle(theme.inkColor)
@@ -119,7 +119,7 @@ struct ImportDropZone: View {
     private static let supported = Set(DocumentParserRegistry.supportedExtensions)
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 10.z) {
             Icon(.importDocs, size: 30)
                 .foregroundStyle(theme.brassInkColor)
             Text("Drop documents here")
@@ -128,14 +128,14 @@ struct ImportDropZone: View {
             Text("PDF, Word, Excel, CSV, HTML, MHTML, PowerPoint, Markdown, text and images")
                 .font(ThubanFont.body(14))
                 .foregroundStyle(theme.inkDimColor)
-            HStack(spacing: 10) {
+            HStack(spacing: 10.z) {
                 Button("Choose files…") { ImportFilePanel.present(for: session) }
                     .buttonStyle(.thubanSecondary)
                 Text("or press ⌘I")
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
             }
-            .padding(.top, 6)
+            .padding(.top, 6.z)
             if rejected > 0 {
                 Text("\(rejected) file\(rejected == 1 ? " was" : "s were") skipped: unsupported type.")
                     .font(ThubanFont.small)
@@ -143,8 +143,8 @@ struct ImportDropZone: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(minHeight: 220)
-        .padding(24)
+        .frame(minHeight: 220.z)
+        .padding(24.z)
         .background(isTargeted ? theme.accentTintColor : theme.panelColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous)
@@ -195,7 +195,7 @@ struct ImportBatchCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 16.z) {
             section(title: "This import", count: batch.count, documents: batch, empty: "No files yet. Drop documents above or choose them from disk.")
             footer
             if !earlier.isEmpty {
@@ -242,8 +242,8 @@ struct ImportBatchCard: View {
     }
 
     private func section(title: String, count: Int, documents: [ImportedDocument], empty: String?) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 10.z) {
+            HStack(spacing: 8.z) {
                 Text(title)
                     .font(ThubanFont.display(18))
                     .foregroundStyle(theme.inkColor)
@@ -255,11 +255,11 @@ struct ImportBatchCard: View {
                 Text(empty)
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
-                    .padding(14)
+                    .padding(14.z)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .thubanPanel(padding: 0)
             } else if !documents.isEmpty {
-                VStack(spacing: 0) {
+                VStack(spacing: 0.z) {
                     ForEach(Array(documents.enumerated()), id: \.element.id) { index, document in
                         ImportDocumentRow(document: document, activity: pipeline.activity(for: document.id), onRemove: {
                             if document.status == .done {
@@ -281,7 +281,7 @@ struct ImportBatchCard: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 10.z) {
             let queued = session.queuedDocuments.count
             Button {
                 session.startImport()
@@ -326,10 +326,10 @@ struct ImportDocumentRow: View {
     var onReviewFigures: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 12.z) {
             KindBadge(kind: document.kind)
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 5.z) {
+                HStack(spacing: 8.z) {
                     Text(document.filename)
                         .font(ThubanFont.body(14, weight: .semibold))
                         .foregroundStyle(theme.inkColor)
@@ -339,7 +339,7 @@ struct ImportDocumentRow: View {
                         .font(ThubanFont.small)
                         .foregroundStyle(theme.inkDimColor)
                 }
-                HStack(spacing: 8) {
+                HStack(spacing: 8.z) {
                     Text(statusText)
                         .font(ThubanFont.small)
                         .foregroundStyle(document.status == .failed ? theme.negTextColor : theme.inkDimColor)
@@ -351,14 +351,14 @@ struct ImportDocumentRow: View {
                 }
                 if isActive {
                     ProgressBar(value: progressValue, height: 4)
-                        .frame(maxWidth: 280)
+                        .frame(maxWidth: 280.z)
                 }
             }
             Spacer(minLength: 8)
             trailing
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 14.z)
+        .padding(.vertical, 10.z)
     }
 
     private var isActive: Bool {
@@ -420,7 +420,7 @@ struct ImportDocumentRow: View {
         case .queued:
             IconButton(glyph: .close, label: "Remove \(document.filename) from the queue", size: 28, iconSize: 14, action: onRemove)
         case .done:
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 if document.figureCount > 0 {
                     Button("Review figures (\(document.figureCount))") { onReviewFigures() }
                         .buttonStyle(GhostButtonStyle(height: 28, tinted: true))
@@ -430,7 +430,7 @@ struct ImportDocumentRow: View {
                     .help("Remove this file; you choose whether its questions and figures go too")
             }
         case .failed:
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 Chip("Failed", kind: .neg)
                 Button("Retry") { onRetry() }
                     .buttonStyle(GhostButtonStyle(height: 28, tinted: true))
@@ -438,14 +438,14 @@ struct ImportDocumentRow: View {
                 IconButton(glyph: .close, label: "Remove \(document.filename)", size: 28, iconSize: 14, action: onRemove)
             }
         case .escalated:
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 Chip("Escalated to Opus", kind: .warn)
                 if isOrphaned {
                     IconButton(glyph: .close, label: "Remove \(document.filename)", size: 28, iconSize: 14, action: onRemove)
                 }
             }
         case .reading, .extractingFigures, .generating:
-            HStack(spacing: 8) {
+            HStack(spacing: 8.z) {
                 Chip(phaseLabel, kind: .signal)
                 if isOrphaned {
                     IconButton(glyph: .close, label: "Remove \(document.filename)", size: 28, iconSize: 14, action: onRemove)
@@ -472,7 +472,7 @@ struct KindBadge: View {
         Text(label)
             .font(ThubanFont.mono(10, weight: .medium))
             .foregroundStyle(theme.inkDimColor)
-            .frame(width: 44, height: 24)
+            .frame(width: 44.z, height: 24.z)
             .background(theme.panel2Color, in: RoundedRectangle(cornerRadius: ThubanMetrics.chipRadius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: ThubanMetrics.chipRadius, style: .continuous).strokeBorder(theme.lineColor, lineWidth: ThubanMetrics.hairline))
             .accessibilityLabel(kind.rawValue)
@@ -498,26 +498,26 @@ struct ImportRail: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 16.z) {
                 agentCard
                 figuresCard
                 typesCard
             }
-            .padding(20)
+            .padding(20.z)
         }
         .background(theme.bgColor)
     }
 
     private var agentCard: some View {
         RailCard(title: "Import agent") {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 10.z) {
                 PolicyRow(label: "Default", value: app.importModels.defaultModel.shortName)
                 PolicyRow(label: "Escalation", value: app.importModels.escalation.map { "\($0.shortName) when needed" } ?? "Off")
-                HStack(spacing: 8) {
+                HStack(spacing: 8.z) {
                     Text("Account")
                         .font(ThubanFont.small)
                         .foregroundStyle(theme.inkDimColor)
-                        .frame(width: 84, alignment: .leading)
+                        .frame(width: 84.z, alignment: .leading)
                     Chip(app.connectionSummary, kind: app.isConnected ? .pos : (app.connection.needsAttention ? .warn : .neutral), dot: true)
                 }
                 Rectangle().fill(theme.lineColor).frame(height: ThubanMetrics.hairline)
@@ -538,9 +538,9 @@ struct ImportRail: View {
 
     private var figuresCard: some View {
         RailCard(title: "Figures") {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 10.z) {
                 FigureBeforeAfter()
-                    .frame(height: 84)
+                    .frame(height: 84.z)
                 Text("Charts clipped from your documents are redrawn in the app's own graph style. Review each one in the bank under Figures; diagrams and photos stay as they are.")
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
@@ -556,7 +556,7 @@ struct ImportRail: View {
             .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
             .sorted { !$0.key.isEmpty && $1.key.isEmpty }
         return RailCard(title: "Question types") {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 8.z) {
                 if total == 0 {
                     Text(session.importPipeline.isRunning ? "Counting as files finish…" : "Nothing imported in this session yet.")
                         .font(ThubanFont.small)
@@ -603,7 +603,7 @@ struct RailCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12.z) {
             Text(title)
                 .font(ThubanFont.micro)
                 .textCase(.uppercase)
@@ -622,11 +622,11 @@ private struct PolicyRow: View {
     var value: String
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8.z) {
             Text(label)
                 .font(ThubanFont.small)
                 .foregroundStyle(theme.inkDimColor)
-                .frame(width: 84, alignment: .leading)
+                .frame(width: 84.z, alignment: .leading)
             Text(value)
                 .font(ThubanFont.body(14, weight: .semibold))
                 .foregroundStyle(theme.inkColor)
@@ -639,7 +639,7 @@ struct FigureBeforeAfter: View {
     @Environment(\.thubanTheme) private var theme
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 10.z) {
             panel(label: "Original") { rect in
                 var path = Path()
                 let points: [CGPoint] = [(0.08, 0.82), (0.2, 0.7), (0.31, 0.74), (0.45, 0.5), (0.55, 0.56), (0.7, 0.3), (0.82, 0.36), (0.92, 0.18)]
@@ -678,7 +678,7 @@ struct FigureBeforeAfter: View {
     }
 
     private func panel(label: String, _ paths: @escaping (CGRect) -> [(Path, Color, CGFloat)]) -> some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 4.z) {
             Canvas { context, size in
                 let rect = CGRect(origin: .zero, size: size).insetBy(dx: 6, dy: 6)
                 for (path, color, width) in paths(rect) {
@@ -687,7 +687,7 @@ struct FigureBeforeAfter: View {
             }
             .background(theme.panel2Color, in: RoundedRectangle(cornerRadius: ThubanMetrics.chipRadius, style: .continuous))
             Text(label)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 11.z, weight: .semibold))
                 .foregroundStyle(theme.inkDimColor)
         }
         .accessibilityHidden(true)

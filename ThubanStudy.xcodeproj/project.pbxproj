@@ -25,6 +25,7 @@
 		418A485B7A86954B315D5D9C /* FigureReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 240822C8E06814D5515BE58B /* FigureReviewView.swift */; };
 		426FF012AC3D7F668378A5D3 /* FigureCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64578554FC8FADC38BC8AFA8 /* FigureCache.swift */; };
 		48AAFC082686844540B24964 /* AgentsSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F600DBB9A79C49F036836DC /* AgentsSettings.swift */; };
+		4C78F88C2C2E92699073D159 /* AppZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6995D55A853B3641FFFB88B1 /* AppZoom.swift */; };
 		4E9A8D4FDA7D6CE5C5665833 /* BridgeWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF742A5BBBD3EE9A6AA601FC /* BridgeWebView.swift */; };
 		579E05E36348858B8D5D4627 /* AnswerResultsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ABB35DCD3AC0CE45BE92549 /* AnswerResultsSheet.swift */; };
 		57E3D38B19ACD154D4C9EF08 /* ClassSession+Study.swift in Sources */ = {isa = PBXBuildFile; fileRef = C463C7A24FD856196E75CCB0 /* ClassSession+Study.swift */; };
@@ -99,6 +100,7 @@
 		60C9B921445F87FD56D4E7B8 /* ThubanMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThubanMark.swift; sourceTree = "<group>"; };
 		629F19F6ECDB6EF2A1B4BD1C /* WebBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebBridge.swift; sourceTree = "<group>"; };
 		64578554FC8FADC38BC8AFA8 /* FigureCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FigureCache.swift; sourceTree = "<group>"; };
+		6995D55A853B3641FFFB88B1 /* AppZoom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppZoom.swift; sourceTree = "<group>"; };
 		6E03B635E9538573BCC73AD9 /* SmokeHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeHarness.swift; sourceTree = "<group>"; };
 		6EBC0D7EFE8A5CF32B4168F4 /* BatchEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchEditSheet.swift; sourceTree = "<group>"; };
 		778E2B04690D737EF33E3A47 /* ChatWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatWebView.swift; sourceTree = "<group>"; };
@@ -281,6 +283,7 @@
 		A28DC7882F48EE90123E25F6 /* Theme */ = {
 			isa = PBXGroup;
 			children = (
+				6995D55A853B3641FFFB88B1 /* AppZoom.swift */,
 				FBEF16E5283165BA53AA11EA /* ThemeEnvironment.swift */,
 			);
 			path = Theme;
@@ -430,6 +433,7 @@
 				B6B2B40B727A8EF172C590D1 /* AppModel+SettingsandModals.swift in Sources */,
 				056324BB9650D43E7DD9E14C /* AppModel+Study.swift in Sources */,
 				AE75FBD8540B0F8D14B895D8 /* AppModel.swift in Sources */,
+				4C78F88C2C2E92699073D159 /* AppZoom.swift in Sources */,
 				06BBABBBBB90680BE89AAE37 /* AppearanceSettings.swift in Sources */,
 				9DD8415A338B960ACD151ECA /* BatchEditSheet.swift in Sources */,
 				4E9A8D4FDA7D6CE5C5665833 /* BridgeWebView.swift in Sources */,

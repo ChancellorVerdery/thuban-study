@@ -17,27 +17,27 @@ struct DeleteClassAlert: View {
 
     var body: some View {
         ModalCard(title: "Delete “\(studyClass.name)”?") {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14.z) {
+                HStack(alignment: .top, spacing: 12.z) {
                     ZStack {
-                        Circle().fill(theme.negSoftColor).frame(width: 36, height: 36)
+                        Circle().fill(theme.negSoftColor).frame(width: 36.z, height: 36.z)
                         DangerGlyph(size: 20)
                             .foregroundStyle(theme.negTextColor)
                     }
                     .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 6.z) {
                         Text(bodyText)
                             .font(ThubanFont.body(14))
                             .foregroundStyle(theme.inkDimColor)
                             .fixedSize(horizontal: false, vertical: true)
                         if counts != nil {
-                            HStack(spacing: 8) {
+                            HStack(spacing: 8.z) {
                                 Chip(pluralized(counts?.questions ?? 0, "question"), kind: .neutral, icon: .questionBank)
                                 Chip(pluralized(counts?.documents ?? 0, "document"), kind: .neutral, icon: .importDocs)
                                 Chip(pluralized(counts?.figures ?? 0, "figure"), kind: .neutral, icon: .figureClip)
                             }
                         } else if countsError == nil {
-                            HStack(spacing: 8) {
+                            HStack(spacing: 8.z) {
                                 ProgressView().controlSize(.small)
                                 Text("Counting what this class holds…")
                                     .font(ThubanFont.small)
@@ -152,9 +152,9 @@ struct DestructiveButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 14, weight: .semibold))
+            .font(.system(size: 14.z, weight: .semibold))
             .foregroundStyle(Color(hex: (try? ColorMath.onAccent(theme.neg)) ?? ColorMath.darkOnAccent))
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 16.z)
             .frame(height: ThubanMetrics.buttonHeight)
             .background(
                 theme.negColor.opacity(configuration.isPressed ? 0.8 : 1),
