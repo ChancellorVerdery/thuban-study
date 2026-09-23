@@ -288,12 +288,50 @@ public enum FigureReconciler {
             }
             kept.append(ChartSeries(name: name, points: curve.points, style: curve.dashed ? "dashed" : nil))
         }
+        kept = continueHiddenEnds(kept, x: reading.x.range, y: reading.y.range)
         let traced = curves.indices.filter { !consumed.contains($0) }.count
         if traced > 0 { notes.append("\(traced) curve\(traced == 1 ? "" : "s") traced from the picture") }
         guard !kept.isEmpty else { return nil }
         result.series = kept
         if kept.allSatisfy({ ($0.latex ?? "").isEmpty }) { result.provenance = StandardChart.traced }
         result.verification = ChartVerification(passed: true, summary: "Verified against the picture: " + notes.joined(separator: "; ") + ".")
+        return result
+    }
+
+    /// Where two curves meet and run on together (both approaching the same equilibrium), the one drawn last
+    /// covers the other, so the covered curve's trace stops short inside the window. A traced curve that ends
+    /// inside the window exactly on another curve that carries on is continued along that curve to where it ends.
+    static func continueHiddenEnds(_ series: [ChartSeries], x: ClosedRange<Double>, y: ClosedRange<Double>) -> [ChartSeries] {
+        let w = x.upperBound - x.lowerBound, h = y.upperBound - y.lowerBound
+        let original = series
+        var result = series
+        func height(_ points: [[Double]], at x: Double) -> Double? {
+            guard let nearest = points.min(by: { abs($0[0] - x) < abs($1[0] - x) }), abs(nearest[0] - x) < 0.01 * w else { return nil }
+            return nearest[1]
+        }
+        for (index, current) in original.enumerated() {
+            guard var points = current.points, points.count >= 4, (current.latex ?? "").isEmpty else { continue }
+            let increasing = points.first![0] <= points.last![0]
+            if !increasing { points.reverse() }
+            let start = points.first!, end = points.last!
+            var extended = false
+            for (other, candidate) in original.enumerated() where other != index {
+                guard let theirs = candidate.points?.sorted(by: { $0[0] < $1[0] }), theirs.count >= 4 else { continue }
+                // Right end hidden: they run on past it at the same height.
+                if end[0] < x.upperBound - 0.03 * w, theirs.last![0] > end[0] + 0.03 * w,
+                   let there = height(theirs, at: end[0]), abs(there - end[1]) < 0.02 * h {
+                    points += theirs.filter { $0[0] > end[0] }
+                    extended = true
+                }
+                // Left end hidden.
+                if start[0] > x.lowerBound + 0.03 * w, theirs.first![0] < start[0] - 0.03 * w,
+                   let there = height(theirs, at: start[0]), abs(there - start[1]) < 0.02 * h, points.first![0] >= start[0] {
+                    points = theirs.filter { $0[0] < start[0] } + points
+                    extended = true
+                }
+            }
+            if extended { result[index].points = increasing ? points : points.reversed() }
+        }
         return result
     }
 

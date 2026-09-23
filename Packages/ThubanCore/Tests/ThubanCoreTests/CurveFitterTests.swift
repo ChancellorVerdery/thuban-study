@@ -77,6 +77,20 @@ final class CurveFitterTests: XCTestCase {
         }
     }
 
+    func testCurveHiddenUnderAnotherIsContinued() {
+        // Upper curve falls onto the x axis; the lower one rises onto it and is drawn over it from x = 1 on.
+        let upper = stride(from: -8.0, through: 2.0, by: 0.1).map { [$0, 4 / (1 + exp(4 * $0))] }
+        let lower = stride(from: -8.0, through: 8.0, by: 0.1).map { [$0, -4 / (1 + exp(4 * $0))] }
+        let continued = FigureReconciler.continueHiddenEnds(
+            [ChartSeries(name: "upper", points: upper), ChartSeries(name: "lower", points: lower)], x: -8...8, y: -5...5)
+        XCTAssertEqual(continued[0].points?.last?[0] ?? 0, 8, accuracy: 0.11)
+        XCTAssertEqual(continued[1].points?.count, lower.count)
+        // A curve that simply ends in open space is left alone.
+        let alone = FigureReconciler.continueHiddenEnds(
+            [ChartSeries(name: "a", points: upper.map { [$0[0], $0[1] + 2] }), ChartSeries(name: "b", points: lower)], x: -8...8, y: -5...5)
+        XCTAssertEqual(alone[0].points?.count, upper.count)
+    }
+
     func testCurveNoEquationFollowsStaysTraced() async {
         // A sine wave is no solution of an autonomous equation.
         let points = stride(from: -3.0, through: 3.0, by: 0.05).map { [$0, sin(2 * $0)] }

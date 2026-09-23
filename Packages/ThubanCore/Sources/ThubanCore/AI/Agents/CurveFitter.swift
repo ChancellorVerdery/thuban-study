@@ -197,6 +197,7 @@ public enum CurveFitter {
         var result = chart
         if let definition { result.definition = definition }
         if exact == total { result.provenance = StandardChart.stated }
+        result.confidence = max(result.confidence, 0.75 + 0.25 * Double(exact) / Double(max(total, 1)))
         result.verification = ChartVerification(passed: true, summary: "Exact curves: \(exact) of \(total) drawn curve\(total == 1 ? "" : "s") matched to their equation — " + notes.joined(separator: "; ") + ".")
         return result
     }

@@ -342,7 +342,10 @@ public actor FigureAgent {
     /// defines, when those land on the drawn curve (`CurveFitter`).
     public static func check(_ chart: StandardChart, png: Data, engine: MathEngine, questionText: String = "") async -> StandardChart {
         if chart.isPhaseLine { return chart }
-        if let reconciled = await FigureReconciler.reconcile(chart, png: png, engine: engine) {
+        if var reconciled = await FigureReconciler.reconcile(chart, png: png, engine: engine) {
+            // Confidence is the picture's verdict, not the agent's guess: a chart that matches its picture is at
+            // least 75 %, and exact curves raise it (`CurveFitter`).
+            if reconciled.verification?.passed == true { reconciled.confidence = max(reconciled.confidence, 0.75) }
             return await CurveFitter.fit(reconciled, questionText: questionText, engine: engine) ?? reconciled
         }
         var checked = chart
