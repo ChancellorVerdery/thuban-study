@@ -269,6 +269,8 @@ struct ImportBatchCard: View {
                             }
                         }, onRetry: {
                             Task { await session.retryDocument(document.id) }
+                        }, onRegenerate: {
+                            Task { await session.regenerateDocument(document.id) }
                         }, onReviewFigures: { onReviewFigures(document) })
                         if index < documents.count - 1 {
                             Rectangle().fill(theme.lineColor).frame(height: ThubanMetrics.hairline)
@@ -323,6 +325,7 @@ struct ImportDocumentRow: View {
     var activity: ImportPipeline.FileActivity?
     var onRemove: () -> Void
     var onRetry: () -> Void = {}
+    var onRegenerate: () -> Void = {}
     var onReviewFigures: () -> Void
 
     var body: some View {
@@ -426,6 +429,9 @@ struct ImportDocumentRow: View {
                         .buttonStyle(GhostButtonStyle(height: 28, tinted: true))
                 }
                 Chip("Done · \(document.questionCount) question\(document.questionCount == 1 ? "" : "s")", kind: .pos)
+                Button("Regenerate") { onRegenerate() }
+                    .buttonStyle(GhostButtonStyle(height: 28, tinted: false))
+                    .help("Run \(document.filename) through the import agent again: its questions are rewritten (progress on them starts over); figures keep what was read from them")
                 IconButton(glyph: .close, label: "Remove \(document.filename)", size: 28, iconSize: 14, action: onRemove)
                     .help("Remove this file; you choose whether its questions and figures go too")
             }

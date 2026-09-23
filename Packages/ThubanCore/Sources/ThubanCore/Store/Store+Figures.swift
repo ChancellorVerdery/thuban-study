@@ -76,9 +76,13 @@ extension Store: FigureRepository {
             try await update(keptFigure)
         }
         let questions = try await self.questions(in: classId, filter: nil)
-        for var question in questions where question.figureIds.contains(where: { replacement[$0] != nil }) {
+        for var question in questions where question.figureIds.contains(where: { replacement[$0] != nil })
+            || question.choiceFigureIds.contains(where: { replacement[$0] != nil }) {
             var seen: Set<FigureID> = []
             question.figureIds = question.figureIds.map { replacement[$0] ?? $0 }.filter { seen.insert($0).inserted }
+            for p in question.parts.indices {
+                question.parts[p].choiceFigures = question.parts[p].choiceFigures?.map { replacement[$0] ?? $0 }
+            }
             try await update(question)
         }
         for duplicate in replacement.keys {

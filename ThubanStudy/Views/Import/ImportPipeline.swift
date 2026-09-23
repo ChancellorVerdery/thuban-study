@@ -98,6 +98,9 @@ final class ImportPipeline {
         "\(finishedCount) of \(totalCount) finished · \(questionsSoFar) question\(questionsSoFar == 1 ? "" : "s") so far"
     }
 
+    /// Per document being imported: figures whose reading carried over from an earlier run.
+    private var carriedFigures: [DocumentID: Set<FigureID>] = [:]
+
     func activity(for id: DocumentID) -> FileActivity? {
         activities.first { $0.id == id }
     }
@@ -230,9 +233,19 @@ final class ImportPipeline {
             for index in questions.indices {
                 let indices = result.figureIndicesByQuestion[questions[index].id] ?? []
                 questions[index].figureIds = indices.compactMap { figureIds[$0] }
+                // Picture options: their `[figure N]` markers become the stored figures.
+                for p in questions[index].parts.indices {
+                    guard let options = questions[index].parts[p].choiceFigureIndices, !options.isEmpty else { continue }
+                    let ids = options.compactMap { figureIds[$0] }
+                    questions[index].parts[p].choiceFigures = ids.count == options.count ? ids : nil
+                    questions[index].parts[p].choiceFigureIndices = nil
+                }
                 questions[index].documentId = document.id
                 questions[index].classId = classId
             }
+            // A regenerate replaces the document's earlier questions (only now that the new ones are ready).
+            let earlierQuestions = (try? await store.questions(in: classId, filter: QuestionFilter(documentIds: [document.id]))) ?? []
+            for earlier in earlierQuestions { try await store.delete(earlier.id) }
             try await store.insert(questions)
             for question in questions { typeCounts[question.type, default: 0] += 1 }
             update(document.id) { $0.questionCount = questions.count; $0.model = result.modelUsed }
@@ -248,6 +261,11 @@ final class ImportPipeline {
 
             // 5. Figure agent (may reject images the size gate let through; those leave the bank again)
             let (charts, dropped, figureWarnings) = await analyseFigures(content.figures, figureIds: figureIds, content: content, questions: questions, document: &document)
+            if let carried = carriedFigures[document.id], !carried.isEmpty {
+                // Carried-over readings are checked against their pictures again with the new questions' text.
+                _ = try? await FigureWorkflow.reconcileStored(document: document, store: store, engine: app.engine) { carried.contains($0.id) }
+                carriedFigures[document.id] = nil
+            }
             if dropped > 0 || !figureWarnings.isEmpty {
                 let remaining = max(0, content.figures.count - dropped)
                 warnings.append(contentsOf: figureWarnings)
@@ -337,7 +355,16 @@ final class ImportPipeline {
 
     /// Saves the PNGs under `figures/<docId>/<index>.png` and inserts pending `Figure` rows. Returns index → id.
     private func storeFigures(_ figures: [ExtractedFigure], documentId: DocumentID) async throws -> [Int: FigureID] {
-        // A rerun (after a cancel, a failure or an interrupted run) replaces the figures of the earlier attempt.
+        // A rerun (a regenerate, or after a cancel, a failure or an interrupted run) replaces the figures of the
+        // earlier attempt. What was already read from an image (and checked against it) carries over to the same
+        // image, so the figure agent does not run on it again; the earlier questions follow their figures.
+        var earlier: [Data: Figure] = [:]
+        for figure in (try? await session.store.figures(for: documentId)) ?? [] {
+            guard figure.status != .pending, let data = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)) else { continue }
+            earlier[Data(SHA256.hash(data: data))] = figure
+        }
+        carriedFigures[documentId] = []
+        var renamed: [FigureID: FigureID] = [:]
         let stale = try await session.store.deleteFigures(for: documentId, deleteFiles: true)
         if stale > 0 { Self.logger.notice("Removed \(stale) figure row(s) left by an earlier run of \(documentId.raw, privacy: .public)") }
         guard !figures.isEmpty else { return [:] }
@@ -352,7 +379,7 @@ final class ImportPipeline {
             if let existing = idByHash[hash] { ids[extracted.index] = existing; continue }
             let relative = "\(documentId.raw)/\(extracted.index).png"
             try extracted.pngData.write(to: AppPaths.figureURL(relative), options: .atomic)
-            let figure = Figure(
+            var figure = Figure(
                 documentId: documentId,
                 pageOrIndex: extracted.page ?? extracted.index,
                 originalPath: relative,
@@ -360,10 +387,19 @@ final class ImportPipeline {
                 status: .pending,
                 caption: extracted.nearbyText.isEmpty ? nil : String(extracted.nearbyText.prefix(200))
             )
+            if let before = earlier[hash] {
+                figure.kind = before.kind
+                figure.chart = before.chart
+                figure.caption = before.caption
+                figure.status = before.status
+                carriedFigures[documentId, default: []].insert(figure.id)
+                renamed[before.id] = figure.id
+            }
             try await session.store.insert(figure)
             ids[extracted.index] = figure.id
             idByHash[hash] = figure.id
         }
+        if !renamed.isEmpty { await renameFigures(renamed, in: documentId) }
         return ids
     }
 
@@ -387,13 +423,29 @@ final class ImportPipeline {
     /// fragments, symbols, icons) are deleted again, including from the questions that cited them. Returns the
     /// number of charts found, the number of images dropped, and a warning per chart whose definition did not
     /// match the picture. Failures leave figures pending.
+    /// Points the document's existing questions at the figures that replaced theirs (same image).
+    private func renameFigures(_ renamed: [FigureID: FigureID], in documentId: DocumentID) async {
+        guard let document = session.importQueue.first(where: { $0.id == documentId }),
+              let questions = try? await session.store.questions(in: document.classId, filter: QuestionFilter(documentIds: [documentId])) else { return }
+        for var question in questions {
+            let before = question
+            question.figureIds = question.figureIds.map { renamed[$0] ?? $0 }
+            for p in question.parts.indices {
+                question.parts[p].choiceFigures = question.parts[p].choiceFigures?.map { renamed[$0] ?? $0 }
+            }
+            if question != before { try? await session.store.update(question) }
+        }
+    }
+
     private func analyseFigures(
         _ figures: [ExtractedFigure], figureIds: [Int: FigureID], content: DocumentContent, questions: [Question],
         document: inout ImportedDocument
     ) async -> (charts: Int, dropped: Int, warnings: [String]) {
         guard !figures.isEmpty, session.app.isConnected else { return (0, 0, []) }
         let agent = FigureAgent(client: session.app.claudeClient, model: runPolicy.pinned ?? .sonnet)
-        let batch = Array(figures.prefix(Self.maxAnalysedFigures))
+        // Figures carried over from an earlier run keep their reading (re-checked offline after the questions).
+        let carried = carriedFigures[document.id] ?? []
+        let batch = Array(figures.filter { figureIds[$0.index].map { !carried.contains($0) } ?? true }.prefix(Self.maxAnalysedFigures))
         let groups = Self.figureGroups(batch, figureIds: figureIds, questions: questions)
         var charts = 0
         var rejected: [FigureID] = []

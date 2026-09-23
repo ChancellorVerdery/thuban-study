@@ -229,6 +229,9 @@ public struct Question: Codable, Identifiable, Sendable, Equatable {
         self.createdAt = createdAt
     }
 
+    /// Figures shown as answer options (not in the question's figure strip).
+    public var choiceFigureIds: Set<FigureID> { Set(parts.flatMap { $0.choiceFigures ?? [] }) }
+
     /// Shown wherever the type is displayed; the empty type reads "Unclassified".
     public var typeLabel: String { type.isEmpty ? Question.unclassifiedLabel : type }
 
@@ -271,6 +274,12 @@ public struct QuestionPart: Codable, Identifiable, Sendable, Equatable {
     /// For `.choice`.
     public var choices: [String]?
     public var conditions: AnswerConditions
+    /// For `.choice` parts whose options are figures: the figure shown for each option, parallel to `choices`
+    /// (each choice is then the option's label, and `answer.text` the correct label).
+    public var choiceFigures: [FigureID]?
+    /// Import only: the agent's `[figure N]` markers for the options, parallel to `choices`; the pipeline turns
+    /// them into `choiceFigures` once the figures are stored.
+    public var choiceFigureIndices: [Int]?
 
     public init(
         id: String,
@@ -278,7 +287,9 @@ public struct QuestionPart: Codable, Identifiable, Sendable, Equatable {
         answerKind: AnswerKind = .math,
         answer: AnswerSpec = AnswerSpec(),
         choices: [String]? = nil,
-        conditions: AnswerConditions = .none
+        conditions: AnswerConditions = .none,
+        choiceFigures: [FigureID]? = nil,
+        choiceFigureIndices: [Int]? = nil
     ) {
         self.id = id
         self.prompt = prompt
@@ -286,9 +297,14 @@ public struct QuestionPart: Codable, Identifiable, Sendable, Equatable {
         self.answer = answer
         self.choices = choices
         self.conditions = conditions
+        self.choiceFigures = choiceFigures
+        self.choiceFigureIndices = choiceFigureIndices
     }
 
-    private enum CodingKeys: String, CodingKey { case id, prompt, answerKind, answer, choices, conditions }
+    /// Whether the options are figures.
+    public var hasFigureChoices: Bool { !(choiceFigures ?? []).isEmpty }
+
+    private enum CodingKeys: String, CodingKey { case id, prompt, answerKind, answer, choices, conditions, choiceFigures, choiceFigureIndices }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -298,6 +314,15 @@ public struct QuestionPart: Codable, Identifiable, Sendable, Equatable {
         answer = try c.decodeIfPresent(AnswerSpec.self, forKey: .answer) ?? AnswerSpec()
         choices = try c.decodeIfPresent([String].self, forKey: .choices)
         conditions = try c.decodeIfPresent(AnswerConditions.self, forKey: .conditions) ?? .none
+        // Stored parts carry figure ids; the import agent writes `choiceFigures` as `[figure N]` numbers.
+        if let ids = try? c.decodeIfPresent([FigureID].self, forKey: .choiceFigures) {
+            choiceFigures = ids
+            choiceFigureIndices = try c.decodeIfPresent([Int].self, forKey: .choiceFigureIndices)
+        } else {
+            choiceFigures = nil
+            choiceFigureIndices = try (try? c.decodeIfPresent([Int].self, forKey: .choiceFigures))
+                ?? c.decodeIfPresent([Int].self, forKey: .choiceFigureIndices)
+        }
     }
 }
 
@@ -467,6 +492,8 @@ public struct InstancePart: Codable, Identifiable, Sendable, Equatable {
     public var answerKind: AnswerKind
     public var choices: [String]?
     public var conditions: AnswerConditions
+    /// The figure shown for each option (`QuestionPart.choiceFigures`).
+    public var choiceFigures: [FigureID]?
 
     public init(
         id: String,
@@ -474,7 +501,8 @@ public struct InstancePart: Codable, Identifiable, Sendable, Equatable {
         answerLatex: String,
         answerKind: AnswerKind = .math,
         choices: [String]? = nil,
-        conditions: AnswerConditions = .none
+        conditions: AnswerConditions = .none,
+        choiceFigures: [FigureID]? = nil
     ) {
         self.id = id
         self.prompt = prompt
@@ -482,6 +510,7 @@ public struct InstancePart: Codable, Identifiable, Sendable, Equatable {
         self.answerKind = answerKind
         self.choices = choices
         self.conditions = conditions
+        self.choiceFigures = choiceFigures
     }
 }
 
@@ -521,7 +550,8 @@ public struct QuestionInstance: Codable, Sendable, Equatable {
                 answerLatex: part.answer.latex ?? part.answer.text ?? "",
                 answerKind: part.answerKind,
                 choices: part.choices,
-                conditions: part.conditions
+                conditions: part.conditions,
+                choiceFigures: part.choiceFigures
             )
         }
         self.params = [:]

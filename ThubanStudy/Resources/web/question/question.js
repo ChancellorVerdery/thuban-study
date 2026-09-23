@@ -333,8 +333,11 @@
     group.appendChild(legend);
     const name = 'choice-' + part.id;
     entry.radios = [];
+    // Picture options (graphs, phase portraits, sketches): a grid of figures, each with its label.
+    const images = Array.isArray(part.choiceImages) ? part.choiceImages : null;
+    if (images) group.classList.add('choice-grid');
     choicesOf(part).forEach((choice, i) => {
-      const label = el('label', 'choice');
+      const label = el('label', images ? 'choice choice-figure' : 'choice');
       const radio = el('input');
       radio.type = 'radio';
       radio.name = name;
@@ -343,8 +346,26 @@
       radio.dataset.index = String(i);
       const text = el('span', 'choice-text');
       renderRich(text, String(choice));
-      label.appendChild(radio);
-      label.appendChild(text);
+      if (images) {
+        const picture = el('div', 'choice-picture');
+        if (images[i]) {
+          const img = el('img');
+          img.src = images[i];
+          img.alt = String(choice);
+          img.addEventListener('load', () => scheduleHeight(), { once: true });
+          picture.appendChild(img);
+        } else {
+          picture.classList.add('pending');
+        }
+        const caption = el('div', 'choice-caption');
+        caption.appendChild(radio);
+        caption.appendChild(text);
+        label.appendChild(picture);
+        label.appendChild(caption);
+      } else {
+        label.appendChild(radio);
+        label.appendChild(text);
+      }
       group.appendChild(label);
       entry.radios.push(radio);
     });

@@ -17,6 +17,8 @@ public struct QuestionDraft: Codable, Sendable, Equatable {
     public var figureIndices: [Int]
     public var tags: [String]
     public var difficulty: Int
+    /// The excerpt began inside the previous excerpt's last question: these parts belong to it.
+    public var continuesPrevious: Bool
 
     public init(
         sourceRef: String? = nil,
@@ -27,7 +29,8 @@ public struct QuestionDraft: Codable, Sendable, Equatable {
         template: MathTemplate? = nil,
         figureIndices: [Int] = [],
         tags: [String] = [],
-        difficulty: Int = 3
+        difficulty: Int = 3,
+        continuesPrevious: Bool = false
     ) {
         self.sourceRef = sourceRef
         self.kind = kind
@@ -38,9 +41,10 @@ public struct QuestionDraft: Codable, Sendable, Equatable {
         self.figureIndices = figureIndices
         self.tags = tags
         self.difficulty = min(5, max(1, difficulty))
+        self.continuesPrevious = continuesPrevious
     }
 
-    private enum CodingKeys: String, CodingKey { case sourceRef, kind, type, stem, parts, template, figureIndices, tags, difficulty }
+    private enum CodingKeys: String, CodingKey { case sourceRef, kind, type, stem, parts, template, figureIndices, tags, difficulty, continuesPrevious }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -53,8 +57,32 @@ public struct QuestionDraft: Codable, Sendable, Equatable {
             template: try c.decodeIfPresent(MathTemplate.self, forKey: .template),
             figureIndices: try c.decodeIfPresent([Int].self, forKey: .figureIndices) ?? [],
             tags: try c.decodeIfPresent([String].self, forKey: .tags) ?? [],
-            difficulty: try c.decodeIfPresent(Int.self, forKey: .difficulty) ?? 3
+            difficulty: try c.decodeIfPresent(Int.self, forKey: .difficulty) ?? 3,
+            continuesPrevious: try c.decodeIfPresent(Bool.self, forKey: .continuesPrevious) ?? false
         )
+    }
+
+    /// Appends a continuation to this draft: a part with the letter of this draft's last part finishes that
+    /// part's options (the excerpt split them); every other part is added after the last one (relettered if
+    /// its letter is taken). Figures and tags are merged.
+    public func appending(_ continuation: QuestionDraft) -> QuestionDraft {
+        var merged = self
+        let letters = "abcdefghijklmnopqrstuvwxyz".map(String.init)
+        for var part in continuation.parts {
+            if let last = merged.parts.indices.last, merged.parts[last].id == part.id,
+               merged.parts[last].answerKind == .choice, part.answerKind == .choice {
+                merged.parts[last] = Self.joiningOptions(merged.parts[last], part)
+                continue
+            }
+            let used = Set(merged.parts.map(\.id))
+            if used.contains(part.id) { part.id = letters.first { !used.contains($0) } ?? "\(merged.parts.count + 1)" }
+            merged.parts.append(part)
+        }
+        for index in continuation.figureIndices where !merged.figureIndices.contains(index) { merged.figureIndices.append(index) }
+        merged.tags += continuation.tags.filter { !merged.tags.contains($0) }
+        // Its template (if any) described only part of the question: the merged question is static.
+        if continuation.template != nil || merged.template != nil { merged = merged.downgradedToStatic() }
+        return merged
     }
 
     /// A draft is usable when it has a stem and at least one part (static or template).
@@ -73,6 +101,10 @@ public struct QuestionDraft: Codable, Sendable, Equatable {
     /// Builds the bank record. A template makes the question `.mathTemplate`; a `.mathTemplate` draft without a
     /// template is stored as a static question.
     public func toQuestion(classId: ClassID, documentId: DocumentID?) -> Question {
+        // Figures show the original numbers: a question that relies on them never regenerates.
+        if template != nil, !figureIndices.isEmpty || parts.contains(where: { !($0.choiceFigureIndices ?? []).isEmpty }) {
+            return downgradedToStatic().toQuestion(classId: classId, documentId: documentId)
+        }
         var kind = self.kind
         var parts = self.parts
         if let template {
@@ -93,6 +125,26 @@ public struct QuestionDraft: Codable, Sendable, Equatable {
             tags: tags,
             difficulty: difficulty
         )
+    }
+
+    /// One choice part whose options were split across two excerpts. Numbered labels ("Graph 4") continue the
+    /// first half's numbering; the first half's answer stands unless it had none.
+    static func joiningOptions(_ first: QuestionPart, _ rest: QuestionPart) -> QuestionPart {
+        var joined = first
+        let firstChoices = first.choices ?? []
+        let numbered = try! NSRegularExpression(pattern: #"^(.*?)(\d+)$"#)
+        var renamed: [String: String] = [:]
+        let extra = (rest.choices ?? []).enumerated().map { offset, label -> String in
+            let range = NSRange(label.startIndex..., in: label)
+            guard let match = numbered.firstMatch(in: label, range: range), let prefix = Range(match.range(at: 1), in: label) else { return label }
+            let relabelled = "\(label[prefix])\(firstChoices.count + offset + 1)"
+            renamed[label] = relabelled
+            return relabelled
+        }
+        joined.choices = firstChoices + extra
+        if let a = first.choiceFigureIndices, let b = rest.choiceFigureIndices { joined.choiceFigureIndices = a + b }
+        if (joined.answer.text ?? "").isEmpty, let answer = rest.answer.text { joined.answer.text = renamed[answer] ?? answer }
+        return joined
     }
 
     static func staticKind(for parts: [QuestionPart]) -> QuestionKind {
@@ -201,8 +253,8 @@ public enum ImportTools {
         Each question has: sourceRef (original label or location), kind (mathTemplate | shortAnswer | multipleChoice | \
         freeResponse | numeric), stem (shared setup, Markdown + $…$ LaTeX; may be empty when the part prompt is the whole \
         question), parts (ids "a","b",…; each with prompt, answerKind math|numeric|text|choice|freeResponse, answer \
-        {latex | text | rubric, alternatives}, optional choices, conditions), type, optional template, figureIndices, tags, \
-        difficulty 1–5. \
+        {latex | text | rubric, alternatives}, optional choices (with choiceFigures when the options are pictures), \
+        conditions), type, optional template (never for a question with figures), figureIndices, tags, difficulty 1–5. \
         A template regenerates the question with new numbers: params with kinds {"type":"int","min","max"} / \
         {"type":"real","min","max","decimals"} / {"type":"choice","options":[…]}, constraints as LaTeX booleans over the \
         params ("a \\\\ne b"), stem/prompts with {a} {b} placeholders, and each part's answerExpr as a closed-form LaTeX \
@@ -269,6 +321,10 @@ public enum ImportTools {
             "answerKind": answerKindSchema,
             "answer": answerSchema,
             "choices": ["type": "array", "items": ["type": "string"], "description": "Options for choice parts."],
+            "choiceFigures": [
+                "type": "array", "items": ["type": "integer"],
+                "description": "Choice parts whose options are pictures: the [figure N] number of each option, in the same order as choices.",
+            ],
             "conditions": conditionsSchema,
         ],
         "required": ["id", "prompt", "answerKind", "answer"],
@@ -332,6 +388,10 @@ public enum ImportTools {
             "parts": ["type": "array", "items": partSchema, "minItems": 1],
             "template": templateSchema,
             "figureIndices": ["type": "array", "items": ["type": "integer"], "description": "[figure N] markers this question relies on."],
+            "continuesPrevious": [
+                "type": "boolean",
+                "description": "True when the excerpt begins with further parts of the previous excerpt's last question: give only those parts (lettered as the document letters them) and its figures; they are appended to that question.",
+            ],
             "tags": ["type": "array", "items": ["type": "string"]],
             "difficulty": ["type": "integer", "minimum": 1, "maximum": 5],
         ],
@@ -622,7 +682,16 @@ public actor ImportAgent {
         }
         let checked = try await validateAndRepair(drafts, conversation: conversation, system: system, state: &state)
         state.noteTypes(of: checked)
-        state.drafts.append(contentsOf: checked.map { Self.attachFigures($0, chunk: chunk) })
+        // Parts that continue the previous excerpt's last question are appended to it (whatever order the agent
+        // emitted this excerpt's questions in).
+        let previousLast = state.drafts.indices.last
+        for draft in checked.map({ Self.attachFigures($0, chunk: chunk) }) {
+            if draft.continuesPrevious, let index = previousLast, !draft.parts.isEmpty {
+                state.drafts[index] = state.drafts[index].appending(draft)
+            } else {
+                state.drafts.append(draft)
+            }
+        }
     }
 
     private enum ChunkOutcome {
@@ -631,7 +700,7 @@ public actor ImportAgent {
     }
 
     private func generate(_ chunk: ImportChunk, system: String, state: inout RunState) async throws -> ChunkOutcome {
-        var messages: [ChatMessage] = [.user(Self.chunkPrompt(chunk, knownTypes: state.knownTypes))]
+        var messages: [ChatMessage] = [.user(Self.chunkPrompt(chunk, knownTypes: state.knownTypes, previous: state.drafts.last))]
         var drafts: [QuestionDraft] = []
         var nudged = false
         for _ in 0..<maxToolRounds {
@@ -820,7 +889,7 @@ public actor ImportAgent {
     // MARK: Helpers
 
     /// The excerpt, preceded by the class's problem types so far so the agent reuses them (up to 60 listed).
-    static func chunkPrompt(_ chunk: ImportChunk, knownTypes: [String] = []) -> String {
+    static func chunkPrompt(_ chunk: ImportChunk, knownTypes: [String] = [], previous: QuestionDraft? = nil) -> String {
         var header = "Excerpt \(chunk.index + 1)"
         if let pages = chunk.pages {
             header += pages.count == 1 ? " (page \(pages.lowerBound))" : " (pages \(pages.lowerBound)–\(pages.upperBound))"
@@ -830,6 +899,17 @@ public actor ImportAgent {
             let listed = knownTypes.prefix(60).map { "\"\($0)\"" }.joined(separator: ", ")
             prompt += "Question types already in this class (reuse when one fits, add a new type only when none does): \(listed)\n\n"
         }
+        if let previous, chunk.index > 0 {
+            let label = previous.sourceRef.map { "\"\($0)\"" } ?? "untitled"
+            let parts = previous.parts.map { part -> String in
+                guard part.answerKind == .choice, let choices = part.choices, !choices.isEmpty else { return part.id }
+                return "\(part.id) (\(choices.count) option\(choices.count == 1 ? "" : "s") so far: \(choices.joined(separator: ", ")))"
+            }.joined(separator: "; ")
+            prompt += "The previous excerpt ended with question \(label) — parts \(parts). If this excerpt begins inside that question, "
+                + "emit what continues it as one question with \"continuesPrevious\": true: new parts under their own letters, and, "
+                + "when it begins among the last part's options, that part again under the same letter with only its remaining "
+                + "options (numbering continued) and their [figure N]s.\n\n"
+        }
         return prompt + "\(header):\n\n\(chunk.text)"
     }
 
@@ -837,6 +917,15 @@ public actor ImportAgent {
     static func attachFigures(_ draft: QuestionDraft, chunk: ImportChunk) -> QuestionDraft {
         var copy = draft
         copy.figureIndices = draft.figureIndices.filter { chunk.figureIndices.contains($0) }
+        for index in copy.parts.indices {
+            guard let options = copy.parts[index].choiceFigureIndices, !options.isEmpty else { continue }
+            // Options must be pictures in this excerpt, one per choice; otherwise the part stays a text choice.
+            if options.allSatisfy(chunk.figureIndices.contains), options.count == (copy.parts[index].choices ?? []).count {
+                for option in options where !copy.figureIndices.contains(option) { copy.figureIndices.append(option) }
+            } else {
+                copy.parts[index].choiceFigureIndices = nil
+            }
+        }
         return copy
     }
 

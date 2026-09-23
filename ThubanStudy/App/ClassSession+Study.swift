@@ -19,8 +19,11 @@ final class StudyState {
 
     /// Height reported by the question page; the form hugs it inside a scroll view.
     var formHeight: CGFloat = 0
-    /// Figures attached to the current question.
+    /// Figures attached to the current question (those shown as answer options are not among them).
     var figures: [Figure] = []
+    /// Answer options that are figures: each one's picture (data URL) and description, by figure.
+    var choiceImages: [FigureID: String] = [:]
+    var choiceFigureDescriptions: [FigureID: String] = [:]
     @ObservationIgnored var figuresLoadedFor: QuestionID?
 
     // Grading
@@ -165,18 +168,31 @@ extension ClassSession {
         }
         guard state.figuresLoadedFor != question.id else { return }
         state.figuresLoadedFor = question.id
-        guard !question.figureIds.isEmpty else {
+        let options = question.choiceFigureIds
+        let ids = question.figureIds + options.filter { !question.figureIds.contains($0) }
+        guard !ids.isEmpty else {
             state.figures = []
+            state.choiceImages = [:]
+            state.choiceFigureDescriptions = [:]
             return
         }
         do {
-            let figures = try await store.figures(ids: question.figureIds)
-            // Keep the question's order.
+            let figures = try await store.figures(ids: ids)
+            // Keep the question's order; answer-option figures appear in their part instead.
             let byId = Dictionary(figures.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-            state.figures = question.figureIds.compactMap { byId[$0] }
+            state.figures = question.figureIds.filter { !options.contains($0) }.compactMap { byId[$0] }
+            let optionFigures = options.compactMap { byId[$0] }
+            state.choiceFigureDescriptions = Dictionary(optionFigures.compactMap { f in f.caption.map { (f.id, $0) } }, uniquingKeysWith: { a, _ in a })
+            if !optionFigures.isEmpty {
+                let images = await ChoiceFigureImages.dataURLs(for: optionFigures, theme: app.theme, engine: app.engine)
+                if state.figuresLoadedFor == question.id { state.choiceImages = images }
+            } else {
+                state.choiceImages = [:]
+            }
         } catch {
             Self.logger.error("figures failed: \(error.localizedDescription, privacy: .public)")
             state.figures = []
+            state.choiceImages = [:]
         }
     }
 
@@ -575,6 +591,10 @@ extension ClassSession {
                 "requirements": .array(part.conditions.summaryItems.map { .string($0) }),
             ]
             if let choices = part.choices { object["choices"] = .array(choices.map { .string($0) }) }
+            if let options = part.choiceFigures, !options.isEmpty {
+                // The tutor cannot see the pictures: what each option shows, for its explanations only.
+                object["choicePictures"] = .array(options.map { .string(studyState.choiceFigureDescriptions[$0] ?? "a figure") })
+            }
             if let verdict = verdicts[part.id] {
                 object["verdict"] = QuestionFormWebView.Controller.pageVerdict(verdict)
             } else {

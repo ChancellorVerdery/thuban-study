@@ -266,8 +266,52 @@ enum SmokeHarness {
     static func startIfEnabled(app: AppModel) {
         guard let directory = outputDirectory else { return }
         Task { @MainActor in
-            await run(app: app, directory: directory)
+            if let match = ProcessInfo.processInfo.environment["THUBAN_SMOKE_QUESTION"], !match.isEmpty {
+                await captureQuestions(app: app, matches: match.split(separator: "|").map(String.init), directory: directory)
+            } else {
+                await run(app: app, directory: directory)
+            }
         }
+    }
+
+    /// `THUBAN_SMOKE_QUESTION=<ref>|<ref>…`: studies each question whose source label contains the text and
+    /// captures the window, at the top and scrolled to the answer form (for the data under `THUBAN_HOME`).
+    private static func captureQuestions(app: AppModel, matches: [String], directory: URL) async {
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            NSApp.activate(ignoringOtherApps: true)
+            guard let session = app.selectedSession else { throw ThubanError.store("smoke: no selected class") }
+            session.section = .study
+            let window = try await waitForMainWindow()
+            window.makeKeyAndOrderFront(nil)
+            await waitUntil(timeout: 8) { !session.questions.isEmpty && session.studyState.form.bridge.isReady }
+            for (offset, match) in matches.enumerated() {
+                guard let question = session.questions.first(where: { ($0.sourceRef ?? "").localizedCaseInsensitiveContains(match) }) else {
+                    fputs("smoke: no question matches \(match)\n", stderr)
+                    continue
+                }
+                await session.study(question: question)
+                await waitUntil(timeout: 10) { session.currentQuestion?.id == question.id && session.currentInstance != nil }
+                await sleep(4)
+                _ = try await capture(window: window, name: String(format: "q%02d-top", offset + 1), in: directory)
+                if let scroll = window.contentView.flatMap(firstScrollView(in:)) {
+                    scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, (scroll.documentView?.frame.height ?? 0) - scroll.contentView.bounds.height)))
+                    scroll.reflectScrolledClipView(scroll.contentView)
+                    await sleep(1.5)
+                    _ = try await capture(window: window, name: String(format: "q%02d-form", offset + 1), in: directory)
+                }
+            }
+            print("smoke: done")
+        } catch {
+            fputs("smoke: \(error.localizedDescription)\n", stderr)
+        }
+        NSApp.terminate(nil)
+    }
+
+    private static func firstScrollView(in view: NSView) -> NSScrollView? {
+        if let scroll = view as? NSScrollView, scroll.documentView != nil, !(String(describing: type(of: scroll)).contains("WK")) { return scroll }
+        for child in view.subviews { if let found = firstScrollView(in: child) { return found } }
+        return nil
     }
 
     private static func run(app: AppModel, directory: URL) async {

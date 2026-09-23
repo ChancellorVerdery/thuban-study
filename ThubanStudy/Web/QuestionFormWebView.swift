@@ -55,8 +55,9 @@ struct QuestionFormWebView: View {
         // MARK: Swift → JS
 
         /// Renders an instance. `inputs` / `verdicts` restore what the student already typed / was told.
-        func load(instance: QuestionInstance, inputs: [String: String] = [:], verdicts: [String: Verdict] = [:]) {
-            bridge.send("load", ["instance": Self.instanceView(instance, inputs: inputs, verdicts: verdicts)])
+        func load(instance: QuestionInstance, inputs: [String: String] = [:], verdicts: [String: Verdict] = [:],
+                  choiceImages: [FigureID: String] = [:]) {
+            bridge.send("load", ["instance": Self.instanceView(instance, inputs: inputs, verdicts: verdicts, choiceImages: choiceImages)])
         }
 
         /// Shows verdict badges for the given parts.
@@ -89,7 +90,8 @@ struct QuestionFormWebView: View {
         }
 
         /// `{stem, seed, parts:[{id, prompt, answerKind, choices?, conditionsText, value?, verdict?}]}` — never the answers.
-        static func instanceView(_ instance: QuestionInstance, inputs: [String: String], verdicts: [String: Verdict]) -> JSONValue {
+        static func instanceView(_ instance: QuestionInstance, inputs: [String: String], verdicts: [String: Verdict],
+                                 choiceImages: [FigureID: String] = [:]) -> JSONValue {
             .object([
                 "questionId": .string(instance.questionId.raw),
                 "seed": .string(instance.seed),
@@ -102,6 +104,10 @@ struct QuestionFormWebView: View {
                         "conditionsText": .string(part.answerKind == .freeResponse ? "" : part.conditions.summary),
                     ]
                     if let choices = part.choices { object["choices"] = .array(choices.map { .string($0) }) }
+                    if let options = part.choiceFigures, !options.isEmpty {
+                        // Picture options: one image per choice ("" while it is still being drawn).
+                        object["choiceImages"] = .array(options.map { .string(choiceImages[$0] ?? "") })
+                    }
                     if let value = inputs[part.id] { object["value"] = .string(value) }
                     if let verdict = verdicts[part.id] { object["verdict"] = Self.pageVerdict(verdict) }
                     return .object(object)

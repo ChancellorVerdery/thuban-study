@@ -18,6 +18,11 @@ public enum FigureWorkflow {
                 listedChoices = true
                 line += "\n  Choices:\n" + choices.enumerated().map { "    \($0.offset + 1). \($0.element)" }.joined(separator: "\n")
             }
+            if let options = part.choiceFigures, !options.isEmpty {
+                // Picture options: which of the question's images each choice is.
+                let positions = options.map { id in question.figureIds.firstIndex(of: id).map { "image \($0 + 1)" } ?? "an image" }
+                line += "\n  The options are pictures: " + zip(part.choices ?? [], positions).map { "\($0) = \($1)" }.joined(separator: ", ")
+            }
             if part.answerKind == .choice, let answer = part.answer.text, !answer.isEmpty {
                 if let index = part.choices?.firstIndex(of: answer) { line += "\n  Answer: choice \(index + 1)" }
                 else { line += "\n  Answer: \(answer)" }

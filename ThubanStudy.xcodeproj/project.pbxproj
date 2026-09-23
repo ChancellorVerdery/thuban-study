@@ -25,6 +25,7 @@
 		418A485B7A86954B315D5D9C /* FigureReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 240822C8E06814D5515BE58B /* FigureReviewView.swift */; };
 		426FF012AC3D7F668378A5D3 /* FigureCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64578554FC8FADC38BC8AFA8 /* FigureCache.swift */; };
 		48AAFC082686844540B24964 /* AgentsSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F600DBB9A79C49F036836DC /* AgentsSettings.swift */; };
+		4BC92D179C1FE4C4792A6A01 /* RegenerateHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = F917FE53C90B0E81BA94FB95 /* RegenerateHarness.swift */; };
 		4C78F88C2C2E92699073D159 /* AppZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6995D55A853B3641FFFB88B1 /* AppZoom.swift */; };
 		4E9A8D4FDA7D6CE5C5665833 /* BridgeWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF742A5BBBD3EE9A6AA601FC /* BridgeWebView.swift */; };
 		579E05E36348858B8D5D4627 /* AnswerResultsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ABB35DCD3AC0CE45BE92549 /* AnswerResultsSheet.swift */; };
@@ -71,6 +72,7 @@
 		E87E99E9DCA289CD7BE24475 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF47D19073731C2724D19052 /* SettingsView.swift */; };
 		EA3622FC5EC48AF3ED58F529 /* ThubanStudyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 600754474895BA108F79E955 /* ThubanStudyApp.swift */; };
 		EAD15F7EFB6E8147FD3C2C58 /* ClaudeAccountSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89F27B8A832C0FC7E38E208F /* ClaudeAccountSettings.swift */; };
+		F75F107537F9CCA0CBB5226F /* ChoiceFigureImages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1D19F12B0561B08ED2F0C2 /* ChoiceFigureImages.swift */; };
 		FDE734AB1F0C9DFC4F503B88 /* ShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDC77D0C277A82BB684D9ADE /* ShellView.swift */; };
 /* End PBXBuildFile section */
 
@@ -92,6 +94,7 @@
 		2FF00823B59C2E35C3920F72 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		34CCBA064123C65B63E41283 /* DeleteClassAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteClassAlert.swift; sourceTree = "<group>"; };
 		34F954E0F3E1D9921D4D2EFD /* Secrets.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Secrets.plist; sourceTree = "<group>"; };
+		3D1D19F12B0561B08ED2F0C2 /* ChoiceFigureImages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoiceFigureImages.swift; sourceTree = "<group>"; };
 		3F600DBB9A79C49F036836DC /* AgentsSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsSettings.swift; sourceTree = "<group>"; };
 		4A0A38543D1D943A77A1F22E /* AppModel+QuestionBankandImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+QuestionBankandImport.swift"; sourceTree = "<group>"; };
 		584E744841F901041301BD7D /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
@@ -139,6 +142,7 @@
 		EFC21B934895FF778EEB1EFC /* DataSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataSettings.swift; sourceTree = "<group>"; };
 		F119C01B449C902DF167CD7A /* GraphWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphWebView.swift; sourceTree = "<group>"; };
 		F20DF246D546C4759E93C243 /* ProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBar.swift; sourceTree = "<group>"; };
+		F917FE53C90B0E81BA94FB95 /* RegenerateHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegenerateHarness.swift; sourceTree = "<group>"; };
 		FBEF16E5283165BA53AA11EA /* ThemeEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeEnvironment.swift; sourceTree = "<group>"; };
 		FF742A5BBBD3EE9A6AA601FC /* BridgeWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeWebView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -244,6 +248,7 @@
 				C463C7A24FD856196E75CCB0 /* ClassSession+Study.swift */,
 				ECB3AFA5D45551F433544E15 /* CommandBus.swift */,
 				D6130E36035D70355B9D2F14 /* FigureDump.swift */,
+				F917FE53C90B0E81BA94FB95 /* RegenerateHarness.swift */,
 				6E03B635E9538573BCC73AD9 /* SmokeHarness.swift */,
 				600754474895BA108F79E955 /* ThubanStudyApp.swift */,
 			);
@@ -317,6 +322,7 @@
 			children = (
 				103ADF805FA9261CE62259F6 /* Buttons.swift */,
 				C6018324F1F6BF47F9E04CC8 /* Chip.swift */,
+				3D1D19F12B0561B08ED2F0C2 /* ChoiceFigureImages.swift */,
 				D1CEB9ACB1D91668E88A25DC /* EmptyState.swift */,
 				64578554FC8FADC38BC8AFA8 /* FigureCache.swift */,
 				8996B72D9D053D080BFD7A4C /* FigureCanvasView.swift */,
@@ -443,6 +449,7 @@
 				D38A840346A26E61E91FE503 /* ChartRenderer.swift in Sources */,
 				E1AE33EB7B734FAF3F8A4CDD /* ChatWebView.swift in Sources */,
 				A198BBFA60FBA8552B5CA174 /* Chip.swift in Sources */,
+				F75F107537F9CCA0CBB5226F /* ChoiceFigureImages.swift in Sources */,
 				D9E52116495A98ACC0E1B261 /* ClassSession+QuestionBankandImport.swift in Sources */,
 				57E3D38B19ACD154D4C9EF08 /* ClassSession+Study.swift in Sources */,
 				70CA6676D30B924DA53E159F /* ClassSession.swift in Sources */,
@@ -473,6 +480,7 @@
 				6A9CFA5D72DBF4609716BC12 /* QuestionFormWebView.swift in Sources */,
 				1B423C14F82D7556EE5EA8FD /* QuestionPane.swift in Sources */,
 				0F3BB856007941681BA7EF9A /* QuestionRow.swift in Sources */,
+				4BC92D179C1FE4C4792A6A01 /* RegenerateHarness.swift in Sources */,
 				0D16D7D6B5771F4D08B56A25 /* SegmentedPicker.swift in Sources */,
 				E87E99E9DCA289CD7BE24475 /* SettingsView.swift in Sources */,
 				FDE734AB1F0C9DFC4F503B88 /* ShellView.swift in Sources */,

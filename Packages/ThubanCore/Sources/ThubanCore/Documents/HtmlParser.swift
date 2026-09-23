@@ -116,6 +116,12 @@ private struct HtmlWalker {
             inline.append("\n")
         case "img":
             try walkImage(element)
+        case "input":
+            // Saved homework pages record the answers: which option is selected ("[selected]" before it, "[ ]"
+            // before the others). Presentation-only duplicates are skipped.
+            let type = ((try? element.attr("type")) ?? "").lowercased()
+            guard type == "radio" || type == "checkbox", (try? element.attr("aria-hidden")) != "true" else { return }
+            appendInline(element.hasAttr("checked") ? " [selected] " : " [ ] ")
         default:
             for node in element.getChildNodes() {
                 if let text = node as? TextNode {
@@ -164,6 +170,7 @@ private struct HtmlWalker {
         ) {
             content.noteRejected(rejection)
             if !alt.isEmpty, rejection == .mathRenderer || rejection == .inlineGlyph { appendInline(alt) }
+            else if Self.isGradeMark(alt) { appendInline(" [\(alt)] ") }
             return
         }
         guard let data = loadImage(source) else {
@@ -176,13 +183,20 @@ private struct HtmlWalker {
         }
         if let rejection = FigureGate.verdict(imageData: png) {
             content.noteRejected(rejection)
-            if !alt.isEmpty { appendInline(alt) }
+            if !alt.isEmpty { appendInline(Self.isGradeMark(alt) ? " [\(alt)] " : alt) }
             return
         }
         flushInline()
         let nearby = [alt, ParserSupport.nearbyText(before: content.blocks)].filter { !$0.isEmpty }.joined(separator: "\n")
         guard let index = content.appendFigure(pngData: png, nearbyText: nearby) else { return }
         content.blocks.append(.image(index: index))
+    }
+
+    /// A grading mark's alt text on a saved homework page ("Correct: Your answer is correct.", "Incorrect: …").
+    static func isGradeMark(_ alt: String) -> Bool {
+        let lower = alt.lowercased()
+        return lower.hasPrefix("correct") || lower.hasPrefix("incorrect") || lower.hasPrefix("partially correct")
+            || lower.contains("your answer is")
     }
 
     private func loadImage(_ source: String) -> Data? {

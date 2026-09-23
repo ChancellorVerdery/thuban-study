@@ -33,7 +33,12 @@ struct QuestionPane: View {
         .onAppear { wireForm() }
         .onChange(of: session.currentInstance) { _, instance in
             guard let instance else { return }
-            form.load(instance: instance, inputs: session.inputs, verdicts: session.verdicts)
+            form.load(instance: instance, inputs: session.inputs, verdicts: session.verdicts, choiceImages: state.choiceImages)
+        }
+        .onChange(of: state.choiceImages) { _, images in
+            // Picture options arrive after the form: redraw it with them (typed answers are restored).
+            guard let instance = session.currentInstance else { return }
+            form.load(instance: instance, inputs: session.inputs, verdicts: session.verdicts, choiceImages: images)
         }
         .onChange(of: session.verdicts) { _, verdicts in
             form.setVerdicts(verdicts)
@@ -65,7 +70,7 @@ struct QuestionPane: View {
         form.onReady = {
             // Pages start blank on (re)load.
             if let instance = session.currentInstance {
-                form.load(instance: instance, inputs: session.inputs, verdicts: session.verdicts)
+                form.load(instance: instance, inputs: session.inputs, verdicts: session.verdicts, choiceImages: state.choiceImages)
             }
             form.setKeyboardVisible(session.showKeyboard)
         }

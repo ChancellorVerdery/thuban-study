@@ -314,6 +314,23 @@ final class ClassSession {
     }
 
     /// Puts a failed document back in the queue; its stored copy is still on disk, so the next run retries it.
+    /// Runs a finished document through the import agent again: its questions are written afresh (replacing the
+    /// old ones once the new ones are ready) while its figures keep what was already read from them.
+    func regenerateDocument(_ id: DocumentID) async {
+        guard var document = importQueue.first(where: { $0.id == id }), document.status == .done || document.status == .failed,
+              !importPipeline.isRunning else { return }
+        do {
+            try await store.update(status: .queued, detail: "Regenerate", model: nil, for: id)
+            document.status = .queued
+            document.statusDetail = "Regenerate"
+            document.modelUsed = nil
+            updateDocument(document)
+            importPipeline.start(documents: [document], policy: app.modelPolicy, concurrency: 1)
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     func retryDocument(_ id: DocumentID) async {
         guard var document = importQueue.first(where: { $0.id == id }), document.status == .failed else { return }
         do {

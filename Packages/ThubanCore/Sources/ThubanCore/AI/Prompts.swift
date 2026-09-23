@@ -187,6 +187,18 @@ public enum Prompts {
           question's number — from its heading to the next question's — in document order, not only the ones \
           the wording mentions: the slope field, every candidate sketch, every answer-choice picture. A later \
           agent works out which sketch answers which part, but only from the figures you attach.
+        - When a part's answer options are pictures (a list of graphs, phase portraits or sketches to choose \
+          from), write that part as `answerKind` "choice": `choices` are the options' labels as the document \
+          gives them (or "Graph 1", "Graph 2", … in order when it gives none), `choiceFigures` are the options' \
+          [figure N] numbers in the same order, and `answer.text` is the correct option's label. Never drop such \
+          a part because its options are images. Its figures still go in `figureIndices`.
+        - Saved homework pages record answers: "[selected]" stands before the option that was chosen and "[ ]" \
+          before the others, and grading marks appear as "[Correct: …]" / "[Incorrect: …]". When the page marks a \
+          part correct, its selected option (or entered answer) is the answer key — use it, including for picture \
+          options (the [figure N] after "[selected]"). Work an answer out yourself only where the page does not \
+          record a correct one.
+        - A question that relies on figures is never a template: its figures show the original numbers, so \
+          fresh numbers would no longer match them. Write it as a static question.
 
         # Templates (kind "mathTemplate")
         A template lets the app regenerate the question with new numbers. Write it as JSON exactly like this:
