@@ -9,12 +9,11 @@ struct FigureCanvasView: View {
     @Environment(\.thubanTheme) private var theme
     var chart: StandardChart
     @State private var scene: FigureScene?
-    @State private var sceneChart: StandardChart?
 
     var body: some View {
         ZStack {
             theme.panelColor
-            if let scene {
+            if let scene = FigureCache.cachedScene(for: chart) ?? scene {
                 Canvas(opaque: false, rendersAsynchronously: true) { context, size in
                     FigureCanvasRenderer(scene: scene, theme: theme).draw(in: &context, size: size)
                 }
@@ -28,10 +27,9 @@ struct FigureCanvasView: View {
         .accessibilityLabel(accessibilityText)
         .task(id: chart) {
             // Keep the previous drawing on screen until the new one is ready (no flash between figures).
-            let built = await FigureScene.build(chart, engine: app.engine)
+            let built = await FigureCache.scene(for: chart, engine: app.engine)
             guard !Task.isCancelled else { return }
             scene = built
-            sceneChart = chart
         }
     }
 
@@ -92,7 +90,7 @@ struct FigureCanvasRenderer {
         if scene.hasField {
             let field = Color(hex: theme.signal).opacity(0.85)
             let cell = min(size.width / CGFloat(scene.fieldColumns), size.height / CGFloat(scene.fieldRows))
-            let half = cell * 0.4
+            let standardHalf = cell * 0.4
             var segments = Path(), heads = Path()
             for arrow in scene.arrows {
                 guard let m = arrow.slope else { continue }
@@ -102,6 +100,7 @@ struct FigureCanvasRenderer {
                 guard length > 0, length.isFinite else { continue }
                 dx /= length; dy /= length
                 let c = CGPoint(x: px(arrow.x), y: py(arrow.y))
+                let half = scene.variesInLength ? cell * 0.5 * CGFloat(min(1, max(0.2, arrow.length ?? 0.8))) : standardHalf
                 let tail = CGPoint(x: c.x - dx * half, y: c.y - dy * half), tip = CGPoint(x: c.x + dx * half, y: c.y + dy * half)
                 segments.move(to: tail); segments.addLine(to: tip)
                 if scene.arrowheads {
@@ -151,37 +150,46 @@ struct FigureCanvasRenderer {
             }
         }
 
-        // Tick labels, on a halo so curves never hide them.
-        let halo = Color(hex: theme.panel)
+        // Tick labels, plain like the original's, over the curves so none is hidden.
         func label(_ text: String, at position: CGPoint, anchor: UnitPoint) {
-            var resolved = context.resolve(Text(text).font(labelFont).foregroundColor(dim))
-            let measured = resolved.measure(in: CGSize(width: 200, height: 40))
-            let origin = CGPoint(x: position.x - measured.width * anchor.x, y: position.y - measured.height * anchor.y)
-            context.fill(Path(roundedRect: CGRect(origin: origin, size: measured).insetBy(dx: -2, dy: 0), cornerRadius: 2), with: .color(halo.opacity(0.85)))
-            resolved.shading = .color(dim)
-            context.draw(resolved, at: position, anchor: anchor)
+            // Symbols ("c") are set in italic like the original's; numbers in the label font.
+            let symbolic = text.count == 1 && text.first!.isLetter
+            let font = symbolic ? Font.system(size: 12, design: .serif).italic() : labelFont
+            context.draw(Text(text).font(font).foregroundColor(dim), at: position, anchor: anchor)
         }
         let xLabelY = min(xAxisY + 3, size.height - 13)
-        for x in FigureScene.ticks(in: window.x, step: scene.xStep) where abs(x) > scene.xStep * 1e-6 {
-            // A label at the very edge is kept, nudged inside the frame.
-            let at = min(max(px(x), 10), size.width - 10)
-            label(ChartGeometry.number(x), at: CGPoint(x: at, y: xLabelY), anchor: .top)
+        let xTicks: [ChartTick] = scene.xTickLabels ?? FigureScene.ticks(in: window.x, step: scene.xStep)
+            .filter { abs($0) > scene.xStep * 1e-6 }.map { ChartTick(value: $0, text: ChartGeometry.number($0).replacingOccurrences(of: "-", with: "−")) }
+        var lastX = -CGFloat.infinity
+        for tick in xTicks.sorted(by: { $0.value < $1.value }) where window.x.contains(tick.value) {
+            // A label at the very edge is kept, nudged inside the frame; crowded labels are thinned.
+            let at = min(max(px(tick.value), 10), size.width - 10)
+            guard at - lastX >= 26 else { continue }
+            lastX = at
+            label(tick.text, at: CGPoint(x: at, y: xLabelY), anchor: .top)
         }
         let yLabelX = max(yAxisX - 4, 14)
-        for y in FigureScene.ticks(in: window.y, step: scene.yStep) where abs(y) > scene.yStep * 1e-6 {
-            let at = min(max(py(y), 8), size.height - 8)
-            label(ChartGeometry.number(y), at: CGPoint(x: yLabelX, y: at), anchor: yAxisX - 4 < 14 ? .leading : .trailing)
+        let yTicks: [ChartTick] = scene.yTickLabels ?? FigureScene.ticks(in: window.y, step: scene.yStep)
+            .filter { abs($0) > scene.yStep * 1e-6 }.map { ChartTick(value: $0, text: ChartGeometry.number($0).replacingOccurrences(of: "-", with: "−")) }
+        var lastY = CGFloat.infinity
+        for tick in yTicks.sorted(by: { $0.value < $1.value }) where window.y.contains(tick.value) {
+            let at = min(max(py(tick.value), 8), size.height - 8)
+            guard lastY - at >= 14 else { continue }
+            lastY = at
+            let text = tick.text
+            label(text, at: CGPoint(x: yLabelX, y: at), anchor: yAxisX - 4 < 14 ? .leading : .trailing)
         }
-        if window.x.contains(0), window.y.contains(0) {
+        if scene.xTickLabels == nil, scene.yTickLabels == nil, window.x.contains(0), window.y.contains(0) {
             label("0", at: CGPoint(x: px(0) - 4, y: py(0) + 3), anchor: .topTrailing)
         }
 
-        // Axis names at the ends of the axes.
-        if let name = scene.xLabel ?? "x" as String? {
-            context.draw(Text(name).font(axisNameFont).foregroundColor(ink), at: CGPoint(x: size.width - 6, y: min(xAxisY + 16, size.height - 10)), anchor: .trailing)
-        }
-        if let name = scene.yLabel ?? "y" as String? {
-            context.draw(Text(name).font(axisNameFont).foregroundColor(ink), at: CGPoint(x: min(yAxisX + 8, size.width - 12), y: 10), anchor: .leading)
-        }
+        // Axis names at the ends of the axes, on whichever side has room.
+        let xName = scene.xLabel ?? "x", yName = scene.yLabel ?? "y"
+        let xNameY = xAxisY < 26 ? min(xAxisY + 12, size.height - 10) : xAxisY - 12
+        context.draw(Text(xName).font(axisNameFont).foregroundColor(ink), at: CGPoint(x: size.width - 6, y: xNameY), anchor: .trailing)
+        let yNameLeft = yAxisX > size.width - 26
+        context.draw(Text(yName).font(axisNameFont).foregroundColor(ink),
+                     at: CGPoint(x: yNameLeft ? yAxisX - 8 : min(yAxisX + 8, size.width - 12), y: xAxisY < 26 ? 30 : 10),
+                     anchor: yNameLeft ? .trailing : .leading)
     }
 }

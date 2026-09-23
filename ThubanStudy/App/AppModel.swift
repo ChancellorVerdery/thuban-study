@@ -154,6 +154,7 @@ final class AppModel {
             try? await engine.warmUp()
         }
         SmokeHarness.startIfEnabled(app: self)
+        FigureDump.startIfEnabled(app: self)
     }
 
     /// `DesmosAPIKey` from the bundled `Secrets.plist`, if present.

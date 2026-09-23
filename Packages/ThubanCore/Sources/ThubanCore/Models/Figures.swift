@@ -52,6 +52,13 @@ public struct ChartVerification: Codable, Sendable, Equatable {
     }
 }
 
+/// A label printed along an axis: its value and the text as printed ("1.7", "−2.2", "c").
+public struct ChartTick: Codable, Sendable, Equatable {
+    public var value: Double
+    public var text: String
+    public init(value: Double, text: String) { self.value = value; self.text = text }
+}
+
 /// One initial condition the question offers for a slope field's solution curve, so the app can test each
 /// against the drawn curve (`FigureReconciler`).
 public struct ChartCandidate: Codable, Sendable, Equatable {
@@ -114,6 +121,14 @@ public struct StandardChart: Codable, Sendable, Equatable {
     /// Slope fields: every initial condition the question offers (each part's or choice's), tested by the app
     /// against the drawn curve.
     public var candidates: [ChartCandidate]?
+    /// The labels the original prints along each axis (read from the picture); drawn instead of evenly spaced
+    /// numbers. An empty list means the original prints none on that axis; nil means unknown.
+    public var xAxisLabels: [ChartTick]?
+    public var yAxisLabels: [ChartTick]?
+    /// The field's arrows as the picture draws them, `[x, y, m]`, and whether they are drawn instead of the
+    /// stated slope (it did not match the picture, or could not be evaluated).
+    public var fieldSamples: [[Double]]?
+    public var fieldFromPicture: Bool?
 
     public var isSlopeField: Bool { chartType == "slopeField" }
     public var isStated: Bool { provenance == Self.stated }
@@ -174,6 +189,7 @@ public struct StandardChart: Codable, Sendable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case chartType, xLabel, yLabel, series, xRange, yRange, confidence, slope, arrows, xStep, yStep, fieldColumns, fieldRows, notes
         case provenance, definition, checks, verification, xTicks, yTicks, candidates
+        case xAxisLabels, yAxisLabels, fieldSamples, fieldFromPicture
     }
 
     public init(from decoder: Decoder) throws {
@@ -199,6 +215,10 @@ public struct StandardChart: Codable, Sendable, Equatable {
         xTicks = try c.decodeIfPresent([Double].self, forKey: .xTicks)
         yTicks = try c.decodeIfPresent([Double].self, forKey: .yTicks)
         candidates = try c.decodeIfPresent([ChartCandidate].self, forKey: .candidates)
+        xAxisLabels = try c.decodeIfPresent([ChartTick].self, forKey: .xAxisLabels)
+        yAxisLabels = try c.decodeIfPresent([ChartTick].self, forKey: .yAxisLabels)
+        fieldSamples = try c.decodeIfPresent([[Double]].self, forKey: .fieldSamples)
+        fieldFromPicture = try c.decodeIfPresent(Bool.self, forKey: .fieldFromPicture)
     }
 }
 

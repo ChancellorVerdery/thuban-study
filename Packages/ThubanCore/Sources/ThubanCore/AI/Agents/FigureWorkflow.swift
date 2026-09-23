@@ -72,7 +72,7 @@ public enum FigureWorkflow {
         for var figure in try await store.figures(for: document.id) where figure.chart != nil && (only?(figure) ?? true) {
             guard let chart = figure.chart, let png = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)), !png.isEmpty else { continue }
             let checked = await FigureAgent.check(chart, png: png, engine: engine)
-            if checked.verification == nil, FigureAgent.isThin(checked) {
+            if FigureAgent.isThin(checked) {
                 // Not a plot after all (a phase line drawn as two points): keep the original image.
                 figure.kind = .diagram
                 figure.chart = nil

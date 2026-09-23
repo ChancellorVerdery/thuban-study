@@ -48,7 +48,7 @@ final class FigureReviewModel {
 
     /// Original PNG of a figure (nil when the file is missing).
     func image(for figure: Figure) -> NSImage? {
-        NSImage(contentsOf: AppPaths.figureURL(figure.originalPath))
+        FigureCache.image(figure.originalPath)
     }
 
     // MARK: Loading

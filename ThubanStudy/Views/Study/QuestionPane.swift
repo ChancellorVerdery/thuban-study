@@ -331,7 +331,7 @@ struct FigureCard: View {
                 StandardChartView(chart: chart)
                     .aspectRatio(originalAspect, contentMode: .fit)
                     .frame(maxWidth: .infinity, maxHeight: 360)
-            } else if let image = NSImage(contentsOf: AppPaths.figureURL(figure.originalPath)) {
+            } else if let image = FigureCache.image(figure.originalPath) {
                 Image(nsImage: image)
                     .resizable()
                     .interpolation(.high)
@@ -354,8 +354,7 @@ struct FigureCard: View {
 
     /// Width ÷ height of the clipped original, so the redraw has the same proportions.
     private var originalAspect: CGFloat {
-        guard let image = NSImage(contentsOf: AppPaths.figureURL(figure.originalPath)), image.size.height > 0 else { return 1 }
-        return max(0.4, min(3, image.size.width / image.size.height))
+        FigureCache.aspect(figure.originalPath)
     }
 }
 

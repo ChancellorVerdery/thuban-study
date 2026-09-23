@@ -35,8 +35,10 @@ public struct GraphReading: Sendable {
         /// Rows occupied in each column (sorted).
         public var rows: [Int: [Int]]
         public var pixelCount: Int
-        /// The curve as `[[x, y], …]` in data coordinates, left to right, at most ~80 points.
+        /// The curve as `[[x, y], …]` in data coordinates, left to right.
         public var points: [[Double]]
+        /// Drawn dashed (the ink breaks at regular gaps along its span).
+        public var dashed: Bool = false
 
         public var columns: ClosedRange<Int>? {
             guard let lo = rows.keys.min(), let hi = rows.keys.max() else { return nil }
@@ -53,6 +55,15 @@ public struct GraphReading: Sendable {
     /// ink along each axis; nil when the picture has no such pattern.
     public var fieldColumns: Int?
     public var fieldRows: Int?
+    /// The field's arrows as the picture draws them: `[x, y, m]` at each arrow's centre, m its slope.
+    public var fieldSamples: [[Double]]?
+    /// The labels printed along each axis, as `(value, text)`: numbers as printed ("1.7", "−2.2") and symbols
+    /// ("c") at the value their position maps to. Empty when the axis prints none.
+    public var xTickLabels: [(value: Double, text: String)] = []
+    public var yTickLabels: [(value: Double, text: String)] = []
+    /// False when neither axis could be calibrated (no labels, ticks or window): coordinates are then in
+    /// arbitrary units of equal scale, fine for tracing a sketch but not for checking numbers.
+    public var isCalibrated: Bool = true
 
     /// Column and row of the data origin.
     public var originColumn: Double { x.pixel(0) }
@@ -100,7 +111,7 @@ public enum GraphReader {
         let labels = (try? await recognizeLabels(in: image, horizontals: horizontals, verticals: verticals)) ?? []
         let h = horizontals.map { "row \($0.position) [\($0.start)…\($0.end)] ticks \(tickPositions(bitmap, along: $0, horizontal: true))" }
         let v = verticals.map { "col \($0.position) [\($0.start)…\($0.end)] ticks \(tickPositions(bitmap, along: $0, horizontal: false))" }
-        let l = labels.map { "\($0.value)@(\(Int($0.column)),\(Int($0.row)))" }
+        let l = labels.map { "\($0.value)[\($0.text)]@(\(Int($0.column)),\(Int($0.row)))" }
         let g = "gridrows \(gridLines(bitmap, horizontal: true)) gridcols \(gridLines(bitmap, horizontal: false))"
         var chosen = "none"
         if let axes = chooseAxes(horizontals: horizontals, verticals: verticals, labels: labels, bitmap: bitmap) {
@@ -164,8 +175,15 @@ public enum GraphReader {
         @inline(__always) func isArrow(_ column: Int, _ row: Int) -> Bool {
             let p = rgb(column, row)
             let hi = max(p.r, p.g, p.b), lo = min(p.r, p.g, p.b)
-            if hi - lo > 60 { return hi > 70 }
+            // Any tint that is not paper (pale arrows included), or mid grey.
+            if hi - lo > 25 { return hi > 70 && lo < 235 }
             return hi >= 70 && hi <= 210
+        }
+
+        /// Paper: near white.
+        @inline(__always) func isBackground(_ column: Int, _ row: Int) -> Bool {
+            let p = rgb(column, row)
+            return min(p.r, p.g, p.b) >= 235
         }
 
         /// Light grey (a gridline), neither white nor ink nor colour.
@@ -196,12 +214,22 @@ public enum GraphReader {
         var value: Double
         var column: Double
         var row: Double
+        /// As printed ("−2.2", "c").
+        var text: String = ""
+        /// A letter such as "c": placed by position, never used to calibrate.
+        var symbolic: Bool = false
+        /// For a negative label: the text box's centre (the minus included), when `column` is the digits' centre.
+        /// Typesetting differs — some centre the digits on the tick, some the whole "−3" — and the reader keeps
+        /// whichever puts zero on the y-axis.
+        var boxColumn: Double? = nil
     }
 
     struct Line { var position: Int; var start: Int; var end: Int }
 
-    static func read(bitmap: Bitmap, horizontals: [Line], verticals: [Line], labels: [Label], hints: StandardChart?) -> GraphReading? {
+    static func read(bitmap: Bitmap, horizontals: [Line], verticals: [Line], labels allLabels: [Label], hints: StandardChart?) -> GraphReading? {
         guard !horizontals.isEmpty, !verticals.isEmpty else { return nil }
+        let labels = allLabels.filter { !$0.symbolic }
+        let symbols = allLabels.filter(\.symbolic)
         guard let (xAxis, yAxis, rawXLabels, rawYLabels) = chooseAxes(horizontals: horizontals, verticals: verticals, labels: labels, bitmap: bitmap) else { return nil }
 
         // Tick marks on the axis, or gridlines across the plot, paired in order with the tick values the agent
@@ -214,27 +242,136 @@ public enum GraphReader {
         let yGrid = gridLines(bitmap, horizontal: true) + colouredLines(bitmap, horizontal: true)
         let xTicks = paired(values: hints?.xTicks, positions: xMarks, gridlines: xGrid, ascending: true)
         let yTicks = paired(values: hints?.yTicks, positions: yMarks, gridlines: yGrid, ascending: false)
+        // Negative x labels: digits-centred or box-centred, whichever puts zero on the y-axis.
+        func zeroMiss(_ list: [Label]) -> Double {
+            let kept = consistent(list, along: \.column)
+            guard kept.count >= 2, let fit = leastSquares(kept.map { ($0.value, $0.column) }) else { return .infinity }
+            return abs(fit.origin - Double(yAxis.position))
+        }
+        let boxCentred = rawXLabels.map { label -> Label in var l = label; if let b = label.boxColumn { l.column = b }; return l }
+        let chosenXLabels = zeroMiss(boxCentred) < zeroMiss(rawXLabels) ? boxCentred : rawXLabels
         // A label is printed beside its tick, not on it: snap each to the nearest mark or gridline.
-        let xLabels = snapped(rawXLabels, to: xMarks + xGrid, along: \.column)
+        let xLabels = snapped(chosenXLabels, to: xMarks + xGrid, along: \.column)
         let yLabels = snapped(rawYLabels, to: yMarks + yGrid, along: \.row)
 
         var x = axisMap(labels: xLabels, ticks: xTicks, axisPixel: Double(yAxis.position), extent: Double(xAxis.start)...Double(xAxis.end),
                         window: hints?.xRange, ascending: true)
         var y = axisMap(labels: yLabels, ticks: yTicks, axisPixel: Double(xAxis.position), extent: Double(yAxis.start)...Double(yAxis.end),
                         window: hints?.yRange, ascending: false)
-        // An axis with no labels at all takes the other axis's scale (course plots are drawn to equal scales)
-        // when that one was read from labels; the agent's window is used only when neither axis has labels.
-        if let yy = y, yy.labelCount >= 1, x == nil || (x!.labelCount == 0 && yy.labelCount >= 2) {
+        // An axis with no labels takes the other axis's scale (course plots are drawn to equal scales) — the
+        // picture's own evidence beats the agent's window. With no labels anywhere the agent's window is used, and
+        // failing that equal pixel units (a sketch has no numbers to honour).
+        if let yy = y, yy.labelCount >= 1, x == nil || x!.labelCount == 0 {
             x = GraphReading.AxisMap(origin: Double(yAxis.position), scale: abs(yy.scale), labelCount: 0, extent: Double(xAxis.start)...Double(xAxis.end))
         }
-        if let xx = x, xx.labelCount >= 1, y == nil || (y!.labelCount == 0 && xx.labelCount >= 2) {
+        if let xx = x, xx.labelCount >= 1, y == nil || y!.labelCount == 0 {
             y = GraphReading.AxisMap(origin: Double(xAxis.position), scale: -abs(xx.scale), labelCount: 0, extent: Double(yAxis.start)...Double(yAxis.end))
         }
+        var calibrated = true
+        if x == nil || y == nil {
+            calibrated = false
+            let unit = Double(min(bitmap.width, bitmap.height)) / 10
+            x = GraphReading.AxisMap(origin: Double(yAxis.position), scale: unit, labelCount: 0, extent: Double(xAxis.start)...Double(xAxis.end))
+            y = GraphReading.AxisMap(origin: Double(xAxis.position), scale: -unit, labelCount: 0, extent: Double(yAxis.start)...Double(yAxis.end))
+        }
         guard let x, let y else { return nil }
-        let reading = GraphReading(width: bitmap.width, height: bitmap.height, x: x, y: y, curves: [])
-        let curves = extractCurves(bitmap, reading: reading)
-        let grid = fieldGrid(bitmap, reading: reading)
-        return GraphReading(width: bitmap.width, height: bitmap.height, x: x, y: y, curves: curves, fieldColumns: grid?.columns, fieldRows: grid?.rows)
+        var reading = GraphReading(width: bitmap.width, height: bitmap.height, x: x, y: y, curves: [])
+        reading.isCalibrated = calibrated
+        reading.curves = extractCurves(bitmap, reading: reading)
+        if let grid = fieldGrid(bitmap, reading: reading, axisRow: xAxis.position, axisColumn: yAxis.position) {
+            reading.fieldColumns = grid.columns
+            reading.fieldRows = grid.rows
+            reading.fieldSamples = grid.samples
+        }
+        // The labels exactly as the original prints them.
+        // Where a label would be printed for `value`, is it covered by a coloured curve (so unreadable)?
+        func hiddenUnderCurve(_ value: Double, horizontal: Bool, map: GraphReading.AxisMap) -> Bool {
+            let p = Int(map.pixel(value).rounded())
+            var coloured = 0
+            let (columns, rows): (ClosedRange<Int>, ClosedRange<Int>) = horizontal
+                ? ((p - 9)...(p + 9), (xAxis.position + 3)...(xAxis.position + 20))
+                : ((yAxis.position - 24)...(yAxis.position - 3), (p - 7)...(p + 7))
+            for r in rows where r >= 0 && r < bitmap.height {
+                for c in columns where c >= 0 && c < bitmap.width && bitmap.hueBin(c, r) != nil { coloured += 1 }
+            }
+            return coloured >= 8
+        }
+        func printed(_ list: [Label], along key: KeyPath<Label, Double>, map: GraphReading.AxisMap, fallback: [Double]?, marks: [Double], horizontal: Bool) -> [(value: Double, text: String)] {
+            let kept = x.labelCount > 0 || y.labelCount > 0 ? consistent(list, along: key) : []
+            var out = kept.map { (value: $0.value, text: ChartGeometry.number($0.value).replacingOccurrences(of: "-", with: "−")) }
+            if out.isEmpty, map.labelCount > 0, let fallback { out = fallback.map { (value: $0, text: ChartGeometry.number($0).replacingOccurrences(of: "-", with: "−")) } }
+            out.sort { $0.value < $1.value }
+            // Evenly spaced labels (every unit, every 5 …) are a progression the recogniser may have missed a term
+            // of where a curve crosses it: fill the progression across the axis. Uneven ones stay as printed.
+            // Labels a curve hides: a value printed on one side with a tick at its mirror image is printed there too.
+            for label in out where !out.contains(where: { abs($0.value + label.value) < 1e-9 }) {
+                let mirror = -label.value
+                guard abs(mirror) > 1e-9, map.range.contains(mirror), marks.contains(where: { abs($0 - map.pixel(mirror)) <= 3 }) else { continue }
+                out.append((value: mirror, text: ChartGeometry.number(mirror).replacingOccurrences(of: "-", with: "−")))
+            }
+            out.sort { $0.value < $1.value }
+            // Evenly spaced labels with every other term hidden under a curve (−3, −1, 1, 3 where the curve crosses
+            // ±2): half-step positions with a tick whose label spot is covered by a curve get their label back.
+            if out.count >= 2 {
+                let known = out.map(\.value)
+                let gaps = zip(known, known.dropFirst()).map { $1 - $0 }
+                // Only the "every other label" pattern: all printed values are odd multiples of half the step.
+                let half = (gaps.min() ?? 0) / 2
+                let alternate = half > 0 && known.allSatisfy { value in
+                    let k = (value / half).rounded()
+                    return abs(k * half - value) < half * 0.02 && Int(k) % 2 != 0
+                }
+                if alternate, let step = gaps.min(), step > 0, gaps.allSatisfy({ abs(($0 / step).rounded() * step - $0) < step * 0.02 }) {
+                    var v = known.first! + step / 2
+                    while v < known.last! {
+                        let value = (v * 1e9).rounded() / 1e9
+                        if abs(value) > step * 1e-6, !known.contains(where: { abs($0 - value) < step * 0.02 }),
+                           marks.contains(where: { abs($0 - map.pixel(value)) <= 3 }),
+                           hiddenUnderCurve(value, horizontal: horizontal, map: map) {
+                            out.append((value: value, text: ChartGeometry.number(value).replacingOccurrences(of: "-", with: "−")))
+                        }
+                        v += step / 2
+                    }
+                    out.sort { $0.value < $1.value }
+                }
+            }
+            // Evenly spaced labels are a progression: a term missing between two printed ones was hidden, not left out.
+            let values = out.map(\.value)
+            if values.count >= 3 {
+                let gaps = zip(values, values.dropFirst()).map { $1 - $0 }
+                let step = gaps.min()!
+                if step > 0, gaps.allSatisfy({ abs(($0 / step).rounded() * step - $0) < step * 0.02 }) {
+                    var filled: [(value: Double, text: String)] = []
+                    var v = values.first!
+                    while v <= values.last! + step * 0.01 {
+                        let value = (v * 1e9).rounded() / 1e9
+                        if abs(value) > step * 1e-6 {
+                            filled.append(out.first { abs($0.value - value) < step * 0.02 } ?? (value: value, text: ChartGeometry.number(value).replacingOccurrences(of: "-", with: "−")))
+                        }
+                        v += step
+                    }
+                    out = filled
+                }
+            }
+            return out
+        }
+        reading.xTickLabels = x.labelCount > 0 ? printed(xLabels, along: \.column, map: x, fallback: hints?.xTicks, marks: xMarks, horizontal: true) : []
+        reading.yTickLabels = y.labelCount > 0 ? printed(yLabels, along: \.row, map: y, fallback: hints?.yTicks, marks: yMarks, horizontal: false) : []
+        // Symbols ("c") beside an axis mark the value their position maps to — only on an axis that prints no
+        // numbers (elsewhere a "letter" is an arrowhead or a fragment of a glyph). One of each.
+        let near = Double(max(bitmap.width, bitmap.height)) * 0.08
+        let numericX = !reading.xTickLabels.isEmpty, numericY = !reading.yTickLabels.isEmpty
+        for symbol in symbols {
+            let dv = abs(symbol.column - Double(yAxis.position)), dh = abs(symbol.row - Double(xAxis.position))
+            if dv <= near, dv <= dh {
+                guard !numericY, !reading.yTickLabels.contains(where: { $0.text == symbol.text }) else { continue }
+                reading.yTickLabels.append((value: y.value(symbol.row), text: symbol.text))
+            } else if dh <= near {
+                guard !numericX, !reading.xTickLabels.contains(where: { $0.text == symbol.text }) else { continue }
+                reading.xTickLabels.append((value: x.value(symbol.column), text: symbol.text))
+            }
+        }
+        return reading
     }
 
     // MARK: - Slope-field density
@@ -242,7 +379,7 @@ public enum GraphReader {
     /// The number of arrows across and down a drawn field: the arrow ink (grey, or a colour that fills an area
     /// rather than a curve) projected onto each axis is periodic, and the period found by autocorrelation
     /// divides the axis extent into that many cells. Nil when no clear period exists.
-    static func fieldGrid(_ bitmap: Bitmap, reading: GraphReading) -> (columns: Int, rows: Int)? {
+    static func fieldGrid(_ bitmap: Bitmap, reading: GraphReading, axisRow: Int? = nil, axisColumn: Int? = nil) -> (columns: Int, rows: Int, samples: [[Double]])? {
         let x0 = Int(reading.x.extent.lowerBound), x1 = Int(reading.x.extent.upperBound)
         let y0 = Int(reading.y.extent.lowerBound), y1 = Int(reading.y.extent.upperBound)
         guard x1 - x0 > 40, y1 - y0 > 40 else { return nil }
@@ -265,11 +402,112 @@ public enum GraphReader {
         guard let columnPeriod = period(of: columnProfile), let rowPeriod = period(of: rowProfile) else { return nil }
         // The arrows may stop short of the axis ends (a margin inside the frame): count cells over the span of the
         // arrow ink, first arrow to last, plus one.
-        guard let columnSpan = inkSpan(columnProfile), let rowSpan = inkSpan(rowProfile) else { return nil }
+        guard let columnBounds = inkBounds(columnProfile), let rowBounds = inkBounds(rowProfile) else { return nil }
+        let columnSpan = Double(columnBounds.last - columnBounds.first), rowSpan = Double(rowBounds.last - rowBounds.first)
         let columns = Int((columnSpan / columnPeriod).rounded()) + 1
         let rows = Int((rowSpan / rowPeriod).rounded()) + 1
         guard columns >= 4, rows >= 4, columns <= 60, rows <= 60 else { return nil }
-        return (columns, rows)
+
+        // Each arrow's direction: the principal axis of its ink inside its cell (the head is symmetric about the
+        // shaft, so it does not tilt the axis). Near-vertical arrows take their sign from the side the head is on.
+        // Arrow centres: the phase of the periodic ink that best lines a comb of the measured period up with the
+        // ink (arrows concentrate their ink about their centres), within the first period of the ink.
+        let pitchX = columnPeriod, pitchY = rowPeriod
+        func phase(_ profile: [Double], period: Double, first: Int, count: Int) -> Double {
+            // Smooth over a quarter period so a shaft and its head read as one bump.
+            let radius = max(1, Int(period / 4))
+            var smooth = [Double](repeating: 0, count: profile.count)
+            for i in profile.indices {
+                var sum = 0.0
+                for j in max(0, i - radius)...min(profile.count - 1, i + radius) { sum += profile[j] }
+                smooth[i] = sum
+            }
+            var best = (offset: Double(first) + period / 2, score: -Double.infinity)
+            var offset = Double(first)
+            while offset < Double(first) + period {
+                var score = 0.0
+                for k in 0..<count {
+                    let at = Int((offset + Double(k) * period).rounded())
+                    if at >= 0, at < smooth.count { score += smooth[at] }
+                }
+                if score > best.score { best = (offset, score) }
+                offset += 0.5
+            }
+            return best.offset
+        }
+        let startX = Double(x0) + phase(columnProfile, period: pitchX, first: columnBounds.first, count: columns)
+        let startY = Double(y0) + phase(rowProfile, period: pitchY, first: rowBounds.first, count: rows)
+        let xScale = abs(reading.x.scale), yScale = abs(reading.y.scale)
+        var samples: [[Double]] = []
+        for j in 0..<rows {
+            for i in 0..<columns {
+                let cx = startX + Double(i) * pitchX, cy = startY + Double(j) * pitchY
+                let halfX = pitchX / 2, halfY = pitchY / 2
+                let radius2 = pow(min(halfX, halfY) * 1.05, 2)
+                var n = 0.0, sx = 0.0, sy = 0.0
+                var pixels: [(Double, Double)] = []
+                let c0 = max(0, Int((cx - halfX).rounded(.up))), c1 = min(bitmap.width - 1, Int((cx + halfX).rounded(.down)))
+                let r0 = max(0, Int((cy - halfY).rounded(.up))), r1 = min(bitmap.height - 1, Int((cy + halfY).rounded(.down)))
+                guard c0 < c1, r0 < r1 else { continue }
+                for row in r0...r1 {
+                    if let axisRow, abs(row - axisRow) <= 1 { continue }
+                    for column in c0...c1 {
+                        if let axisColumn, abs(column - axisColumn) <= 1 { continue }
+                        let dx = Double(column) - cx, dy = Double(row) - cy
+                        guard dx * dx + dy * dy <= radius2 else { continue }
+                        guard bitmap.isArrow(column, row), !curvePixels.contains(row * bitmap.width + column) else { continue }
+                        pixels.append((Double(column), Double(row))); n += 1; sx += Double(column); sy += Double(row)
+                    }
+                }
+                guard n >= 3 else { continue }
+                // Only the arrow at the centre counts: the 8-connected blob of ink nearest the centre (neighbours'
+                // tips reaching into the disk are other arrows). Falls back to all the ink when the blob is tiny.
+                let lookup = Set(pixels.map { Int($0.1) * bitmap.width + Int($0.0) })
+                if let seed = pixels.min(by: { hypot($0.0 - cx, $0.1 - cy) < hypot($1.0 - cx, $1.1 - cy) }) {
+                    var blob: [(Double, Double)] = []
+                    var stack = [Int(seed.1) * bitmap.width + Int(seed.0)]
+                    var seen: Set<Int> = [stack[0]]
+                    while let key = stack.popLast() {
+                        let c = key % bitmap.width, r = key / bitmap.width
+                        blob.append((Double(c), Double(r)))
+                        for dr in -1...1 { for dc in -1...1 where dr != 0 || dc != 0 {
+                            let next = (r + dr) * bitmap.width + (c + dc)
+                            if lookup.contains(next), seen.insert(next).inserted { stack.append(next) }
+                        } }
+                    }
+                    if blob.count >= 3 {
+                        pixels = blob
+                        n = Double(blob.count); sx = blob.reduce(0) { $0 + $1.0 }; sy = blob.reduce(0) { $0 + $1.1 }
+                    }
+                }
+                let mx = sx / n, my = sy / n
+                var cxx = 0.0, cyy = 0.0, cxy = 0.0
+                for (px, py) in pixels { cxx += (px - mx) * (px - mx); cyy += (py - my) * (py - my); cxy += (px - mx) * (py - my) }
+                // Length along the principal axis (a uniform stroke of length L has variance L²/12), relative to the
+                // arrow pitch: fields that scale arrows by magnitude draw short ones where the slope is small.
+                let major = 0.5 * (cxx + cyy + ((cxx - cyy) * (cxx - cyy) + 4 * cxy * cxy).squareRoot()) / n
+                let relativeLength = min(1.2, (12 * major).squareRoot() / min(pitchX, pitchY))
+                let theta = 0.5 * atan2(2 * cxy, cxx - cyy)      // pixel space, rows grow downwards
+                var pixelSlope = tan(theta)
+                if !pixelSlope.isFinite || abs(pixelSlope) > 25 {
+                    // Vertical: up when the head (the heavier end) is above the centre.
+                    pixelSlope = my < cy ? -1e4 : 1e4
+                }
+                // Pixel slope Δrow/Δcolumn = −(yScale·Δy)/(xScale·Δx), so dy/dx = −pixelSlope · xScale / yScale.
+                let m = -pixelSlope * xScale / yScale
+                let data = reading.data(column: cx, row: cy)
+                samples.append([data.x, data.y, (m * 1e6).rounded() / 1e6, (relativeLength * 1000).rounded() / 1000])
+            }
+        }
+        return (columns, rows, samples)
+    }
+
+    /// First and last positions where the profile is at least 15 % of its maximum.
+    static func inkBounds(_ profile: [Double]) -> (first: Int, last: Int)? {
+        guard let peak = profile.max(), peak > 0 else { return nil }
+        let threshold = peak * 0.15
+        guard let first = profile.firstIndex(where: { $0 >= threshold }), let last = profile.lastIndex(where: { $0 >= threshold }), last > first else { return nil }
+        return (first, last)
     }
 
     /// Distance from the first to the last position where the profile is at least 15 % of its maximum.
@@ -329,7 +567,16 @@ public enum GraphReader {
                     let gapEnd = min(inner, q + 7)
                     var bridged = false
                     if q + 1 < inner {
-                        for r in (q + 1)..<gapEnd where (horizontal ? bitmap.isInk(r, p) : bitmap.isInk(p, r)) { bridged = true; break }
+                        for r in (q + 1)..<gapEnd where (horizontal ? bitmap.isInk(r, p) : bitmap.isInk(p, r)) {
+                            // Within two pixels: anti-aliasing. Farther: only where a coloured curve crosses the line,
+                            // never across the white gap to a tick label.
+                            if r - q <= 2 { bridged = true } else {
+                                // Something drawn over the line (a curve, a field arrow) bridges; white paper does not.
+                                let drawn = (q..<r).filter { !(horizontal ? bitmap.isBackground($0, p) : bitmap.isBackground(p, $0)) }.count
+                                bridged = drawn * 2 >= r - q
+                            }
+                            break
+                        }
                     }
                     if bridged { continue }
                     if q - runStart > best.end - best.start { best = (runStart, q - 1) }
@@ -561,11 +808,10 @@ public enum GraphReader {
         if let window, window.count == 2, window[1] > window[0] {
             let span = extent.upperBound - extent.lowerBound
             guard span > 0 else { return nil }
-            // The window is what the axis line spans; the crossing may not be at 0 (an offset window), so map
-            // the ends rather than the origin.
+            // The window's span sets the scale; the axes cross at 0, so the crossing anchors the map (the agent's
+            // window is only a guess at the numbers, never at where the picture's own axes are).
             let scale = (ascending ? 1 : -1) * span / (window[1] - window[0])
-            let origin = ascending ? extent.lowerBound - scale * window[0] : extent.upperBound - scale * window[0]
-            return GraphReading.AxisMap(origin: origin, scale: scale, labelCount: 0, extent: extent)
+            return GraphReading.AxisMap(origin: axisPixel, scale: scale, labelCount: 0, extent: extent)
         }
         return nil
     }
@@ -574,12 +820,13 @@ public enum GraphReader {
     /// magnitude also appears on the positive side lost its minus sign in recognition; give it back. Labels a
     /// hair from the crossing are left alone.
     static func signed(_ labels: [Label], crossing: Double, along key: KeyPath<Label, Double>, negativeBelow: Bool) -> [Label] {
-        let magnitudes = Set(labels.map { abs($0.value) })
-        return labels.map { label in
-            guard label.value > 0, magnitudes.contains(label.value) else { return label }
+        // Left of the y-axis (for x) or below the x-axis (for y) every value is negative: a positive label there
+        // lost its minus sign in recognition.
+        labels.map { label in
+            guard label.value > 0 else { return label }
             let offset = label[keyPath: key] - crossing
             let onNegativeSide = negativeBelow ? offset < -6 : offset > 6
-            guard onNegativeSide, labels.contains(where: { $0.value == label.value && (negativeBelow ? $0[keyPath: key] - crossing > 6 : $0[keyPath: key] - crossing < -6) }) else { return label }
+            guard onNegativeSide else { return label }
             var flipped = label
             flipped.value = -label.value
             return flipped
@@ -663,7 +910,18 @@ public enum GraphReader {
             let perColumn = Double(total) / Double(max(1, rows.count))
             guard fill <= maximumCurveFill, perColumn <= 14 else { continue }
             let name = hueNames[group[0]]
-            curves.append(GraphReading.Curve(color: name, rows: rows, pixelCount: total, points: polyline(rows, reading: reading)))
+            // Dashed: the ink covers well under the columns of its span, broken into many runs.
+            // Dashed: many short pieces and no long unbroken stretch (a solid curve another colour is painted over
+            // in places still has one).
+            let sortedColumns = rows.keys.sorted()
+            var runs = 1, runLength = 1, longest = 1
+            for (a, b) in zip(sortedColumns, sortedColumns.dropFirst()) {
+                if b - a > 2 { runs += 1; runLength = 1 } else { runLength += b - a; longest = max(longest, runLength) }
+            }
+            let coverage = Double(rows.count) / Double(max(1, columns))
+            var curve = GraphReading.Curve(color: name, rows: rows, pixelCount: total, points: polyline(rows, reading: reading))
+            curve.dashed = coverage < 0.85 && runs >= 4 && Double(longest) < 0.25 * Double(columns)
+            curves.append(curve)
         }
         return curves.sorted { $0.pixelCount > $1.pixelCount }
     }
@@ -673,54 +931,49 @@ public enum GraphReader {
     static func polyline(_ rows: [Int: [Int]], reading: GraphReading) -> [[Double]] {
         let columns = rows.keys.sorted()
         guard !columns.isEmpty else { return [] }
-        // A run of columns where the ink is tall is a steep stretch: it is one segment from where the curve
-        // enters it (the end nearest the column before) to where it leaves (the end nearest the column after),
-        // not a zigzag between the top and bottom of every column.
+        // Flat stretches: one point per column at the middle of the ink. Steep stretches (runs of columns where
+        // the ink is tall): one point per row, at the mean column of that row's ink, ordered from where the curve
+        // enters the stretch to where it leaves — the stroke's own centreline, with no stair steps.
         var pixels: [(Double, Double)] = []
+        func isTall(_ column: Int) -> Bool { Double(rows[column]!.last!) - Double(rows[column]!.first!) > 4 }
         var index = 0
         while index < columns.count {
             let column = columns[index]
-            let list = rows[column]!
-            let tall = Double(list.last!) - Double(list.first!) > 10
-            if !tall {
+            if !isTall(column) {
+                let list = rows[column]!
                 pixels.append((Double(column), Double(list[list.count / 2])))
                 index += 1
                 continue
             }
             var end = index
-            while end + 1 < columns.count, columns[end + 1] - columns[end] <= 2,
-                  Double(rows[columns[end + 1]]!.last!) - Double(rows[columns[end + 1]]!.first!) > 10 { end += 1 }
-            let firstList = rows[columns[index]]!, lastList = rows[columns[end]]!
+            while end + 1 < columns.count, columns[end + 1] - columns[end] <= 2, isTall(columns[end + 1]) { end += 1 }
+            var byRow: [Int: [Int]] = [:]
+            for c in columns[index...end] { for r in rows[c]! { byRow[r, default: []].append(c) } }
+            let orderedRows = byRow.keys.sorted()
             let before = pixels.last?.1
-            let after: Double? = end + 1 < columns.count ? Double(rows[columns[end + 1]]!.count > 0 ? rows[columns[end + 1]]![rows[columns[end + 1]]!.count / 2] : 0) : nil
-            func nearer(_ list: [Int], to row: Double?) -> Double {
-                let top = Double(list.first!), bottom = Double(list.last!)
-                guard let row else { return (top + bottom) / 2 }
-                return abs(row - top) <= abs(row - bottom) ? top : bottom
+            let after: Double? = end + 1 < columns.count ? Double(rows[columns[end + 1]]![rows[columns[end + 1]]!.count / 2]) : nil
+            // Enter at the end of the row range nearest the curve before (or leave nearest the curve after).
+            var descending = false
+            if let before { descending = abs(before - Double(orderedRows.last!)) < abs(before - Double(orderedRows.first!)) }
+            else if let after { descending = abs(after - Double(orderedRows.first!)) < abs(after - Double(orderedRows.last!)) }
+            else {
+                // A lone steep stroke: order rows so x increases along it.
+                let top = byRow[orderedRows.first!]!, bottom = byRow[orderedRows.last!]!
+                descending = Double(top.reduce(0, +)) / Double(top.count) > Double(bottom.reduce(0, +)) / Double(bottom.count)
             }
-            func opposite(_ list: [Int], of row: Double) -> Double {
-                abs(row - Double(list.first!)) <= abs(row - Double(list.last!)) ? Double(list.last!) : Double(list.first!)
+            for r in (descending ? orderedRows.reversed() : orderedRows) {
+                let list = byRow[r]!
+                pixels.append((Double(list.reduce(0, +)) / Double(list.count), Double(r)))
             }
-            let entry: Double, exit: Double
-            switch (before, after) {
-            case (.some, .some):
-                entry = nearer(firstList, to: before); exit = nearer(lastList, to: after)
-            case (.some, .none):
-                entry = nearer(firstList, to: before); exit = opposite(lastList, of: entry)
-            case (.none, .some):
-                exit = nearer(lastList, to: after); entry = opposite(firstList, of: exit)
-            case (.none, .none):
-                entry = Double(firstList.first!); exit = Double(lastList.last!)
-            }
-            pixels.append((Double(columns[index]), entry))
-            if end > index || abs(exit - entry) > 1 { pixels.append((Double(columns[end]), exit)) }
             index = end + 1
         }
-        let stride = max(1, pixels.count / 80)
+        // Thin by distance along the stroke (about every 2.5 px), keeping both ends.
         var kept: [(Double, Double)] = []
-        for (index, point) in pixels.enumerated() where index % stride == 0 || index == pixels.count - 1 {
+        for point in pixels {
+            if let last = kept.last, hypot(point.0 - last.0, point.1 - last.1) < 2.5 { continue }
             kept.append(point)
         }
+        if let last = pixels.last, kept.last.map({ $0 != last }) ?? true { kept.append(last) }
         return kept.map { point in
             let data = reading.data(column: point.0, row: point.1)
             return [round4(data.x), round4(data.y)]
@@ -766,7 +1019,8 @@ public enum GraphReader {
     /// Numeric tick labels with their centres in image pixels (top-left origin): the whole image, then the strips
     /// beside every long line (where tick labels sit), each magnified for the recogniser.
     static func recognizeLabels(in image: CGImage, horizontals: [Line], verticals: [Line]) async throws -> [Label] {
-        var labels = try await recognizeLabels(in: image, region: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        // Each region is read on its own: one the recogniser rejects costs only its own labels.
+        var labels = (try? await recognizeLabels(in: image, region: CGRect(x: 0, y: 0, width: image.width, height: image.height))) ?? []
         let band = max(24, image.width / 8)
         var strips: [CGRect] = []
         for v in verticals {
@@ -777,11 +1031,27 @@ public enum GraphReader {
             strips.append(CGRect(x: 0, y: h.position + 3, width: image.width, height: band - 2))
             strips.append(CGRect(x: 0, y: h.position - band, width: image.width, height: band - 2))
         }
+        // Beside every tick mark, the small box where its label is printed, read on its own (a lone digit beside a
+        // tick is often missed in a larger crop).
+        if let bitmap = Bitmap(image: image) {
+            for v in verticals {
+                for tick in tickPositions(bitmap, along: v, horizontal: false) {
+                    strips.append(CGRect(x: v.position - 46, y: Int(tick) - 11, width: 42, height: 22))
+                    strips.append(CGRect(x: v.position + 4, y: Int(tick) - 11, width: 42, height: 22))
+                }
+            }
+            for h in horizontals {
+                for tick in tickPositions(bitmap, along: h, horizontal: true) {
+                    strips.append(CGRect(x: Int(tick) - 22, y: h.position + 3, width: 44, height: 20))
+                    strips.append(CGRect(x: Int(tick) - 22, y: h.position - 23, width: 44, height: 20))
+                }
+            }
+        }
         for strip in strips {
             let clipped = strip.intersection(CGRect(x: 0, y: 0, width: image.width, height: image.height))
             guard clipped.width >= 8, clipped.height >= 8 else { continue }
-            for label in try await recognizeLabels(in: image, region: clipped)
-            where !labels.contains(where: { $0.value == label.value && abs($0.column - label.column) < 6 && abs($0.row - label.row) < 6 }) {
+            for label in (try? await recognizeLabels(in: image, region: clipped)) ?? []
+            where !labels.contains(where: { $0.text == label.text && abs($0.column - label.column) < 6 && abs($0.row - label.row) < 6 }) {
                 labels.append(label)
             }
         }
@@ -799,20 +1069,46 @@ public enum GraphReader {
             return context.makeImage() ?? cropped
         }()
         let width = Double(cropped.width), height = Double(cropped.height)
+        let small = cropped.width <= 60 && cropped.height <= 60
         return try await ParserSupport.offloaded {
-            let request = VNRecognizeTextRequest()
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = false
-            request.minimumTextHeight = 0.01
-            let handler = VNImageRequestHandler(cgImage: target, options: [:])
-            try handler.perform([request])
-            var labels: [Label] = []
-            for observation in request.results ?? [] {
-                guard let candidate = observation.topCandidates(1).first, let value = numeric(candidate.string) else { continue }
-                let box = observation.boundingBox
-                labels.append(Label(value: value, column: region.minX + box.midX * width, row: region.minY + (1 - box.midY) * height))
+            func read(_ level: VNRequestTextRecognitionLevel) throws -> [Label] {
+                let request = VNRecognizeTextRequest()
+                request.recognitionLevel = level
+                request.usesLanguageCorrection = false
+                request.recognitionLanguages = ["en-US"]
+                request.minimumTextHeight = 0.01
+                let handler = VNImageRequestHandler(cgImage: target, options: [:])
+                try handler.perform([request])
+                var labels: [Label] = []
+                for observation in request.results ?? [] {
+                    guard let candidate = observation.topCandidates(1).first else { continue }
+                    let box = observation.boundingBox
+                    let raw = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                    // The digits' centre, not the text box's: a leading minus sign would pull a label left of its tick.
+                    var midX = box.midX
+                    var boxColumn: Double?
+                    let characters = Array(raw)
+                    if characters.count >= 2, let first = characters.first, "-−–—".contains(first) {
+                        midX = box.minX + box.width * (0.5 + 0.5 / Double(characters.count))
+                        boxColumn = region.minX + box.midX * width
+                    }
+                    let column = region.minX + midX * width, row = region.minY + (1 - box.midY) * height
+                    let lookalikes: [String: String] = ["b": "6", "G": "6", "б": "6", "l": "1", "I": "1", "|": "1", "S": "5", "s": "5", "Z": "2", "z": "2", "B": "8", "g": "9", "q": "9"]
+                    let letters = raw.filter { $0.isLetter }
+                    if let value = numeric(raw) ?? lookalikes[raw].flatMap({ Double($0) }) {
+                        labels.append(Label(value: value, column: column, row: row, text: ChartGeometry.number(value).replacingOccurrences(of: "-", with: "−"), boxColumn: boxColumn))
+                    } else if letters.count == 1, raw.count <= 2, let letter = letters.first, letter.isASCII,
+                              !["x", "y", "f", "t", "o", "l", "i", "j"].contains(String(letter).lowercased()) {
+                        // A symbolic tick label ("c", "a", "k"; a tick mark may ride along as "c-"), printed lowercase.
+                        labels.append(Label(value: .nan, column: column, row: row, text: String(letter).lowercased(), symbolic: true))
+                    }
+                }
+                return labels
             }
-            return labels
+            let accurate = try read(.accurate)
+            // A lone glyph in a small crop is sometimes missed by the accurate recogniser and read by the fast one.
+            if accurate.isEmpty, small { return (try? read(.fast)) ?? [] }
+            return accurate
         }
     }
 

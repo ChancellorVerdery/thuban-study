@@ -305,7 +305,7 @@ public actor FigureAgent {
             }
             // A "chart" that is not a plot — a phase line, a sketch with a couple of points and no equation — in a
             // picture the reader cannot read either is a diagram: the original image serves the student better.
-            if let chart = analysis.chart, chart.verification == nil, Self.isThin(chart) {
+            if let chart = analysis.chart, Self.isThin(chart) {
                 analysis.kind = .diagram
                 analysis.chart = nil
             }
@@ -316,8 +316,15 @@ public actor FigureAgent {
 
     /// No equation, no field, no initial condition, and only a handful of points per series.
     public static func isThin(_ chart: StandardChart) -> Bool {
-        guard (chart.slope ?? "").isEmpty else { return false }
-        return chart.series.allSatisfy { ($0.latex ?? "").isEmpty && $0.throughPoint == nil && ($0.points?.count ?? 0) < 8 }
+        guard (chart.slope ?? "").isEmpty, !chart.isSlopeField else { return false }
+        // A vertical line ("x = 0": a phase line's axis) or a handful of points is not a plot.
+        let verticalLine = try! NSRegularExpression(pattern: #"^\s*x\s*=\s*-?[0-9.]*\s*$"#)
+        return chart.series.allSatisfy { series in
+            if let latex = series.latex?.trimmingCharacters(in: .whitespacesAndNewlines), !latex.isEmpty {
+                return verticalLine.firstMatch(in: latex, range: NSRange(latex.startIndex..., in: latex)) != nil
+            }
+            return series.throughPoint == nil && (series.points?.count ?? 0) < 8
+        }
     }
 
     /// The picture decides: the chart reconciled against its pixels (`FigureReconciler`) when the picture can be

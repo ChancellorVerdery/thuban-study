@@ -1150,7 +1150,7 @@ var thubanMath = (function () {
     // The slope compiled to a plain function is a hundred times faster than substituting into the symbolic
     // expression at every Runge–Kutta stage; substitution stays as the fallback for anything the compiler declines.
     var compiled = null;
-    try { if (typeof expr.compile === 'function') compiled = expr.compile(); } catch (e) { compiled = null; }
+    compiled = compileFn(expr);
     function f(x, y) {
       if (compiled) {
         try {
@@ -1203,11 +1203,23 @@ var thubanMath = (function () {
   // Values of `latex` at each of `points` ([{x, y}, …]). A bare expression is evaluated as given; "y = f(x)"
   // (or "f(x) = …") gives f(x) so the value compares directly with a y read off a picture; any other equation
   // "lhs = rhs" gives the residual lhs − rhs (0 on the curve) with the larger side's magnitude as `scales[i]`.
+  // The Compute Engine compiles an expression to plain JavaScript through the library-level `compile`, which
+  // returns { success, run }; `run({x, y})` is orders of magnitude faster than substituting symbolically.
+  function compileFn(expr) {
+    try {
+      if (lib && typeof lib.compile === 'function') {
+        var c = lib.compile(expr);
+        if (c && c.success !== false && typeof c.run === 'function') return function (at) { return c.run(at); };
+      }
+    } catch (e) { }
+    return null;
+  }
+
   // A fast evaluator for `expr`: its compiled JS function when the compiler accepts it (real results only; NaN
   // and complex values are "undefined"), else symbolic substitution. Returns {re, im} or null.
   function fastEvaluator(expr) {
     var compiled = null;
-    try { if (typeof expr.compile === 'function') compiled = expr.compile(); } catch (e) { compiled = null; }
+    compiled = compileFn(expr);
     return function (at) {
       if (compiled) {
         try {

@@ -15,6 +15,8 @@ public struct FigureScene: Sendable, Equatable {
         public var x: Double
         public var y: Double
         public var slope: Double?
+        /// Length relative to the arrow pitch, as measured in the picture (nil: the standard length).
+        public var length: Double? = nil
     }
 
     public enum LineStyle: String, Sendable, Equatable { case solid, dashed, dotted }
@@ -44,8 +46,19 @@ public struct FigureScene: Sendable, Equatable {
     public var fieldColumns: Int
     public var fieldRows: Int
     public var marks: [Mark]
+    /// The labels the original prints on each axis; nil draws evenly spaced numbers at the tick step, an empty
+    /// list draws none (the original prints none on that axis).
+    public var xTickLabels: [ChartTick]?
+    public var yTickLabels: [ChartTick]?
 
     public var hasField: Bool { !arrows.isEmpty }
+
+    /// The picture draws arrows of clearly different lengths (a field scaled by magnitude): draw them so too.
+    public var variesInLength: Bool {
+        let lengths = arrows.compactMap(\.length).sorted()
+        guard lengths.count >= 12 else { return false }
+        return lengths[lengths.count / 10] < lengths[lengths.count * 9 / 10] * 0.6
+    }
 
     // MARK: Building
 
@@ -94,10 +107,15 @@ public struct FigureScene: Sendable, Equatable {
         let columns = min(40, max(6, chart.fieldColumns ?? 20))
         let rows = min(40, max(6, chart.fieldRows ?? 16))
 
-        // The field: one engine call for every arrow.
+        // The field: the arrows as the picture draws them when the stated slope lost to the picture, else one engine
+        // call for every arrow.
         var arrows: [Arrow] = []
+        var columnsDrawn = columns, rowsDrawn = rows
         let slope = chart.isSlopeField ? chart.slope?.trimmingCharacters(in: .whitespacesAndNewlines) : nil
-        if let slope, !slope.isEmpty {
+        let measured = (chart.fieldSamples ?? []).filter { $0.count >= 3 }
+        if chart.isSlopeField, chart.fieldFromPicture == true, !measured.isEmpty {
+            arrows = measured.map { Arrow(x: $0[0], y: $0[1], slope: $0[2].isFinite ? $0[2] : nil, length: $0.count >= 4 ? $0[3] : nil) }
+        } else if let slope, !slope.isEmpty {
             var centres: [(x: Double, y: Double)] = []
             for r in 0..<rows {
                 for c in 0..<columns {
@@ -107,10 +125,13 @@ public struct FigureScene: Sendable, Equatable {
                     centres.append((x, y))
                 }
             }
-            if let sampled = try? await engine.samples(of: slope, at: centres) {
+            if let sampled = try? await engine.samples(of: slope, at: centres), sampled.values.contains(where: { $0 != nil }) {
                 arrows = zip(centres, sampled.values).map { Arrow(x: $0.x, y: $0.y, slope: $1.flatMap { $0.isFinite ? $0 : nil }) }
+            } else if !measured.isEmpty {
+                arrows = measured.map { Arrow(x: $0[0], y: $0[1], slope: $0[2].isFinite ? $0[2] : nil) }
             }
         }
+        if arrows.count == measured.count, !measured.isEmpty, let c = chart.fieldColumns, let r = chart.fieldRows { columnsDrawn = c; rowsDrawn = r }
 
         var marks: [Mark] = []
         for (index, series) in chart.series.enumerated() {
@@ -133,14 +154,15 @@ public struct FigureScene: Sendable, Equatable {
                 }
                 continue
             }
-            if let slope, !slope.isEmpty, let start = series.throughPoint,
+            if let slope, !slope.isEmpty, chart.fieldFromPicture != true, let start = series.throughPoint,
                let path = try? await engine.integrateSlope(slope, through: start, xRange: window.x, yRange: window.y, steps: 800), path.count >= 2 {
                 marks.append(mark(.line, split(path, window: window)))
             }
         }
 
         return FigureScene(window: window, xStep: xStep, yStep: yStep, xLabel: chart.xLabel?.nilIfBlank, yLabel: chart.yLabel?.nilIfBlank,
-                           arrows: arrows, arrowheads: chart.arrows, fieldColumns: columns, fieldRows: rows, marks: marks)
+                           arrows: arrows, arrowheads: chart.arrows, fieldColumns: columnsDrawn, fieldRows: rowsDrawn, marks: marks,
+                           xTickLabels: chart.xAxisLabels, yTickLabels: chart.yAxisLabels)
     }
 
     /// A function or relation as polylines: `y = f(x)` sampled across the window (broken where it is undefined

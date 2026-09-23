@@ -236,10 +236,15 @@ final class GraphReaderTests: XCTestCase {
         let result = try XCTUnwrap(resultOptional)
         XCTAssertEqual(result.series.count, 2)
         XCTAssertEqual(result.series[0].latex, "\\frac{x^2}{4}-1", "a stated function that matches is kept")
-        XCTAssertNil(result.series[1].latex, "a stated function the picture does not show is replaced by the drawn curve")
+        XCTAssertNil(result.series[1].latex, "a stated function the picture does not show gives way to the drawn curve")
         XCTAssertGreaterThan(result.series[1].points?.count ?? 0, 10)
         XCTAssertEqual(result.verification?.passed, true, "the corrected chart matches the picture")
-        XCTAssertTrue(result.verification?.summary.contains("y = 0.5x+1 is not what is drawn; the red curve was traced") ?? false, result.verification?.summary ?? "")
+        let summary = result.verification?.summary ?? ""
+        XCTAssertTrue(summary.contains("y = 0.5x+1 is not what is drawn; removed"), summary)
+        XCTAssertTrue(summary.contains("1 curve traced from the picture"), summary)
+        let printed = Set(result.xAxisLabels?.map(\.text) ?? [])
+        XCTAssertTrue(Set(["−2", "−1", "1", "2"]).isSubset(of: printed), "the labels the picture prints: \(printed)")
+        XCTAssertFalse(printed.contains("−4") || printed.contains("4"), "no label where the picture prints none")
 
         // A traced chart: the agent's rough points are replaced by the pixels, and a curve it missed is added.
         let rough = StandardChart(chartType: "line", series: [ChartSeries(name: "sketch", points: [[-4, 3], [-2, 0], [0, -1], [2, 0], [4, 3]])],

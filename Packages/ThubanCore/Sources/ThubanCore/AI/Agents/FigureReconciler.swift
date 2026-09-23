@@ -43,16 +43,19 @@ public enum FigureReconciler {
         var result = chart
         // A series with nothing to draw (no equation, no points, no initial condition) is noise.
         result.series = chart.series.filter { !($0.latex ?? "").isEmpty || !($0.points ?? []).isEmpty || $0.throughPoint != nil }
-        if reading.isCalibratedFromLabels {
-            result.xRange = [round3(reading.x.range.lowerBound), round3(reading.x.range.upperBound)]
-            result.yRange = [round3(reading.y.range.lowerBound), round3(reading.y.range.upperBound)]
-        }
+        // The window and the printed labels are the picture's own.
+        result.xRange = [round3(reading.x.range.lowerBound), round3(reading.x.range.upperBound)]
+        result.yRange = [round3(reading.y.range.lowerBound), round3(reading.y.range.upperBound)]
+        result.xAxisLabels = reading.xTickLabels.map { ChartTick(value: round3($0.value), text: $0.text) }
+        result.yAxisLabels = reading.yTickLabels.map { ChartTick(value: round3($0.value), text: $0.text) }
         // Specks (anti-aliasing in a coloured arrow field, a coloured label) are not curves.
         let curves = reading.curves.filter { curve in
             guard let span = curve.columns else { return false }
             return curve.pixelCount >= 120 && Double(span.count) >= 0.15 * Double(reading.width)
         }
-        if chart.isSlopeField, let slope = chart.slope?.trimmingCharacters(in: .whitespacesAndNewlines), !slope.isEmpty {
+        if chart.isSlopeField {
+            let slope = chart.slope?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !slope.isEmpty || (reading.fieldSamples?.count ?? 0) >= 12 else { return nil }
             return await reconcileField(result, slope: slope, reading: reading, curves: curves, engine: engine)
         }
         return await reconcileCurves(result, reading: reading, curves: curves, engine: engine)
@@ -98,11 +101,50 @@ public enum FigureReconciler {
             result.fieldColumns = columns
             result.fieldRows = rows
         }
+        // The arrows as drawn decide whether the stated slope is the field: where it disagrees (or cannot be
+        // evaluated) the field is drawn from the measured arrows and every curve on it is traced from the pixels.
+        var fieldNote: String?
+        if let samples = reading.fieldSamples, samples.count >= 12 {
+            result.fieldSamples = samples
+            var matches = false
+            if !slope.isEmpty, let sampled = try? await engine.samples(of: slope, at: samples.map { (x: $0[0], y: $0[1]) }) {
+                let k = abs(reading.y.scale) / abs(reading.x.scale)
+                var errors: [Double] = []
+                for (sample, value) in zip(samples, sampled.values) {
+                    guard let value, value.isFinite else { continue }
+                    var d = abs(atan(value * k) - atan(sample[2] * k))
+                    d = min(d, .pi - d)
+                    errors.append(d)
+                }
+                errors.sort()
+                if errors.count * 2 >= samples.count {
+                    let median = errors[errors.count / 2]
+                    let bad = Double(errors.filter { $0 > 0.4 }.count) / Double(errors.count)
+                    matches = median < 0.18 && bad < 0.15
+                    fieldNote = "dy/dx = \(slope) matches \(errors.filter { $0 <= 0.4 }.count) of \(samples.count) arrows"
+                }
+            }
+            result.fieldFromPicture = !matches
+            if !matches {
+                var traced: [ChartSeries] = []
+                for curve in curves where curve.points.count >= 4 {
+                    traced.append(ChartSeries(name: "\(curve.color) curve", points: curve.points, style: curve.dashed ? "dashed" : nil))
+                }
+                result.series = traced
+                result.provenance = StandardChart.traced
+                result.definition = nil
+                let why = slope.isEmpty ? "no usable slope was stated" : (fieldNote.map { "the stated slope does not match its arrows (\($0))" } ?? "the stated slope could not be evaluated")
+                result.verification = ChartVerification(passed: true, summary: "Read from the picture: the field is drawn from its \(samples.count) measured arrows because \(why)" + (traced.isEmpty ? "." : "; \(traced.count) curve\(traced.count == 1 ? "" : "s") traced from the pixels."))
+                return result
+            }
+        } else if slope.isEmpty {
+            return nil
+        }
         let claimed = chart.series.compactMap(\.throughPoint)
         guard !curves.isEmpty else {
             // Nothing drawn in colour: a bare field is right as it is; a claimed curve cannot be checked here.
             if claimed.isEmpty {
-                result.verification = ChartVerification(passed: true, summary: "Verified against the picture: a direction field with no solution curve drawn on it.")
+                result.verification = ChartVerification(passed: true, summary: "Verified against the picture: a direction field with no solution curve drawn on it" + (fieldNote.map { "; \($0)" } ?? "") + ".")
                 return result
             }
             return nil
@@ -201,100 +243,57 @@ public enum FigureReconciler {
         guard !curves.isEmpty else { return nil }
         var result = chart
         var consumed: Set<Int> = []
-        var series: [ChartSeries?] = Array(repeating: nil, count: chart.series.count)
+        var kept: [ChartSeries] = []
         var notes: [String] = []
-        var passed = true
         let step = (reading.x.range.upperBound - reading.x.range.lowerBound) / Double(max(100, reading.width))
         let columns = stride(from: reading.x.range.lowerBound, through: reading.x.range.upperBound, by: step).map { $0 }
 
-        // First pass: stated functions that the picture shows claim their curves.
-        var unmatched: [(offset: Int, latex: String, sampled: [[Double]])] = []
-        for (offset, original) in chart.series.enumerated() {
-            guard let latex = original.latex?.trimmingCharacters(in: .whitespacesAndNewlines), !latex.isEmpty else { continue }
-            var sampledPoints: [[Double]] = []
-            if let sampled = try? await engine.samples(of: latex, at: columns.map { (x: $0, y: 0) }), sampled.explicit {
-                sampledPoints = zip(columns, sampled.values).compactMap { x, y -> [Double]? in y.map { [x, $0] } }
-            }
-            var best: (index: Int, fit: Double, coverage: Double)?
-            for (index, curve) in curves.enumerated() where !consumed.contains(index) && !sampledPoints.isEmpty {
-                let score = GraphReader.match(sampledPoints, to: curve, in: reading)
-                if best == nil || score.fit * 0.7 + score.coverage * 0.3 > best!.fit * 0.7 + best!.coverage * 0.3 {
-                    best = (index, score.fit, score.coverage)
+        // Stated functions the picture draws keep their equation (and take the drawn curve's dash style).
+        if reading.isCalibrated {
+            for original in chart.series {
+                guard let latex = original.latex?.trimmingCharacters(in: .whitespacesAndNewlines), !latex.isEmpty else { continue }
+                guard let sampled = try? await engine.samples(of: latex, at: columns.map { (x: $0, y: 0) }), sampled.explicit else { continue }
+                let points = zip(columns, sampled.values).compactMap { x, y -> [Double]? in y.map { [x, $0] } }
+                var best: (index: Int, fit: Double, coverage: Double)?
+                for (index, curve) in curves.enumerated() where !consumed.contains(index) {
+                    let score = GraphReader.match(points, to: curve, in: reading)
+                    if best == nil || score.fit * 0.7 + score.coverage * 0.3 > best!.fit * 0.7 + best!.coverage * 0.3 { best = (index, score.fit, score.coverage) }
+                }
+                if let best, best.fit >= minimumFit, best.coverage >= minimumCoverage {
+                    consumed.insert(best.index)
+                    var matched = original
+                    matched.style = curves[best.index].dashed ? "dashed" : (original.style == "dashed" ? nil : original.style)
+                    kept.append(matched)
+                    notes.append("\(display(latex)) follows the \(curves[best.index].color) curve (fit \(percent(best.fit)))")
+                } else {
+                    notes.append("\(display(latex)) is not what is drawn; removed")
                 }
             }
-            if let best, best.fit >= minimumFit, best.coverage >= minimumCoverage {
-                consumed.insert(best.index)
-                series[offset] = original
-                notes.append("\(display(latex)) follows the \(curves[best.index].color) curve (fit \(percent(best.fit)))")
-            } else {
-                unmatched.append((offset, latex, sampledPoints))
-            }
         }
 
-        // Traced series are re-read from the nearest drawn curve; one that lands on a curve a stated function
-        // already claimed is the same curve twice and is dropped.
-        for (offset, original) in chart.series.enumerated() where series[offset] == nil && !unmatched.contains(where: { $0.offset == offset }) {
-            guard let points = original.points, !points.isEmpty else { series[offset] = original; continue }
-            let nearestAny = curves.enumerated().min(by: { distance(points, $0.element) < distance(points, $1.element) })
-            let span = reading.y.range.upperBound - reading.y.range.lowerBound
-            if let nearestAny, consumed.contains(nearestAny.offset), distance(points, nearestAny.element) < 0.15 * span {
-                notes.append("\(original.name.blankToNil ?? "a traced curve") is the \(nearestAny.element.color) curve already drawn; dropped")
-                continue
+        // Every other drawn curve is traced from the pixels. It keeps the name of the agent's series nearest it.
+        let span = reading.y.range.upperBound - reading.y.range.lowerBound
+        var namesUsed: Set<Int> = []
+        var keptCurves: [GraphReading.Curve] = curves.enumerated().filter { consumed.contains($0.offset) }.map(\.element)
+        for (index, curve) in curves.enumerated() where !consumed.contains(index) && curve.points.count >= 4 {
+            if keptCurves.contains(where: { distance($0.points, curve) < 0.02 * span }) { continue }
+            keptCurves.append(curve)
+            var name = "\(curve.color) curve"
+            let nearest = chart.series.enumerated()
+                .filter { !namesUsed.contains($0.offset) && !($0.element.points ?? []).isEmpty }
+                .min { distance($0.element.points!, curve) < distance($1.element.points!, curve) }
+            if let nearest, distance(nearest.element.points!, curve) < 0.3 * span, !nearest.element.name.isEmpty {
+                name = nearest.element.name
+                namesUsed.insert(nearest.offset)
             }
-            let nearest = curves.enumerated().filter { !consumed.contains($0.offset) }
-                .min(by: { distance(points, $0.element) < distance(points, $1.element) })
-            let unclaimedCount = curves.indices.filter { !consumed.contains($0) }.count
-            let tracedCount = chart.series.filter { ($0.latex ?? "").isEmpty && !($0.points ?? []).isEmpty }.count
-            if let nearest, distance(points, nearest.element) < 0.3 * span || (unclaimedCount == 1 && tracedCount == 1) {
-                consumed.insert(nearest.offset)
-                var traced = original
-                traced.points = nearest.element.points
-                series[offset] = traced
-                notes.append("\(original.name.blankToNil ?? "a traced curve") re-read from the picture")
-            } else {
-                series[offset] = original
-            }
+            kept.append(ChartSeries(name: name, points: curve.points, style: curve.dashed ? "dashed" : nil))
         }
-
-        // Second pass: a stated function the picture does not show is replaced by a drawn curve nobody claimed
-        // (the picture wins) when the axes were read from labels; otherwise it is kept and flagged.
-        for failed in unmatched {
-            let remaining = curves.enumerated().filter { !consumed.contains($0.offset) && $0.element.points.count >= 4 }
-            let replacement = remaining.min(by: { distance(failed.sampled, $0.element) < distance(failed.sampled, $1.element) })
-            if reading.x.labelCount >= 1 || reading.y.labelCount >= 1, let replacement {
-                consumed.insert(replacement.offset)
-                var traced = chart.series[failed.offset]
-                traced.latex = nil
-                traced.points = replacement.element.points
-                series[failed.offset] = traced
-                notes.append("\(display(failed.latex)) is not what is drawn; the \(replacement.element.color) curve was traced from the picture instead")
-            } else if reading.x.labelCount >= 1 || reading.y.labelCount >= 1, !curves.isEmpty {
-                // Every drawn curve is accounted for and this one is not among them: the picture does not show it.
-                series[failed.offset] = nil
-                notes.append("\(display(failed.latex)) is not drawn in the picture; removed")
-            } else {
-                series[failed.offset] = chart.series[failed.offset]
-                passed = false
-                notes.append("\(display(failed.latex)) was not found among the drawn curves")
-            }
-        }
-
-        // Curves the agent did not mention.
-        var extra: [ChartSeries] = []
-        for (index, curve) in curves.enumerated() where !consumed.contains(index) {
-            guard curve.pixelCount >= minimumUnclaimedPixels, let span = curve.columns,
-                  Double(span.count) >= minimumUnclaimedSpan * Double(reading.width), curve.points.count >= 4 else { continue }
-            extra.append(ChartSeries(name: "\(curve.color) curve", points: curve.points))
-            notes.append("added the \(curve.color) curve from the picture")
-        }
-        let all = series.compactMap { $0 } + extra
-        guard !all.isEmpty else { return nil }
-        result.series = all
-        if all.allSatisfy({ ($0.latex ?? "").isEmpty }) { result.provenance = StandardChart.traced }
-        result.verification = ChartVerification(
-            passed: passed,
-            summary: (passed ? "Verified against the picture: " : "Unverified: ") + notes.joined(separator: "; ") + "."
-        )
+        let traced = curves.indices.filter { !consumed.contains($0) }.count
+        if traced > 0 { notes.append("\(traced) curve\(traced == 1 ? "" : "s") traced from the picture") }
+        guard !kept.isEmpty else { return nil }
+        result.series = kept
+        if kept.allSatisfy({ ($0.latex ?? "").isEmpty }) { result.provenance = StandardChart.traced }
+        result.verification = ChartVerification(passed: true, summary: "Verified against the picture: " + notes.joined(separator: "; ") + ".")
         return result
     }
 
