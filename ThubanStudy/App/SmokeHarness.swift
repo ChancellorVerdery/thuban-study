@@ -285,6 +285,13 @@ enum SmokeHarness {
             let window = try await waitForMainWindow()
             window.makeKeyAndOrderFront(nil)
             await waitUntil(timeout: 8) { !session.questions.isEmpty && session.studyState.form.bridge.isReady }
+            // THUBAN_SMOKE_STUDY_TYPE: study only this type (the Filter dropdown), then capture the first question.
+            if let type = ProcessInfo.processInfo.environment["THUBAN_SMOKE_STUDY_TYPE"], !type.isEmpty {
+                await session.setStudyFilter(QuestionFilter(types: [type]))
+                print("smoke: filter type=\(type) → \(session.questionCount) of \(session.unfilteredQuestions.count); first: \(session.currentQuestion?.sourceRef ?? "none") [\(session.currentQuestion?.type ?? "")]")
+                await sleep(4)
+                _ = try await capture(window: window, name: "filtered", in: directory)
+            }
             for (offset, match) in matches.enumerated() {
                 guard let question = session.questions.first(where: { ($0.sourceRef ?? "").localizedCaseInsensitiveContains(match) }) else {
                     fputs("smoke: no question matches \(match)\n", stderr)
@@ -294,6 +301,10 @@ enum SmokeHarness {
                 await waitUntil(timeout: 10) { session.currentQuestion?.id == question.id && session.currentInstance != nil }
                 await sleep(4)
                 _ = try await capture(window: window, name: String(format: "q%02d-top", offset + 1), in: directory)
+                // Popovers (an open dropdown) are windows of their own.
+                for (index, other) in NSApp.windows.enumerated() where other !== window && other.isVisible && other.frame.width > 40 {
+                    _ = try? await capture(window: other, name: String(format: "q%02d-window%d", offset + 1, index), in: directory)
+                }
                 if let scroll = window.contentView.flatMap(firstScrollView(in:)) {
                     scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, (scroll.documentView?.frame.height ?? 0) - scroll.contentView.bounds.height)))
                     scroll.reflectScrolledClipView(scroll.contentView)

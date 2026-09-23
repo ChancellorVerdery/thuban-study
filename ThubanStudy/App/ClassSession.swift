@@ -47,6 +47,28 @@ final class ClassSession {
 
     /// Limits (or, with nil, un-limits) the queue; takes effect on the next `loadQuestions()`.
     func setQueueScope(_ scope: Set<QuestionID>?) { queueScope = scope }
+
+    /// Study mode's own filter (type, status, source), chosen in the Study header's Filter dropdown. Empty = all.
+    private(set) var studyFilter = QuestionFilter()
+    /// The queue before `studyFilter` (the whole bank, or the selection sent to Study): what the filter's counts
+    /// are taken from.
+    private(set) var unfilteredQuestions: [Question] = []
+    var isStudyFiltered: Bool { !studyFilter.types.isEmpty || !studyFilter.statuses.isEmpty || !studyFilter.documentIds.isEmpty }
+
+    /// Applies a new study filter and rebuilds the queue (keeping the current question when it still matches).
+    func setStudyFilter(_ filter: QuestionFilter) async {
+        guard filter != studyFilter else { return }
+        studyFilter = filter
+        await loadQuestions()
+    }
+
+    func matchesStudyFilter(_ question: Question) -> Bool {
+        let filter = studyFilter
+        if !filter.types.isEmpty, !filter.types.contains(question.type) { return false }
+        if !filter.statuses.isEmpty, !filter.statuses.contains(status(of: question)) { return false }
+        if !filter.documentIds.isEmpty, !(question.documentId.map(filter.documentIds.contains) ?? false) { return false }
+        return true
+    }
     /// A selection for the Question bank to adopt when it next shows (consumed once); used by the smoke harness.
     var pendingBankSelection: Set<QuestionID>?
     /// A document whose figure review the Import screen should open when it next shows (consumed once), and the
@@ -132,7 +154,8 @@ final class ClassSession {
                 // A selection that no longer exists (all deleted) falls back to the whole bank.
                 if scoped.isEmpty { queueScope = nil; scoped = all }
             }
-            questions = Self.ordered(scoped, progress: progress)
+            unfilteredQuestions = scoped
+            questions = Self.ordered(scoped.filter(matchesStudyFilter), progress: progress)
             if let previousId, let index = questions.firstIndex(where: { $0.id == previousId }) {
                 currentIndex = index
             } else {

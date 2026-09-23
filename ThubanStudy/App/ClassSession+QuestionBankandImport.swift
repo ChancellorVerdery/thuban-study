@@ -45,6 +45,8 @@ extension ClassSession {
     func study(question: Question) async {
         let scopeChanged = queueScope != nil
         setQueueScope(nil)
+        // A question the study filter would hide: the filter goes, so the chosen question is what shows.
+        if isStudyFiltered, !matchesStudyFilter(question) { await setStudyFilter(QuestionFilter()) }
         if scopeChanged || !questions.contains(where: { $0.id == question.id }) {
             await loadQuestions()
         }

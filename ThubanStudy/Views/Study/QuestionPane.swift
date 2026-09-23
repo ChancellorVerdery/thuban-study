@@ -15,6 +15,13 @@ struct QuestionPane: View {
             header
             if session.isLoadingQuestions && session.questions.isEmpty {
                 loading("Loading the question bank…")
+            } else if session.currentQuestion == nil, session.isStudyFiltered, !session.unfilteredQuestions.isEmpty {
+                EmptyState(icon: .questionBank, title: "No questions match the filter",
+                           message: "None of the \(session.unfilteredQuestions.count) questions has the chosen type, status and source.") {
+                    Button("Clear filter") { Task { await session.setStudyFilter(QuestionFilter()) } }
+                        .buttonStyle(.thubanPrimary)
+                }
+                .thubanPanel(padding: 0)
             } else if session.currentQuestion == nil {
                 EmptyState(icon: .questionBank, title: "Nothing to study yet",
                            message: "Import documents to build this class's question bank; the agent turns readings and homework into questions.") {
@@ -89,6 +96,9 @@ struct QuestionPane: View {
                     .lineLimit(1)
                     .monospacedDigit()
                 Spacer(minLength: 0)
+                if !session.unfilteredQuestions.isEmpty {
+                    StudyFilterMenu(session: session)
+                }
             }
             if let question = session.currentQuestion {
                 HStack(spacing: 6.z) {

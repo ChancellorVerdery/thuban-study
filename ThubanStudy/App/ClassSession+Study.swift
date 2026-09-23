@@ -137,7 +137,7 @@ extension ClassSession {
             pieces.append(tag)
         }
         if questionCount > 0 {
-            pieces.append("Question \(questionNumber) of \(questionCount)" + (isStudyingSelection ? " selected" : ""))
+            pieces.append("Question \(questionNumber) of \(questionCount)" + (isStudyingSelection ? " selected" : "") + (isStudyFiltered ? " filtered" : ""))
         }
         return pieces.joined(separator: " · ")
     }

@@ -74,6 +74,7 @@
 		EAD15F7EFB6E8147FD3C2C58 /* ClaudeAccountSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89F27B8A832C0FC7E38E208F /* ClaudeAccountSettings.swift */; };
 		F75F107537F9CCA0CBB5226F /* ChoiceFigureImages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1D19F12B0561B08ED2F0C2 /* ChoiceFigureImages.swift */; };
 		FDE734AB1F0C9DFC4F503B88 /* ShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDC77D0C277A82BB684D9ADE /* ShellView.swift */; };
+		FE73EDBDCC5EB80ACA628607 /* StudyFilterMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2BEF609EF1C5BF3CA312DF9 /* StudyFilterMenu.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -126,6 +127,7 @@
 		BDC77D0C277A82BB684D9ADE /* ShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellView.swift; sourceTree = "<group>"; };
 		BF47D19073731C2724D19052 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		BFB35FF975B3F7F72E961BF1 /* WarningsChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarningsChip.swift; sourceTree = "<group>"; };
+		C2BEF609EF1C5BF3CA312DF9 /* StudyFilterMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyFilterMenu.swift; sourceTree = "<group>"; };
 		C463C7A24FD856196E75CCB0 /* ClassSession+Study.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ClassSession+Study.swift"; sourceTree = "<group>"; };
 		C57D930C066D04D1B08182F2 /* ThubanSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThubanSchemeHandler.swift; sourceTree = "<group>"; };
 		C6018324F1F6BF47F9E04CC8 /* Chip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chip.swift; sourceTree = "<group>"; };
@@ -279,6 +281,7 @@
 				AF01898BFEC3AFE7B8E8CF3F /* CalculatorPanel.swift */,
 				AC23E75A3BD4D34CA12E5CDF /* GraphPane.swift */,
 				03C536510FF925E2F87F43FD /* QuestionPane.swift */,
+				C2BEF609EF1C5BF3CA312DF9 /* StudyFilterMenu.swift */,
 				2EEEEB0FFBDC1B6A9D80B320 /* StudyView.swift */,
 				E2C0EEBAC23E4206B4D86048 /* TutorPane.swift */,
 			);
@@ -485,6 +488,7 @@
 				E87E99E9DCA289CD7BE24475 /* SettingsView.swift in Sources */,
 				FDE734AB1F0C9DFC4F503B88 /* ShellView.swift in Sources */,
 				5FFC677A7BC3CAE782194A3C /* SmokeHarness.swift in Sources */,
+				FE73EDBDCC5EB80ACA628607 /* StudyFilterMenu.swift in Sources */,
 				200ACCC663E1348C2BA273D6 /* StudyView.swift in Sources */,
 				AD33A2ABE5478DF889C87097 /* ThemeEnvironment.swift in Sources */,
 				77D6B405D61E3A607CB47999 /* ThubanMark.swift in Sources */,
