@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import ThubanCore
 
-/// Draws the dock icon from the theme: a 1024 px squircle plate (`bg`) with the Thuban mark stroked in `accent`.
+/// Draws the dock icon from the theme: a 1024 px squircle plate (`bg`) with the app's mark (AppArt) in `accent` and `signal`.
 enum AppIconRenderer {
     static let canvasSize: CGFloat = 1024
     /// macOS icon grid: the plate is 824 px inside the 1024 canvas.
@@ -15,7 +15,7 @@ enum AppIconRenderer {
     /// Sets `NSApp.applicationIconImage` for the theme (no-op when nothing changed).
     @MainActor
     static func apply(theme: ResolvedTheme) {
-        let key = theme.bg + theme.accent + theme.line2
+        let key = theme.bg + theme.accent + theme.signal + theme.panel + theme.line2
         guard key != lastKey else { return }
         lastKey = key
         NSApplication.shared.applicationIconImage = render(theme: theme)
@@ -54,19 +54,17 @@ enum AppIconRenderer {
         context.strokePath()
         context.restoreGState()
 
-        // The mark, centred, filling ~62% of the plate.
+        // The app's mark, centred, filling ~62% of the plate.
         let markSize = plate.width * 0.62
         let markRect = CGRect(x: plate.midX - markSize / 2, y: plate.midY - markSize / 2, width: markSize, height: markSize)
-        let markPath = ThubanMark().path(in: markRect).cgPath
-        let style = ThubanMark.strokeStyle(size: markSize)
-        context.saveGState()
-        context.addPath(markPath)
-        context.setStrokeColor(NSColor(hex: theme.accent).cgColor)
-        context.setLineWidth(style.lineWidth)
-        context.setLineCap(.round)
-        context.setLineJoin(.round)
-        context.strokePath()
-        context.restoreGState()
+        AppArt.draw(in: context, rect: markRect) { role in
+            switch role {
+            case .accentStroke, .accentFill: return NSColor(hex: theme.accent).cgColor
+            case .signalStroke, .signalFill: return NSColor(hex: theme.signal).cgColor
+            case .panelFill: return NSColor(hex: theme.panel).cgColor
+            case .bgFill: return NSColor(hex: theme.bg).cgColor
+            }
+        }
     }
 
     /// Debug helper: writes a 512 px PNG (`THUBAN_DUMP_ICON=/path.png`).

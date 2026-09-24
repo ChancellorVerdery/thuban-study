@@ -12,6 +12,7 @@
 		063BC9B7289680F3E06EC728 /* AppIconRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BF203952EBA1DDEF711F3B9 /* AppIconRenderer.swift */; };
 		06BBABBBBB90680BE89AAE37 /* AppearanceSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2120D3155393CE3BAFC6A61 /* AppearanceSettings.swift */; };
 		07F9F1538C63906F03C15A62 /* GraphPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC23E75A3BD4D34CA12E5CDF /* GraphPane.swift */; };
+		0AE14795D7E0AD5333288A14 /* AppArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA5AE389B60B657066D72564 /* AppArt.swift */; };
 		0D16D7D6B5771F4D08B56A25 /* SegmentedPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B204DFD6226F3128D480D100 /* SegmentedPicker.swift */; };
 		0F3BB856007941681BA7EF9A /* QuestionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D57B1783CECAD81129F93064 /* QuestionRow.swift */; };
 		13539FEC06DBA060389E9552 /* QuestionBankModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95708AF55B38145A7A43AE8 /* QuestionBankModel.swift */; };
@@ -21,6 +22,7 @@
 		200ACCC663E1348C2BA273D6 /* StudyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEEEB0FFBDC1B6A9D80B320 /* StudyView.swift */; };
 		2604A79258DD0271E48FB0E2 /* NewClassSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15F03A03A4D361ACE53C61A3 /* NewClassSheet.swift */; };
 		33EBF0DC0EDC2D787F94C831 /* CalculatorPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF01898BFEC3AFE7B8E8CF3F /* CalculatorPanel.swift */; };
+		35447CB2A07C2703CCE35D49 /* AppArtSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6B89E7EF0B9A649D7EF9C86 /* AppArtSource.swift */; };
 		372D7354E20E09DF5D20D8C0 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103ADF805FA9261CE62259F6 /* Buttons.swift */; };
 		3DC7A321F7AFF374AB74AA96 /* CalculatorWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 792DD5DF1A29C472185321F8 /* CalculatorWebView.swift */; };
 		418A485B7A86954B315D5D9C /* FigureReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 240822C8E06814D5515BE58B /* FigureReviewView.swift */; };
@@ -137,7 +139,9 @@
 		C463C7A24FD856196E75CCB0 /* ClassSession+Study.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ClassSession+Study.swift"; sourceTree = "<group>"; };
 		C57D930C066D04D1B08182F2 /* ThubanSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThubanSchemeHandler.swift; sourceTree = "<group>"; };
 		C6018324F1F6BF47F9E04CC8 /* Chip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chip.swift; sourceTree = "<group>"; };
+		C6B89E7EF0B9A649D7EF9C86 /* AppArtSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppArtSource.swift; sourceTree = "<group>"; };
 		C86B038854C562FFF2118E74 /* ComposerWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposerWebView.swift; sourceTree = "<group>"; };
+		CA5AE389B60B657066D72564 /* AppArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppArt.swift; sourceTree = "<group>"; };
 		CB0E7785B11EF0A5DC15E9CD /* AboutSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutSettings.swift; sourceTree = "<group>"; };
 		CC57D74813573353742F38B9 /* ImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportView.swift; sourceTree = "<group>"; };
 		D1CEB9ACB1D91668E88A25DC /* EmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyState.swift; sourceTree = "<group>"; };
@@ -335,6 +339,8 @@
 		DC0284C723501D1A60C18A65 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				CA5AE389B60B657066D72564 /* AppArt.swift */,
+				C6B89E7EF0B9A649D7EF9C86 /* AppArtSource.swift */,
 				103ADF805FA9261CE62259F6 /* Buttons.swift */,
 				C6018324F1F6BF47F9E04CC8 /* Chip.swift */,
 				3D1D19F12B0561B08ED2F0C2 /* ChoiceFigureImages.swift */,
@@ -449,6 +455,8 @@
 				723D6A4B0D9716118AED355E /* AboutSettings.swift in Sources */,
 				48AAFC082686844540B24964 /* AgentsSettings.swift in Sources */,
 				579E05E36348858B8D5D4627 /* AnswerResultsSheet.swift in Sources */,
+				0AE14795D7E0AD5333288A14 /* AppArt.swift in Sources */,
+				35447CB2A07C2703CCE35D49 /* AppArtSource.swift in Sources */,
 				063BC9B7289680F3E06EC728 /* AppIconRenderer.swift in Sources */,
 				D4C5BDB349959BF48E5AB1B2 /* AppModel+Categories.swift in Sources */,
 				D27E19C594D5A91022B18FFC /* AppModel+QuestionBankandImport.swift in Sources */,

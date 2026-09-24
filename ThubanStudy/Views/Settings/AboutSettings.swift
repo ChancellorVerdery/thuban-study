@@ -45,7 +45,7 @@ struct AboutSettings: View {
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .strokeBorder(theme.lineColor, lineWidth: ThubanMetrics.hairline)
                     )
-                ThubanMarkView(size: 40, color: theme.accentColor)
+                AppArtView(size: 40, theme: theme)
             }
             .frame(width: 72.z, height: 72.z)
             .accessibilityHidden(true)
