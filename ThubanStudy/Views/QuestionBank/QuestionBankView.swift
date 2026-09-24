@@ -32,6 +32,10 @@ struct QuestionBankView: View {
             }
         }
         .task(id: session.classId) { await model.load() }
+        // The categorizer finished a class: show the new types.
+        .onChange(of: app.categoriesChanged) { _, _ in
+            Task { await model.refreshAfterChange() }
+        }
         .onChange(of: session.pendingBankSelection, initial: true) { _, pending in
             guard let pending else { return }
             model.selection = pending
@@ -232,6 +236,14 @@ private struct BankHeader: View {
                     .font(ThubanFont.body(15))
                     .foregroundStyle(theme.inkDimColor)
                     .monospacedDigit()
+                if session.app.isCategorizing, session.app.categorizingClass == session.classId {
+                    HStack(spacing: 6.z) {
+                        ProgressView().controlSize(.small)
+                        Text("Sorting questions into types…")
+                            .font(ThubanFont.small)
+                            .foregroundStyle(theme.inkDimColor)
+                    }
+                }
             }
             Spacer(minLength: 12)
             BankSearchField(text: $model.searchText, focused: searchFocused)

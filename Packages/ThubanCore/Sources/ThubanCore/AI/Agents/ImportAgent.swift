@@ -261,7 +261,7 @@ public enum ImportTools {
         expression of the params that the engine evaluates ("2ax", "\\\\frac{a}{b}"). Always also fill parts with the \
         original numbers as a concrete instance.
         Example:
-        {"questions":[{"sourceRef":"Homework 4 · Q3","kind":"mathTemplate","type":"Power rule","stem":"Let $f(x) = 3x^2 + 1$.",\
+        {"questions":[{"sourceRef":"Homework 4 · Q3","kind":"mathTemplate","stem":"Let $f(x) = 3x^2 + 1$.",\
         "parts":[{"id":"a","prompt":"Find $f'(x)$.","answerKind":"math","answer":{"latex":"6x"},"conditions":{"simplified":true}},\
         {"id":"b","prompt":"Evaluate $f(1)$.","answerKind":"numeric","answer":{"latex":"4"}}],\
         "template":{"params":[{"name":"a","kind":{"type":"int","min":2,"max":9}},{"name":"b","kind":{"type":"int","min":1,"max":9}}],\
@@ -269,7 +269,7 @@ public enum ImportTools {
         "parts":[{"id":"a","prompt":"Find $f'(x)$.","answerExpr":"2ax","conditions":{"simplified":true}},\
         {"id":"b","prompt":"Evaluate $f(1)$.","answerExpr":"a+b","answerKind":"numeric"}],"seedNote":"Coefficient and constant vary."},\
         "tags":["derivatives","polynomials"],"difficulty":2},\
-        {"sourceRef":"§2.1","kind":"multipleChoice","type":"Chain rule","stem":"","parts":[{"id":"a","prompt":"Which rule differentiates $f(g(x))$?",\
+        {"sourceRef":"§2.1","kind":"multipleChoice","stem":"","parts":[{"id":"a","prompt":"Which rule differentiates $f(g(x))$?",\
         "answerKind":"choice","answer":{"text":"Chain rule"},"choices":["Chain rule","Product rule","Quotient rule","Power rule"]}],\
         "tags":["derivatives"],"difficulty":1}]}
         """,
@@ -383,10 +383,6 @@ public enum ImportTools {
         "properties": [
             "sourceRef": ["type": "string", "description": "Original label or location, e.g. \"Homework 4 · Q3\", \"§14.4 p. 912\"."],
             "kind": ["type": "string", "enum": ["mathTemplate", "shortAnswer", "multipleChoice", "freeResponse", "numeric"]],
-            "type": [
-                "type": "string",
-                "description": "The problem type as the course names it (the technique or problem class): \"Initial value problems\", \"Separation of variables\", \"Chain rule\". Reuse a type already in use when it fits; otherwise name a new one. 1–4 words, sentence case.",
-            ],
             "stem": ["type": "string", "description": "Shared setup in Markdown + LaTeX; may be empty."],
             "parts": ["type": "array", "items": partSchema, "minItems": 1],
             "template": templateSchema,
@@ -398,7 +394,7 @@ public enum ImportTools {
             "tags": ["type": "array", "items": ["type": "string"]],
             "difficulty": ["type": "integer", "minimum": 1, "maximum": 5],
         ],
-        "required": ["kind", "type", "stem", "parts"],
+        "required": ["kind", "stem", "parts"],
     ]
 }
 
@@ -967,10 +963,8 @@ public actor ImportAgent {
             header += pages.count == 1 ? " (page \(pages.lowerBound))" : " (pages \(pages.lowerBound)–\(pages.upperBound))"
         }
         var prompt = ""
-        if !knownTypes.isEmpty {
-            let listed = knownTypes.prefix(60).map { "\"\($0)\"" }.joined(separator: ", ")
-            prompt += "Question types already in this class (reuse when one fits, add a new type only when none does): \(listed)\n\n"
-        }
+        // Problem types are assigned afterwards by `QuestionCategorizer` (one model for every class), not here.
+        _ = knownTypes
         if let previous, chunk.index > 0 {
             let label = previous.sourceRef.map { "\"\($0)\"" } ?? "untitled"
             let parts = previous.parts.map { part -> String in

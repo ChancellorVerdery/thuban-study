@@ -20,6 +20,21 @@ extension Store: QuestionRepository {
         }
     }
 
+    /// Sets the problem type of each listed question (types as given; normalize before calling).
+    public func setTypes(_ types: [QuestionID: String]) async throws {
+        guard !types.isEmpty else { return }
+        try await write { db in
+            for (id, type) in types {
+                try db.execute(sql: "UPDATE questions SET type = ? WHERE id = ?", arguments: [type, id])
+            }
+        }
+    }
+
+    /// Clears every question's problem type, in every class (they are then categorized again).
+    public func clearAllTypes() async throws {
+        try await write { db in try db.execute(sql: "UPDATE questions SET type = ''") }
+    }
+
     /// Number of questions in a class matching `filter`.
     public func questionCount(in classId: ClassID, filter: QuestionFilter? = nil) async throws -> Int {
         let filter = filter ?? .all

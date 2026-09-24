@@ -575,15 +575,30 @@ final class AIAgentTests: XCTestCase {
         XCTAssertEqual(minimal.type, "")
         XCTAssertEqual(minimal.toQuestion(classId: classId, documentId: nil).typeLabel, "Unclassified")
 
-        XCTAssertEqual(ImportTools.questionSchema["required"]?.arrayValue?.compactMap(\.stringValue).contains("type"), true)
+        // Types are named by QuestionCategorizer, not the import agent.
+        XCTAssertEqual(ImportTools.questionSchema["required"]?.arrayValue?.compactMap(\.stringValue).contains("type"), false)
+        XCTAssertNil(ImportTools.questionSchema["properties"]?.objectValue?["type"])
 
         let chunk = ImportChunk(index: 0, text: "Body", pages: nil, figureIndices: [])
-        let plain = ImportAgent.chunkPrompt(chunk)
-        XCTAssertFalse(plain.contains("already in this class"))
         let primed = ImportAgent.chunkPrompt(chunk, knownTypes: ["Separation of variables", "Initial value problems"])
-        XCTAssertTrue(primed.hasPrefix("Question types already in this class"))
-        XCTAssertTrue(primed.contains("\"Separation of variables\", \"Initial value problems\""))
+        XCTAssertFalse(primed.contains("already in this class"))
         XCTAssertTrue(primed.hasSuffix("Excerpt 1:\n\nBody"))
+    }
+
+    func testCategorizerReusesExistingTypeNames() {
+        let classId = ClassID.new()
+        let questions = (0..<3).map { Question(classId: classId, kind: .shortAnswer, stem: "q\($0)", parts: [QuestionPart(id: "a", prompt: "p", answerKind: .text)]) }
+        let input: JSONValue = ["assignments": [
+            ["number": 1, "type": "initial value problems"],
+            ["number": 2, "type": "Related  rates"],
+            ["number": 3, "type": "Related rates"],
+            ["number": 9, "type": "Out of range"],
+        ]]
+        let types = QuestionCategorizer.assignments(from: input, batch: questions, known: ["Initial value problems"])
+        XCTAssertEqual(types[questions[0].id], "Initial value problems")
+        XCTAssertEqual(types[questions[1].id], "Related rates")
+        XCTAssertEqual(types[questions[2].id], "Related rates")
+        XCTAssertEqual(types.count, 3)
     }
 
     // MARK: Figure

@@ -177,11 +177,6 @@ public enum Prompts {
           roundingDecimals unset; "rationalise the denominator" → rationalizedDenominator; "simplify" → simplified; \
           "factor fully" → factored; "expand" → expanded; "solve for y" → explicit; units → units. Anything you cannot \
           map goes in `conditions.custom` as short student-facing text.
-        - `type` is the problem type as the course would name it — the technique or problem class a student would \
-          file it under: "Initial value problems", "Separation of variables", "Related rates", "Integration by parts", \
-          "Eigenvalues". It is not a format (never "multiple choice" or "short answer") and not a whole chapter \
-          ("Chapter 3"). Reuse a type from the list of types already in this class whenever one fits so the bank \
-          stays consistent; coin a new one only when nothing fits. 1–4 words, sentence case.
         - `difficulty` 1–5, `tags` are short lowercase topic labels ("derivatives", "chain rule").
         - Figures are marked in the text as [figure N]. List in `figureIndices` every figure that sits under the \
           question's number — from its heading to the next question's — in document order, not only the ones \

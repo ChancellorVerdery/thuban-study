@@ -59,6 +59,7 @@
 		C235CA97EED7B40B239A2DB2 /* web in Resources */ = {isa = PBXBuildFile; fileRef = 9676B93BD738E096D9763F0A /* web */; };
 		D27E19C594D5A91022B18FFC /* AppModel+QuestionBankandImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0A38543D1D943A77A1F22E /* AppModel+QuestionBankandImport.swift */; };
 		D38A840346A26E61E91FE503 /* ChartRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7900075AD4A03B3228B2EF7D /* ChartRenderer.swift */; };
+		D4C5BDB349959BF48E5AB1B2 /* AppModel+Categories.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEB2C99A3064061E49DE634B /* AppModel+Categories.swift */; };
 		D50835DDBE78AEA8CB2F6102 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2FF00823B59C2E35C3920F72 /* Assets.xcassets */; };
 		D603C8EC0D33212CDDB4786C /* GrapherSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BCA71970A36B0D2FF429D95 /* GrapherSettings.swift */; };
 		D761225C05EC7CF1F2172ACF /* FigureDump.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6130E36035D70355B9D2F14 /* FigureDump.swift */; };
@@ -143,6 +144,7 @@
 		D2120D3155393CE3BAFC6A61 /* AppearanceSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettings.swift; sourceTree = "<group>"; };
 		D57B1783CECAD81129F93064 /* QuestionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionRow.swift; sourceTree = "<group>"; };
 		D6130E36035D70355B9D2F14 /* FigureDump.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FigureDump.swift; sourceTree = "<group>"; };
+		DEB2C99A3064061E49DE634B /* AppModel+Categories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+Categories.swift"; sourceTree = "<group>"; };
 		E0CF911E2DBCB6A859A6EAB4 /* QuestionEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionEditSheet.swift; sourceTree = "<group>"; };
 		E2C0EEBAC23E4206B4D86048 /* TutorPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorPane.swift; sourceTree = "<group>"; };
 		EB1E418EE8AF7B971BC9F46C /* Icon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Icon.swift; sourceTree = "<group>"; };
@@ -249,6 +251,7 @@
 			children = (
 				7BF203952EBA1DDEF711F3B9 /* AppIconRenderer.swift */,
 				584E744841F901041301BD7D /* AppModel.swift */,
+				DEB2C99A3064061E49DE634B /* AppModel+Categories.swift */,
 				4A0A38543D1D943A77A1F22E /* AppModel+QuestionBankandImport.swift */,
 				9138405FEDB4C9F2D51C45F2 /* AppModel+SettingsandModals.swift */,
 				A161475E8A77D80B61222775 /* AppModel+Study.swift */,
@@ -447,6 +450,7 @@
 				48AAFC082686844540B24964 /* AgentsSettings.swift in Sources */,
 				579E05E36348858B8D5D4627 /* AnswerResultsSheet.swift in Sources */,
 				063BC9B7289680F3E06EC728 /* AppIconRenderer.swift in Sources */,
+				D4C5BDB349959BF48E5AB1B2 /* AppModel+Categories.swift in Sources */,
 				D27E19C594D5A91022B18FFC /* AppModel+QuestionBankandImport.swift in Sources */,
 				B6B2B40B727A8EF172C590D1 /* AppModel+SettingsandModals.swift in Sources */,
 				056324BB9650D43E7DD9E14C /* AppModel+Study.swift in Sources */,

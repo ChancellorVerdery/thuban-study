@@ -53,6 +53,11 @@ final class AppModel {
         }
     }
     private(set) var sessions: [ClassID: ClassSession] = [:]
+    /// The categorizer's background pass (`categorizeUnclassifiedQuestions`): running, the class it is on, and a
+    /// counter bumped after each class so the bank reloads.
+    var isCategorizing = false
+    var categorizingClass: ClassID?
+    var categoriesChanged = 0
     /// Each class's state from the last run, read at launch and applied when its session is made.
     @ObservationIgnored var savedClassStates: [ClassID: SavedClassState] = [:]
     /// Set once every class's state has been written for a quit.
@@ -157,6 +162,7 @@ final class AppModel {
         await questionBankSettings.load()
         await refreshConnection()
         isLoaded = true
+        Task { await categorizeUnclassifiedQuestions() }
         Task.detached(priority: .utility) { [engine] in
             try? await engine.warmUp()
         }
