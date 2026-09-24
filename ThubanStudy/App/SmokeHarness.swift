@@ -314,6 +314,11 @@ enum SmokeHarness {
                     session.studyState.form.insert(latex: String(typed[typed.index(after: bar)...]))
                     await sleep(1.5)
                 }
+                // THUBAN_SMOKE_CHECK=1: press Check answers so the results sheet is captured with the popovers below.
+                if ProcessInfo.processInfo.environment["THUBAN_SMOKE_CHECK"] == "1" {
+                    await session.checkAnswers()
+                    await sleep(1.5)
+                }
                 _ = try await capture(window: window, name: String(format: "q%02d-top", offset + 1), in: directory)
                 // Popovers (an open dropdown) are windows of their own.
                 for (index, other) in NSApp.windows.enumerated() where other !== window && other.isVisible && other.frame.width > 40 {

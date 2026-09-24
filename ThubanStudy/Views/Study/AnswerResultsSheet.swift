@@ -13,7 +13,8 @@ struct AnswerResultsSheet: View {
         ModalCard(title: title, width: 560) {
             VStack(alignment: .leading, spacing: 16.z) {
                 summaryRow
-                VStack(spacing: 8.z) {
+                // Rows fill columns as the modal widens to fit the window.
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 300.z), spacing: 8.z, alignment: .top)], spacing: 8.z) {
                     ForEach(results.rows) { row in
                         VerdictRow(row: row)
                     }
@@ -161,7 +162,7 @@ private struct VerdictRow: View {
         case .correct: return Chip("Correct", kind: .pos, dot: true)
         case .incorrect: return Chip("Incorrect", kind: .neg, dot: true)
         case .equivalentButConditionFailed: return Chip("Equivalent · condition failed", kind: .warn, dot: true)
-        case .unparseable: return Chip("Couldn't read", kind: .neutral, dot: true)
+        case .unparseable: return Chip(row.input.isEmpty ? "No answer" : "Couldn't read", kind: .neutral, dot: true)
         case .needsTutor: return Chip("Tutor reviews", kind: .signal, dot: true)
         }
     }

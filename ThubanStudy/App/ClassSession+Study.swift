@@ -231,7 +231,9 @@ extension ClassSession {
                 conditions: part.conditions,
                 kind: part.answerKind
             )
-            if part.answerKind == .text, verdict.outcome == .incorrect {
+            if input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, part.answerKind.isAutoGradable {
+                verdict = Verdict(outcome: .unparseable, message: "No answer yet.", canonicalStudent: nil, canonicalExpected: nil)
+            } else if part.answerKind == .text, verdict.outcome == .incorrect {
                 verdict = await judgeText(input, expected: expected, part: part, stem: instance.stem, fallback: verdict)
             }
             graded[part.id] = verdict
@@ -324,10 +326,22 @@ extension ClassSession {
         if gradable.contains(where: { $0.answerKind == .math || $0.answerKind == .numeric }) {
             add("Any algebraically equivalent form is accepted")
         }
-        let multi = gradable.count > 1
+        // One line per rule, naming the parts it applies to (all of them → no names): "(a), (c) Exact form required".
+        var partsByRule: [(rule: String, parts: [String])] = []
         for part in gradable {
             for item in part.conditions.summaryItems {
-                add(multi ? "(\(part.id)) \(item)" : item)
+                if let index = partsByRule.firstIndex(where: { $0.rule == item }) {
+                    partsByRule[index].parts.append(part.id)
+                } else {
+                    partsByRule.append((item, [part.id]))
+                }
+            }
+        }
+        for entry in partsByRule {
+            if gradable.count > 1, entry.parts.count < gradable.count {
+                add(entry.parts.map { "(\($0))" }.joined(separator: ", ") + " " + entry.rule)
+            } else {
+                add(entry.rule)
             }
         }
         if gradable.contains(where: { $0.answerKind == .choice || $0.answerKind == .text }) {

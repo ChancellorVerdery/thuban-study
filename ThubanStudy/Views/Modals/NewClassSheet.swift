@@ -257,6 +257,9 @@ struct RenameClassSheet: View {
 // MARK: - Modal chrome
 
 /// Design-brief modal: card with 1 px border, radius 14, 24 pt padding, serif title 20.
+///
+/// A modal taller than the window it sits on widens (up to the window's width) so its content can reflow, e.g. an
+/// adaptive grid gaining columns; once it is as wide as the window and still too tall, its content scrolls.
 struct ModalCard<Content: View, Actions: View>: View {
     @Environment(\.thubanTheme) private var theme
     var title: String
@@ -264,25 +267,64 @@ struct ModalCard<Content: View, Actions: View>: View {
     @ViewBuilder var content: () -> Content
     @ViewBuilder var actions: () -> Actions
 
+    /// The content's natural height at the current width.
+    @State private var contentHeight: CGFloat = 0
+    /// Width added so the content fits vertically.
+    @State private var extraWidth: CGFloat = 0
+
+    /// Room the window leaves for a sheet: its content area less a margin.
+    private var available: CGSize {
+        let size = (NSApp.mainWindow ?? NSApp.windows.first { $0.isVisible && $0.sheetParent == nil })?.contentLayoutRect.size
+            ?? CGSize(width: 1200, height: 800)
+        return CGSize(width: max(width, size.width - 40), height: max(300, size.height - 40))
+    }
+
+    /// Title, actions, spacing and padding around the content.
+    private var chrome: CGFloat { 26.z + 34.z + 2 * 18.z + 2 * 24.z }
+
+    private var maxContentHeight: CGFloat { available.height - chrome }
+    private var currentWidth: CGFloat { min(width + extraWidth, available.width) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 18.z) {
             Text(title)
                 .font(ThubanFont.display(20))
                 .foregroundStyle(theme.inkColor)
-            content()
+            if contentHeight > maxContentHeight, currentWidth >= available.width {
+                ScrollView(.vertical) { measuredContent }
+                    .frame(height: maxContentHeight)
+            } else {
+                measuredContent
+            }
             HStack(spacing: 10.z) {
                 Spacer()
                 actions()
             }
         }
         .padding(24.z)
-        .frame(width: width)
+        .frame(width: currentWidth)
         .background(theme.panelColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.modalRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: ThubanMetrics.modalRadius, style: .continuous)
                 .strokeBorder(theme.lineColor, lineWidth: ThubanMetrics.hairline)
         )
         .foregroundStyle(theme.inkColor)
+    }
+
+    private var measuredContent: some View {
+        content()
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                contentHeight = height
+                widenIfNeeded()
+            }
+    }
+
+    /// Too tall for the window: widen in steps until it fits or reaches the window's width.
+    private func widenIfNeeded() {
+        guard contentHeight > maxContentHeight, currentWidth < available.width else { return }
+        let step = max(160, (available.width - width) / 4)
+        extraWidth = min(extraWidth + step, available.width - width)
     }
 }
 
