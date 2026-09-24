@@ -104,6 +104,10 @@ struct QuestionFormWebView: View {
                         "conditionsText": .string(part.answerKind == .freeResponse ? "" : part.conditions.summary),
                     ]
                     if let choices = part.choices { object["choices"] = .array(choices.map { .string($0) }) }
+                    if let unit = part.conditions.units?.trimmingCharacters(in: .whitespaces), !unit.isEmpty, part.answerKind != .choice {
+                        // Shown after the answer box: the student types the number, never the unit.
+                        object["unit"] = .string(unit)
+                    }
                     if let options = part.choiceFigures, !options.isEmpty {
                         // Picture options: one image per choice ("" while it is still being drawn).
                         object["choiceImages"] = .array(options.map { .string(choiceImages[$0] ?? "") })

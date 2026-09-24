@@ -152,6 +152,7 @@ public struct AnswerConditions: Codable, Sendable, Equatable {
         if let relative = relativeTolerance {
             items.append("Within \(Self.format(relative * 100)) %")
         }
+        let hasUnits = !(units ?? "").trimmingCharacters(in: .whitespaces).isEmpty
         if engineering {
             // Rounded answers are expected; exact form never applies.
         } else if let decimals = roundingDecimals {
@@ -164,7 +165,8 @@ public struct AnswerConditions: Codable, Sendable, Equatable {
                 items.append("Tolerance ±\(Self.format(tolerance))")
             }
             if exactRadicals { items.append("Keep radicals exact") }
-        } else {
+        } else if !hasUnits {
+            // A quantity with a unit is graded within 1 %; exact form applies to unitless answers only.
             items.append("Exact form required")
         }
         if rationalizedDenominator { items.append("Rationalized denominator") }
@@ -173,9 +175,7 @@ public struct AnswerConditions: Codable, Sendable, Equatable {
         if expanded { items.append("Expanded form") }
         if explicit { items.append("Solved explicitly (y = …)") }
         else if !implicitAllowed { items.append("No implicit equations") }
-        if let units = units, !units.trimmingCharacters(in: .whitespaces).isEmpty {
-            items.append("Include units (\(units))")
-        }
+        // The unit is shown after the answer box (the student never types it), so it is not listed here.
         items.append(contentsOf: custom.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty })
         return items
     }

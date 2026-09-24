@@ -69,11 +69,15 @@ body {
 
 /* ---------------------------------------------------------- math fields */
 
-.mf-wrap { position: relative; }
+.mf-wrap { position: relative; display: inline-block; max-width: 100%; vertical-align: middle; }
 
+/* The box starts small and grows with what is typed (MathLive sizes an inline field to its content): wider as the
+   expression lengthens, taller for fractions and exponents. */
 .part math-field {
-  display: block;
-  width: 100%;
+  display: inline-block;
+  width: auto;
+  min-width: 150px;
+  max-width: 100%;
   min-height: 42px;
   padding: 6px 10px;
   border: 1px solid var(--line-2, #D3D0C8);
@@ -158,8 +162,14 @@ body {
 
 /* ------------------------------------------------------- other input kinds */
 
-.part .field { max-width: 520px; }
+.part .field { max-width: 100%; }
+.part input.field { width: 150px; }
 .part textarea.field { max-width: none; }
+
+/* The unit after the answer box. */
+.part-input.has-unit { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.part-unit { font-size: 16px; color: var(--ink-dim, #535a68); white-space: nowrap; }
+.part-unit sup { font-size: 0.7em; }
 
 .choice-group {
   display: flex;

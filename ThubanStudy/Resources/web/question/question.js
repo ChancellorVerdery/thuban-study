@@ -24,8 +24,8 @@
   const FONTS_DIRECTORY = ON_BUNDLE ? 'thuban://bundle/vendor/mathlive/fonts' : VENDOR_URL + 'mathlive/fonts';
 
   const INPUT_DEBOUNCE_MS = 150;
-  const MATH_PLACEHOLDER = 'Type math — try sqrt, /, ^, theta, \\int';
-  const NUMERIC_PLACEHOLDER = 'Type a number or an exact expression';
+  const MATH_PLACEHOLDER = 'Type math';
+  const NUMERIC_PLACEHOLDER = 'Type a number';
   const DEFAULT_MATH_HINT = 'Any algebraically equivalent form is accepted.';
 
   const thuban = window.thuban;
@@ -305,9 +305,30 @@
     return wrap;
   }
 
+  /// "m^3/kg" → m³/kg, "ft*lbf/s" → ft·lbf/s, "W/m^2·K" → W/m²·K (HTML-escaped, exponents as superscripts).
+  function formatUnit(text) {
+    const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return escaped
+      .replace(/\\cdot|\*/g, '·')
+      .replace(/\\,|\\;|\\ /g, ' ')
+      .replace(/\\(?:mathrm|text)\{([^{}]*)\}/g, '$1')
+      .replace(/\^\{([^{}]*)\}|\^(-?[0-9]+)/g, (m, a, b) => '<sup>' + (a || b) + '</sup>');
+  }
+
+  /// A short text box that widens with what is typed (up to the pane).
+  function autosize(input) {
+    const measure = () => {
+      input.style.width = '0px';
+      input.style.width = Math.max(150, input.scrollWidth + 24) + 'px';
+    };
+    input.addEventListener('input', measure);
+    requestAnimationFrame(measure);
+  }
+
   function buildTextInput(entry, part) {
     const input = el('input', 'field');
     input.type = 'text';
+    autosize(input);
     input.autocomplete = 'off';
     input.spellcheck = false;
     input.placeholder = 'Type your answer';
@@ -394,6 +415,14 @@
     else if (kind === 'freeResponse') control = buildFreeResponse(entry, part);
     else control = buildTextInput(entry, part);
     inputWrap.appendChild(control);
+    // The unit follows the box: the student types only the number.
+    if (part.unit && kind !== 'choice' && kind !== 'freeResponse') {
+      const unit = el('span', 'part-unit');
+      unit.innerHTML = formatUnit(String(part.unit));
+      unit.setAttribute('aria-label', 'in ' + String(part.unit));
+      inputWrap.classList.add('has-unit');
+      inputWrap.appendChild(unit);
+    }
     body.appendChild(inputWrap);
 
     if (isMathKind(kind)) {

@@ -142,7 +142,7 @@ final class EngineeringGradingTests: XCTestCase {
 
     func testConditionSummary() {
         let conditions = AnswerConditions(units: "kN", significantFigures: 3, relativeTolerance: 0.01)
-        XCTAssertEqual(conditions.summary, "3 significant figures · Within 1 % · Include units (kN)")
+        XCTAssertEqual(conditions.summary, "3 significant figures · Within 1 %")
         let decoded = try? JSONDecoder().decode(AnswerConditions.self, from: Data(#"{"units":"kN","significantFigures":3,"relativeTolerance":0.01}"#.utf8))
         XCTAssertEqual(decoded, conditions)
     }

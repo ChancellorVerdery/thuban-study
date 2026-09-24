@@ -307,6 +307,13 @@ enum SmokeHarness {
                 await session.study(question: question)
                 await waitUntil(timeout: 10) { session.currentQuestion?.id == question.id && session.currentInstance != nil }
                 await sleep(4)
+                // THUBAN_SMOKE_TYPE="a|<latex>": put an answer into a part (as the calculator's "copy to answer" does).
+                if let typed = ProcessInfo.processInfo.environment["THUBAN_SMOKE_TYPE"], let bar = typed.firstIndex(of: "|") {
+                    session.studyState.form.focus(partId: String(typed[..<bar]))
+                    await sleep(0.5)
+                    session.studyState.form.insert(latex: String(typed[typed.index(after: bar)...]))
+                    await sleep(1.5)
+                }
                 _ = try await capture(window: window, name: String(format: "q%02d-top", offset + 1), in: directory)
                 // Popovers (an open dropdown) are windows of their own.
                 for (index, other) in NSApp.windows.enumerated() where other !== window && other.isVisible && other.frame.width > 40 {

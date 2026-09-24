@@ -279,7 +279,7 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(rationalized.summary, "Exact form required · Rationalized denominator")
 
         let rounded = AnswerConditions(roundingDecimals: 3, tolerance: 0.0005, units: "m/s", custom: ["Show your work"])
-        XCTAssertEqual(rounded.summary, "Round to 3 decimal places · Tolerance ±0.0005 · Include units (m/s) · Show your work")
+        XCTAssertEqual(rounded.summary, "Round to 3 decimal places · Tolerance ±0.0005 · Show your work")
         XCTAssertFalse(rounded.exactRadicals)
 
         let explicit = AnswerConditions(factored: true, explicit: true)
