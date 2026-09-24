@@ -8,7 +8,7 @@ extension AppModel {
     /// Settings flag: the types written by the import agents were cleared once so the categorizer could name them all.
     static let categoriesResetKey = SettingsKey("categories.resetForCategorizer")
     /// Settings flag: every class's types were consolidated once (later, a class is consolidated after it gains types).
-    static let categoriesConsolidatedKey = SettingsKey("categories.consolidated")
+    static let categoriesConsolidatedKey = SettingsKey("categories.consolidated.v2")
 
     /// `questions` with their problem types, reusing the class's existing types. Without a sign-in (or on failure)
     /// they come back unclassified and are categorized at a later launch.

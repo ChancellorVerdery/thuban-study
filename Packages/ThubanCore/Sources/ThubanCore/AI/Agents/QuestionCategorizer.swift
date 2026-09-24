@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Assigns every question its problem type ("Initial value problems", "Related rates"). One agent on one fixed
 /// model does this for every class, whichever model imported the questions, so the same kind of problem always
@@ -11,6 +12,7 @@ public struct QuestionCategorizer: Sendable {
     public static let batchSize = 40
 
     static let toolName = "assign_types"
+    static let logger = Logger(subsystem: "com.thuban.study", category: "categorizer")
 
     static let spec = ToolSpec(
         name: toolName,
@@ -144,18 +146,32 @@ public struct QuestionCategorizer: Sendable {
         guard let call = response.parts.compactMap(\.toolUseValue).first(where: { $0.name == Self.mergeToolName }) else {
             throw ThubanError.parse("The categorizer did not return merges.")
         }
-        return Self.merges(from: call.input, types: types.map(\.type))
+        var input = call.input
+        // Some replies carry the array as a JSON string.
+        if case .object(var object) = input, case .string(let text)? = object["merges"],
+           let parsed = try? JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)) {
+            object["merges"] = parsed
+            input = .object(object)
+        }
+        let merges = Self.merges(from: input, types: types.map(\.type))
+        Self.logger.info("categorizer reply \(String(describing: call.input).prefix(600), privacy: .public) → \(merges.count, privacy: .public) merges")
+        return merges
     }
 
     /// Reads the merge call: only types of the list are renamed, chains are followed, and nothing maps to itself.
+    /// Names are matched loosely ("- Domain of functions (3)", other case or spacing) and a target that is a type of
+    /// the list keeps that type's spelling.
     static func merges(from input: JSONValue, types: [String]) -> [String: String] {
         guard case .object(let object) = input, case .array(let items)? = object["merges"] else { return [:] }
-        let known = Set(types)
+        var byKey: [String: String] = [:]
+        for type in types { byKey[key(cleaned(type))] = type }
         var map: [String: String] = [:]
         for item in items {
-            guard case .object(let entry) = item, case .string(let from)? = entry["from"], case .string(let rawInto)? = entry["into"] else { continue }
-            let into = Question.normalizedType(rawInto)
-            guard known.contains(from), !into.isEmpty, into != from else { continue }
+            guard case .object(let entry) = item, case .string(let rawFrom)? = entry["from"], case .string(let rawInto)? = entry["into"],
+                  let from = byKey[key(cleaned(rawFrom))] else { continue }
+            let cleanedInto = Question.normalizedType(cleaned(rawInto))
+            let into = byKey[key(cleanedInto)] ?? cleanedInto
+            guard !into.isEmpty, into != from else { continue }
             map[from] = into
         }
         // "A → B" and "B → C" make "A → C"; a cycle is dropped.
@@ -187,6 +203,14 @@ public struct QuestionCategorizer: Sendable {
             result[batch[index].id] = canonical
         }
         return result
+    }
+
+    /// "- Domain of functions (3)" → "Domain of functions".
+    static func cleaned(_ text: String) -> String {
+        var value = text.trimmingCharacters(in: .whitespaces)
+        if value.hasPrefix("- ") { value.removeFirst(2) }
+        value = value.replacingOccurrences(of: #"\s*\(\d+\)$"#, with: "", options: .regularExpression)
+        return value.trimmingCharacters(in: CharacterSet(charactersIn: "\"' ").union(.whitespaces))
     }
 
     private static func key(_ type: String) -> String {

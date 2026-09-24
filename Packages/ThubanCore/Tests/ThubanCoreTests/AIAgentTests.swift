@@ -591,9 +591,12 @@ final class AIAgentTests: XCTestCase {
             ["from": "Domain of functions", "into": "Domains"],
             ["from": "Not a type here", "into": "Dot product"],
             ["from": "Dot product", "into": "Dot product"],
+            ["from": "- polar to cartesian coordinates (2)", "into": "Cartesian equation of polar curve (6)"],
         ]]
-        let merges = QuestionCategorizer.merges(from: input, types: ["Domain and range of functions", "Domain of functions", "Dot product"])
-        XCTAssertEqual(merges, ["Domain and range of functions": "Domains", "Domain of functions": "Domains"])
+        let merges = QuestionCategorizer.merges(from: input, types: ["Domain and range of functions", "Domain of functions", "Dot product",
+                                                                     "Polar to Cartesian coordinates", "Cartesian equation of polar curve"])
+        XCTAssertEqual(merges, ["Domain and range of functions": "Domains", "Domain of functions": "Domains",
+                                "Polar to Cartesian coordinates": "Cartesian equation of polar curve"])
     }
 
     func testCategorizerReusesExistingTypeNames() {
