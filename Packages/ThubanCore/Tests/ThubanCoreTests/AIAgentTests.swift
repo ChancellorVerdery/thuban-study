@@ -599,6 +599,13 @@ final class AIAgentTests: XCTestCase {
                                 "Polar to Cartesian coordinates": "Cartesian equation of polar curve"])
     }
 
+    func testCategorizerReadsMergesWrappedInAString() {
+        let wrapped: JSONValue = ["merges": .string(#"{"merges": [{"from": "Unit conversion", "into": "Unit conversions"}]}"#)]
+        XCTAssertEqual(QuestionCategorizer.merges(from: wrapped, types: ["Unit conversion", "Unit conversions"]), ["Unit conversion": "Unit conversions"])
+        let bare: JSONValue = ["merges": .string(#"[{"from": "Unit conversion", "into": "Unit conversions"}]"#)]
+        XCTAssertEqual(QuestionCategorizer.merges(from: bare, types: ["Unit conversion", "Unit conversions"]), ["Unit conversion": "Unit conversions"])
+    }
+
     func testCategorizerReusesExistingTypeNames() {
         let classId = ClassID.new()
         let questions = (0..<3).map { Question(classId: classId, kind: .shortAnswer, stem: "q\($0)", parts: [QuestionPart(id: "a", prompt: "p", answerKind: .text)]) }

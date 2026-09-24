@@ -124,11 +124,12 @@ public struct QuestionCategorizer: Sendable {
 
     static let mergeSystem = """
     You tidy the problem types of a study app's question bank. Given a class's types with how many questions each \
-    holds, fold together names that describe the same kind of problem ("Domain of functions" and "Domain and range \
-    of functions"; "Polar to Cartesian coordinates" and "Cartesian equation of polar curve"), and fold a type with \
-    one or two questions into a broader existing type when a student would look for those questions there. Keep \
-    types that a course teaches as different techniques apart. Prefer the name already holding more questions. \
-    Call merge_types once; an empty list is fine.
+    holds, find names that describe the same kind of problem under different wording ("Domain of functions" and \
+    "Domain and range of functions"; "Polar to Cartesian coordinates" and "Cartesian equation of polar curve"; \
+    "Unit conversion" and "Unit conversions") and fold each into one name, preferring the name holding more \
+    questions. Only merge true synonyms: never merge different topics or techniques, even related ones ("Dot \
+    product" and "Angle between vectors" stay apart; "Hydrostatic pressure" is not "Weight and gravity"), and never \
+    merge a type just because it is small. Call merge_types once; an empty list is fine.
     """
 
     /// Old type → new type for the class's types that name the same kind of problem.
@@ -146,14 +147,7 @@ public struct QuestionCategorizer: Sendable {
         guard let call = response.parts.compactMap(\.toolUseValue).first(where: { $0.name == Self.mergeToolName }) else {
             throw ThubanError.parse("The categorizer did not return merges.")
         }
-        var input = call.input
-        // Some replies carry the array as a JSON string.
-        if case .object(var object) = input, case .string(let text)? = object["merges"],
-           let parsed = try? JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)) {
-            object["merges"] = parsed
-            input = .object(object)
-        }
-        let merges = Self.merges(from: input, types: types.map(\.type))
+        let merges = Self.merges(from: call.input, types: types.map(\.type))
         Self.logger.info("categorizer reply \(String(describing: call.input).prefix(600), privacy: .public) → \(merges.count, privacy: .public) merges")
         return merges
     }
@@ -162,7 +156,7 @@ public struct QuestionCategorizer: Sendable {
     /// Names are matched loosely ("- Domain of functions (3)", other case or spacing) and a target that is a type of
     /// the list keeps that type's spelling.
     static func merges(from input: JSONValue, types: [String]) -> [String: String] {
-        guard case .object(let object) = input, case .array(let items)? = object["merges"] else { return [:] }
+        guard let items = mergeItems(input) else { return [:] }
         var byKey: [String: String] = [:]
         for type in types { byKey[key(cleaned(type))] = type }
         var map: [String: String] = [:]
@@ -203,6 +197,22 @@ public struct QuestionCategorizer: Sendable {
             result[batch[index].id] = canonical
         }
         return result
+    }
+
+    /// The merges array, also when a reply wraps it in a JSON string (`"{\"merges\": […]}"` or `"[…]"`).
+    static func mergeItems(_ input: JSONValue) -> [JSONValue]? {
+        switch input {
+        case .array(let items):
+            return items
+        case .object(let object):
+            return object["merges"].flatMap(mergeItems)
+        case .string(let text):
+            guard let parsed = try? JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)) else { return nil }
+            if case .string = parsed { return nil }
+            return mergeItems(parsed)
+        default:
+            return nil
+        }
     }
 
     /// "- Domain of functions (3)" → "Domain of functions".
