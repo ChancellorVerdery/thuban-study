@@ -224,12 +224,16 @@ extension ClassSession {
         var rows: [GradeResults.Row] = []
         for part in instance.parts {
             let input = inputs[part.id] ?? ""
-            let verdict = await engine.grade(
+            let expected = Self.expectedSpec(for: part, in: question)
+            var verdict = await engine.grade(
                 student: input,
-                expected: Self.expectedSpec(for: part, in: question),
+                expected: expected,
                 conditions: part.conditions,
                 kind: part.answerKind
             )
+            if part.answerKind == .text, verdict.outcome == .incorrect {
+                verdict = await judgeText(input, expected: expected, part: part, stem: instance.stem, fallback: verdict)
+            }
             graded[part.id] = verdict
             rows.append(GradeResults.Row(partId: part.id, prompt: part.prompt, answerKind: part.answerKind, input: input, verdict: verdict))
         }
@@ -277,6 +281,25 @@ extension ClassSession {
         }
     }
 
+    /// Smart grading for a text answer the literal match rejected: the model decides whether it means the same as the
+    /// key. Without a sign-in or on any failure the literal verdict stands.
+    private func judgeText(_ input: String, expected: AnswerSpec, part: InstancePart, stem: String, fallback: Verdict) async -> Verdict {
+        guard let key = expected.text ?? expected.latex, !key.isEmpty else { return fallback }
+        do {
+            let judgement = try await TextAnswerJudge(client: app.claudeClient).judge(
+                question: stem, prompt: part.prompt, key: key, alternatives: expected.alternatives, student: input
+            )
+            guard judgement.correct else { return fallback }
+            var verdict = fallback
+            verdict.outcome = .correct
+            verdict.message = "Correct."
+            return verdict
+        } catch {
+            Self.logger.error("text judge failed: \(error.localizedDescription, privacy: .public)")
+            return fallback
+        }
+    }
+
     /// The answer the engine compares against: the instance's resolved answer, plus the bank part's alternatives
     /// and option text for static questions.
     static func expectedSpec(for part: InstancePart, in question: Question) -> AnswerSpec {
@@ -308,7 +331,7 @@ extension ClassSession {
             }
         }
         if gradable.contains(where: { $0.answerKind == .choice || $0.answerKind == .text }) {
-            add("Text answers are matched ignoring case, spacing and punctuation")
+            add("Text answers are accepted in any wording that means the same as the answer")
         }
         if instance.parts.contains(where: { $0.answerKind == .freeResponse }) {
             add("Free-response parts are reviewed by the tutor, not scored")

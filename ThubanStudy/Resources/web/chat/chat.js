@@ -209,8 +209,20 @@
     renderAccessibleContent: ''
   };
 
+  // MathLive has \\ldots and \\cdots but not amsmath's \\dots family; rewrite them in the text before rendering.
+  function fixDots(el) {
+    var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (var node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node.nodeValue.indexOf('\\dots') < 0) continue;
+      node.nodeValue = node.nodeValue
+        .replace(/\\dots[bm](?![a-zA-Z])/g, '\\cdots')
+        .replace(/\\dots[cio]?(?![a-zA-Z])/g, '\\ldots');
+    }
+  }
+
   function renderMath(el) {
     if (!window.MathLive || typeof MathLive.renderMathInElement !== 'function') return;
+    fixDots(el);
     try { MathLive.renderMathInElement(el, MATH_OPTIONS); }
     catch (err) { console.warn('renderMathInElement failed', err); return; }
     // MathLive marks display math only with an inline `display:flex`; give it a class so chat.css can style it.

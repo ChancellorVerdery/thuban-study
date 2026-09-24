@@ -33,7 +33,7 @@ public actor MathEngine {
         case .freeResponse:
             return GradingRules.tutorVerdict
         case .text, .choice:
-            return GradingRules.gradeText(student: latex, expected: expected)
+            return GradingRules.gradeText(student: latex, expected: expected, loose: kind == .text)
         case .math, .numeric:
             return gradeMath(student: latex, expected: expected, conditions: conditions)
         }

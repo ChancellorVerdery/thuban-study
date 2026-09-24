@@ -239,8 +239,20 @@
     return html.replace(/(\d+)/g, (_, i) => escapeHtml(math[Number(i)] || ''));
   }
 
+  /// MathLive has \\ldots and \\cdots but not amsmath's \\dots family; rewrite them in the text before rendering.
+  function fixDots(el) {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node.nodeValue.indexOf('\\dots') < 0) continue;
+      node.nodeValue = node.nodeValue
+        .replace(/\\dots[bm](?![a-zA-Z])/g, '\\cdots')
+        .replace(/\\dots[cio]?(?![a-zA-Z])/g, '\\ldots');
+    }
+  }
+
   function renderRich(el, source) {
     el.innerHTML = markdownToHtml(source);
+    fixDots(el);
     if (renderMathInElement) {
       try { renderMathInElement(el, RENDER_OPTIONS); }
       catch (err) { console.error('[question] math render failed:', err); }

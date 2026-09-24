@@ -6,9 +6,11 @@ import ThubanCore
 struct QuestionFormWebView: View {
     @Environment(\.thubanTheme) private var theme
     var controller: Controller
+    /// False while the virtual keyboard is up: the page is then capped to the pane and scrolls itself.
+    var scrollsWithPane = true
 
     var body: some View {
-        BridgeWebView(page: "question/question.html", bridge: controller.bridge, theme: theme)
+        BridgeWebView(page: "question/question.html", bridge: controller.bridge, theme: theme, scrollsWithParent: scrollsWithPane)
     }
 
     @MainActor

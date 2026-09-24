@@ -4,6 +4,21 @@ import WebKit
 import ThubanCore
 import os
 
+/// A web view that can hand the scroll wheel to the scroll view it sits in. WebKit keeps wheel events even when
+/// the page has nothing to scroll, so a page sized to its content inside a SwiftUI `ScrollView` would otherwise
+/// never let that view scroll.
+final class PaneWebView: WKWebView {
+    var scrollsWithParent = false
+
+    override func scrollWheel(with event: NSEvent) {
+        if scrollsWithParent, let parent = enclosingScrollView {
+            parent.scrollWheel(with: event)
+        } else {
+            super.scrollWheel(with: event)
+        }
+    }
+}
+
 /// Hosts one bundled page (`thuban://bundle/<page>`) in a transparent WKWebView wired to a `WebBridge`.
 /// Navigation stays inside `thuban://` and Desmos; any other link opens in the default browser.
 struct BridgeWebView: NSViewRepresentable {
@@ -11,12 +26,15 @@ struct BridgeWebView: NSViewRepresentable {
     var page: String
     var bridge: WebBridge
     var theme: ResolvedTheme
+    /// The page is laid out at its full height inside a native scroll view: the scroll wheel scrolls that view
+    /// instead of the (unscrollable) page.
+    var scrollsWithParent = false
 
     func makeCoordinator() -> Coordinator {
         Coordinator(bridge: bridge)
     }
 
-    func makeNSView(context: Context) -> WKWebView {
+    func makeNSView(context: Context) -> PaneWebView {
         let configuration = WKWebViewConfiguration()
         configuration.setURLSchemeHandler(ThubanSchemeHandler(), forURLScheme: ThubanSchemeHandler.scheme)
         configuration.userContentController.add(bridge, name: WebBridge.messageHandlerName)
@@ -28,7 +46,8 @@ struct BridgeWebView: NSViewRepresentable {
         configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
         #endif
 
-        let webView = WKWebView(frame: .zero, configuration: configuration)
+        let webView = PaneWebView(frame: .zero, configuration: configuration)
+        webView.scrollsWithParent = scrollsWithParent
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
@@ -47,7 +66,8 @@ struct BridgeWebView: NSViewRepresentable {
         return webView
     }
 
-    func updateNSView(_ webView: WKWebView, context: Context) {
+    func updateNSView(_ webView: PaneWebView, context: Context) {
+        webView.scrollsWithParent = scrollsWithParent
         // The page follows the app zoom (⌘+ / ⌘−); reading it here re-runs this update when it changes.
         let zoom = AppZoom.shared.scale
         if context.coordinator.lastZoom != zoom {
@@ -63,7 +83,7 @@ struct BridgeWebView: NSViewRepresentable {
         }
     }
 
-    static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
+    static func dismantleNSView(_ webView: PaneWebView, coordinator: Coordinator) {
         webView.configuration.userContentController.removeScriptMessageHandler(forName: WebBridge.messageHandlerName)
         webView.navigationDelegate = nil
         webView.uiDelegate = nil

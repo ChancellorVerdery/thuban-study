@@ -53,29 +53,104 @@ public enum GradingRules {
         message: "This part has no stored answer to check against. Ask the tutor to review it."
     )
 
-    /// Grades `.text` and `.choice` parts: case- and whitespace-insensitive comparison against the expected text
-    /// and every alternative.
-    public static func gradeText(student: String, expected: AnswerSpec) -> Verdict {
-        var accepted = expected.alternatives
-        if let text = expected.text { accepted.insert(text, at: 0) }
-        if let latex = expected.latex { accepted.append(latex) }
-        let normalizedAccepted = accepted.map(normalizeText).filter { !$0.isEmpty }
-        guard !normalizedAccepted.isEmpty else { return missingExpectedVerdict }
+    /// Grades `.text` and `.choice` parts: case-, spacing- and punctuation-insensitive comparison against the expected
+    /// text, every alternative, and the forms the key itself offers: "size (energy level / principal energy shell)"
+    /// accepts "size", "energy level" and "principal energy shell". Lists ("0, 1, 2, 3") match item by item in any
+    /// order and with any spacing. A text answer that still does not match is `.incorrect` here; the study session
+    /// then asks the tutor model whether it means the same thing (`TextAnswerJudge`).
+    public static func gradeText(student: String, expected: AnswerSpec, loose: Bool = true) -> Verdict {
+        var keys = expected.alternatives
+        if let text = expected.text { keys.insert(text, at: 0) }
+        if let latex = expected.latex { keys.append(latex) }
+        let normalizedKeys = keys.map(normalizeText).filter { !$0.isEmpty }
+        guard !normalizedKeys.isEmpty else { return missingExpectedVerdict }
         let normalizedStudent = normalizeText(student)
         guard !normalizedStudent.isEmpty else {
             return Verdict(outcome: .unparseable, message: "Enter an answer for this part.", canonicalStudent: nil, canonicalExpected: nil)
         }
-        if normalizedAccepted.contains(normalizedStudent) {
-            return Verdict(outcome: .correct, message: "Correct.", canonicalStudent: normalizedStudent, canonicalExpected: normalizedAccepted[0])
+        let accepted = loose ? keys.flatMap(acceptedForms) : normalizedKeys
+        if accepted.contains(where: { textMatches(normalizedStudent, $0) }) {
+            return Verdict(outcome: .correct, message: "Correct.", canonicalStudent: normalizedStudent, canonicalExpected: normalizedKeys[0])
         }
-        return Verdict(outcome: .incorrect, message: "Not quite. Check your answer and try again.", canonicalStudent: normalizedStudent, canonicalExpected: normalizedAccepted[0])
+        return Verdict(outcome: .incorrect, message: "Not quite. Check your answer and try again.", canonicalStudent: normalizedStudent, canonicalExpected: normalizedKeys[0])
     }
 
-    /// Lowercases, trims, collapses whitespace, and strips surrounding `$` and trailing punctuation.
+    /// The normalized forms one key accepts: the whole key, the key without its parentheticals, and each alternative
+    /// offered in parentheses or separated by " / " or ";" (and " or " within parentheses) ("size (energy level / principal energy shell)").
+    static func acceptedForms(_ key: String) -> [String] {
+        var forms: [String] = [key]
+        var outside = ""
+        var inside: [String] = []
+        var depth = 0
+        var current = ""
+        for character in key {
+            if character == "(" {
+                if depth == 0 { current = "" } else { current.append(character) }
+                depth += 1
+            } else if character == ")", depth > 0 {
+                depth -= 1
+                if depth == 0 { inside.append(current); outside.append(" ") } else { current.append(character) }
+            } else if depth > 0 {
+                current.append(character)
+            } else {
+                outside.append(character)
+            }
+        }
+        if !inside.isEmpty {
+            forms.append(outside)
+            forms.append(contentsOf: inside)
+        }
+        var split: [String] = []
+        for form in forms {
+            // " or " separates alternatives only inside parentheses: "increases or decreases" is one answer.
+            let pieces = form.components(separatedBy: " / ")
+                .flatMap { inside.contains(form) ? $0.components(separatedBy: " or ") : [$0] }
+                .flatMap { $0.components(separatedBy: ";") }
+            if pieces.count > 1 { split.append(contentsOf: pieces) }
+        }
+        forms.append(contentsOf: split)
+        var seen = Set<String>()
+        return forms.map(normalizeText).filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+
+    /// Equal after normalization, ignoring a leading article, or equal as lists (comma-separated items in any order,
+    /// any spacing).
+    static func textMatches(_ student: String, _ key: String) -> Bool {
+        if student == key { return true }
+        if dropArticle(student) == dropArticle(key) { return true }
+        let studentItems = listItems(student)
+        let keyItems = listItems(key)
+        if keyItems.count > 1, studentItems.count == keyItems.count {
+            return studentItems.map(dropArticle).sorted() == keyItems.map(dropArticle).sorted()
+        }
+        return false
+    }
+
+    private static func dropArticle(_ text: String) -> String {
+        for article in ["the ", "a ", "an "] where text.hasPrefix(article) {
+            return String(text.dropFirst(article.count))
+        }
+        return text
+    }
+
+    /// "0,1,2,3", "0, 1, 2 and 3", "{0, 1, 2, 3}" → ["0", "1", "2", "3"].
+    static func listItems(_ text: String) -> [String] {
+        var value = text
+        if let first = value.first, let last = value.last, "{[(".contains(first), "}])".contains(last) {
+            value = String(value.dropFirst().dropLast())
+        }
+        value = value.replacingOccurrences(of: ", and ", with: ",").replacingOccurrences(of: " and ", with: ",")
+        return value.split(whereSeparator: { $0 == "," || $0 == ";" })
+            .map { normalizeText(String($0)) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// Lowercases, trims, collapses whitespace, and strips surrounding `$`, `\text{…}` and trailing punctuation.
     public static func normalizeText(_ text: String) -> String {
         var value = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         while value.hasPrefix("$") { value.removeFirst() }
         while value.hasSuffix("$") { value.removeLast() }
+        value = value.replacingOccurrences(of: #"\\(?:text|mathrm)\{([^{}]*)\}"#, with: "$1", options: .regularExpression)
         value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         while let last = value.last, ".!,;".contains(last) { value.removeLast() }
         let parts = value.split(whereSeparator: { $0.isWhitespace })

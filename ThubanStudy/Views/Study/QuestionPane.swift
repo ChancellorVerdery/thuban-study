@@ -155,7 +155,7 @@ struct QuestionPane: View {
                     FigureStrip(figures: state.figures)
                 }
                 ZStack(alignment: .top) {
-                    QuestionFormWebView(controller: form)
+                    QuestionFormWebView(controller: form, scrollsWithPane: !session.showKeyboard)
                         .frame(height: formHeight(availableHeight: availableHeight))
                         .opacity(session.isInstantiating && session.currentInstance == nil ? 0 : 1)
                     if session.isInstantiating && session.currentInstance == nil {
