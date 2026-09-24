@@ -47,6 +47,8 @@ struct ShellView: View {
             StudyView(session: session)
         case .questionBank:
             QuestionBankView(session: session)
+        case .equations:
+            EquationSheetView(session: session)
         case .importDocs:
             ImportView(session: session)
         }
@@ -200,7 +202,8 @@ struct ClassTab: View {
 
 // MARK: - Section bar
 
-/// 44 pt: [Study | Question Bank | Import] … on Study: Graph / Calculator / Keyboard toggles + "Question n of N".
+/// 44 pt: [Study | Question Bank | Equations | Import] … on Study: Equations / Graph / Calculator / Keyboard toggles
+/// + "Question n of N".
 struct SectionBar: View {
     @Environment(\.thubanTheme) private var theme
     @Bindable var session: ClassSession
@@ -210,10 +213,13 @@ struct SectionBar: View {
             SegmentedPicker(selection: $session.section, options: [
                 SegmentOption(.study, "Study"),
                 SegmentOption(.questionBank, "Question Bank", icon: .questionBank),
+                SegmentOption(.equations, "Equations", icon: .equations),
                 SegmentOption(.importDocs, "Import", icon: .importDocs),
             ])
             Spacer()
             if session.section == .study {
+                ToggleChip(label: "Equations", icon: .equations, isOn: $session.showEquations)
+                    .help("Show this class's equation sheet beside the question (⌘⇧E)")
                 ToggleChip(label: "Graph", icon: .graph2D, isOn: $session.showGraph)
                 ToggleChip(label: "Calculator", icon: .calculator, isOn: $session.showCalculator)
                 ToggleChip(label: "Keyboard", icon: .mathKeyboard, isOn: $session.showKeyboard)

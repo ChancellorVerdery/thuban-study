@@ -1,0 +1,93 @@
+/*
+ * Thuban Study — equation entry editor (editor.html): one live MathLive field per equation with its LaTeX shown
+ * underneath. Sits inside the native editor card (panel ground).
+ */
+
+body { background: var(--panel, #fffdf7); overflow-x: hidden; }
+
+.editor { padding: 2px 2px 8px; }
+
+.rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+
+.eq-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 30px;
+  column-gap: 8px;
+  align-items: start;
+}
+.eq-index {
+  padding-top: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-dim, #535a68);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.mf-wrap { position: relative; display: block; }
+.eq-row math-field {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--line-2, #D3D0C8);
+  border-radius: 8px;
+  background: var(--panel, #fffdf7);
+  color: var(--ink, #161a21);
+  font-size: 19px;
+  transition: border-color 120ms ease;
+}
+.eq-row math-field:focus-within {
+  border-color: var(--accent, #e0b15c);
+  outline: 2px solid var(--accent, #e0b15c);
+  outline-offset: 2px;
+}
+.eq-row math-field::part(content) { min-height: 30px; }
+
+.mf-placeholder {
+  position: absolute;
+  left: 11px; right: 11px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: var(--ink-faint, #858c9b);
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: none;
+}
+.mf-wrap[data-empty="true"] .mf-placeholder { display: block; }
+
+/* The LaTeX that is saved and copied, as typed. */
+.eq-latex {
+  margin-top: 5px;
+  min-height: 16px;
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--ink-dim, #535a68);
+  word-break: break-all;
+  white-space: pre-wrap;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.eq-latex:empty::before { content: "LaTeX appears here as you type"; color: var(--ink-faint, #858c9b); }
+
+.remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-top: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-dim, #535a68);
+}
+.remove:hover:not(:disabled) { background: var(--panel-2, #F1ECE0); color: var(--neg-text, #B5484A); }
+.remove:disabled { opacity: 0.35; cursor: default; }
+.remove svg { width: 14px; height: 14px; }
+
+.add { margin: 12px 0 0 30px; }

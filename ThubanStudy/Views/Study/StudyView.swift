@@ -1,7 +1,8 @@
 import SwiftUI
 import ThubanCore
 
-/// The Study screen: question form | optional resizable graph | tutor, with the floating calculator overlay,
+/// The Study screen: question form | optional equation sheet | optional resizable graph | tutor, with the floating
+/// calculator overlay,
 /// the answer-check sheet, and the ⌘⏎ / hint command handlers.
 struct StudyView: View {
     @Environment(AppModel.self) private var app
@@ -14,6 +15,7 @@ struct StudyView: View {
 
     var body: some View {
         @Bindable var state = state
+        @Bindable var equations = session.equations
         GeometryReader { geometry in
             HStack(spacing: 0.z) {
                 // The question pane takes exactly what the graph and tutor leave, so the row never overflows the
@@ -21,6 +23,14 @@ struct StudyView: View {
                 QuestionPane(session: session)
                     .frame(width: questionWidth(total: geometry.size.width), alignment: .leading)
                     .clipped()
+
+                if session.showEquations {
+                    PaneDivider(width: $equations.panelWidth, range: equationsWidthRange(total: geometry.size.width),
+                                label: "Resize equations pane")
+                    EquationsPane(session: session)
+                        .frame(width: equationsWidth(total: geometry.size.width))
+                        .clipped()
+                }
 
                 if session.showGraph {
                     PaneDivider(width: $state.graphWidth, range: graphWidthRange(total: geometry.size.width))
@@ -72,8 +82,13 @@ struct StudyView: View {
         min(StudyLayout.questionMinWidth * AppZoom.shared.scale, total * 0.55)
     }
 
+    /// Room kept for the equations pane's minimum while it is open (the tutor and graph give way to it).
+    private var equationsReserve: CGFloat {
+        session.showEquations ? PaneDivider.thickness + EquationsState.minPanelWidth : 0
+    }
+
     private func tutorWidthRange(total: CGFloat) -> ClosedRange<CGFloat> {
-        var others = questionMin(total: total) + PaneDivider.thickness
+        var others = questionMin(total: total) + PaneDivider.thickness + equationsReserve
         if session.showGraph { others += PaneDivider.thickness + min(StudyLayout.graphFloorWidth, total * 0.2) }
         let upper = max(StudyLayout.tutorMinWidth, total - others)
         return StudyLayout.tutorMinWidth...upper
@@ -86,6 +101,7 @@ struct StudyView: View {
         var preferred = min(max(state.tutorWidth, range.lowerBound), range.upperBound)
         if session.showGraph {
             let needed = questionMin(total: total) + 2 * PaneDivider.thickness + StudyLayout.graphMinWidth + preferred
+                + equationsReserve
             preferred = max(StudyLayout.tutorMinWidth, preferred - max(0, needed - total))
         }
         return preferred
@@ -94,11 +110,27 @@ struct StudyView: View {
     private func questionWidth(total: CGFloat) -> CGFloat {
         var others = PaneDivider.thickness + tutorWidth(total: total)
         if session.showGraph { others += PaneDivider.thickness + clampedGraphWidth(total: total) }
+        if session.showEquations { others += PaneDivider.thickness + equationsWidth(total: total) }
         return max(0, total - others)
+    }
+
+    /// The equations pane takes its width from the question pane: what the student dragged it to, down to what
+    /// leaves the question its minimum.
+    private func equationsWidthRange(total: CGFloat) -> ClosedRange<CGFloat> {
+        var spare = total - tutorWidth(total: total) - PaneDivider.thickness - questionMin(total: total) - PaneDivider.thickness
+        if session.showGraph { spare -= PaneDivider.thickness + clampedGraphWidth(total: total) }
+        let lower = max(0, min(EquationsState.minPanelWidth, spare))
+        return lower...max(lower, spare)
+    }
+
+    private func equationsWidth(total: CGFloat) -> CGFloat {
+        let range = equationsWidthRange(total: total)
+        return min(max(session.equations.panelWidth, range.lowerBound), range.upperBound)
     }
 
     private func graphWidthRange(total: CGFloat) -> ClosedRange<CGFloat> {
         let available = total - tutorWidth(total: total) - questionMin(total: total) - 2 * PaneDivider.thickness
+            - equationsReserve
         // When even a shrunken tutor pane leaves less than the preferred graph minimum, the graph takes what is
         // left rather than overflowing the window.
         let lower = max(0, min(StudyLayout.graphMinWidth, available))

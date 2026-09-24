@@ -47,6 +47,9 @@ struct ThubanStudyApp: App {
                 Button("Toggle Keyboard") { appModel.perform(.toggleKeyboard) }
                     .keyboardShortcut("k", modifiers: [.command, .shift])
                     .disabled(study == nil)
+                Button("Toggle Equations") { appModel.perform(.toggleEquations) }
+                    .keyboardShortcut("e", modifiers: [.command, .shift])
+                    .disabled(study == nil)
                 Divider()
                 Button("Check Answers") { appModel.perform(.checkAnswers) }
                     .keyboardShortcut(.return, modifiers: .command)

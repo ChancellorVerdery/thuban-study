@@ -9,6 +9,7 @@ enum AppCommand: String, CaseIterable, Hashable, Sendable {
     case toggleGraph       // ⌘G
     case toggleCalculator  // ⌘K
     case toggleKeyboard    // ⌘⇧K
+    case toggleEquations   // ⌘⇧E
     case checkAnswers      // ⌘⏎
     case nextQuestion      // ⌘→
     case regenerate

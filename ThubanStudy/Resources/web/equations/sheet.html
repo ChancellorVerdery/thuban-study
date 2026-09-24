@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Equation sheet</title>
+
+  <link rel="stylesheet" href="../shared/theme.css">
+  <link rel="stylesheet" href="thuban://bundle/vendor/mathlive/mathlive-static.css">
+  <link rel="stylesheet" href="sheet.css">
+  <style id="theme"></style>
+
+  <!-- bridge.js is always first. Deferred scripts run in order, before DOMContentLoaded (when 'ready' is posted). -->
+  <script src="../shared/bridge.js" defer></script>
+  <script src="thuban://bundle/vendor/mathlive/mathlive.min.js" defer></script>
+  <script src="sheet.js" defer></script>
+</head>
+<body>
+  <!-- Groups and their equation cards; the header (title, search, Add group) is native. -->
+  <main id="sheet" class="sheet" aria-label="Equation sheet"></main>
+  <p id="empty" class="empty" hidden></p>
+</body>
+</html>

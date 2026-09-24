@@ -204,7 +204,38 @@ enum SmokeHarness {
                 createdAt: at(31 + index)
             ))
         }
+        try await seedEquationSheet(store: store, classId: classId)
         try await store.set(.lastClass, classId)
+    }
+
+    /// A small hand-made sheet for the sample class: three groups, one entry a named list of two equations.
+    private static func seedEquationSheet(store: Store, classId: ClassID) async throws {
+        let sheet: [(group: String, entries: [(name: String, equations: [String], note: String?)])] = [
+            ("Partial derivatives", [
+                ("Chain rule", ["\\frac{\\mathrm{d}z}{\\mathrm{d}t} = \\frac{\\partial z}{\\partial x}\\frac{\\mathrm{d}x}{\\mathrm{d}t} + \\frac{\\partial z}{\\partial y}\\frac{\\mathrm{d}y}{\\mathrm{d}t}"], "z = f(x, y) with x and y functions of t"),
+                ("Clairaut's theorem", ["f_{xy}(a, b) = f_{yx}(a, b)"], "when both mixed partials are continuous near (a, b)"),
+                ("Implicit differentiation", ["\\frac{\\partial z}{\\partial x} = -\\frac{F_x}{F_z}", "\\frac{\\partial z}{\\partial y} = -\\frac{F_y}{F_z}"], "for F(x, y, z) = 0 with F_z ≠ 0"),
+            ]),
+            ("Tangent planes", [
+                ("Tangent plane", ["z - z_0 = f_x(x_0, y_0)(x - x_0) + f_y(x_0, y_0)(y - y_0)"], nil),
+                ("Linear approximation", ["f(x, y) \\approx f(a, b) + f_x(a, b)(x - a) + f_y(a, b)(y - b)"], "good near (a, b)"),
+                ("Total differential", ["\\mathrm{d}z = f_x\\,\\mathrm{d}x + f_y\\,\\mathrm{d}y"], nil),
+            ]),
+            ("Vectors", [
+                ("Dot product", ["\\vec{a}\\cdot\\vec{b} = a_1b_1 + a_2b_2 + a_3b_3", "\\vec{a}\\cdot\\vec{b} = |\\vec{a}|\\,|\\vec{b}|\\cos\\theta"], nil),
+                ("Gradient", ["\\nabla f(x, y) = \\langle f_x(x, y), f_y(x, y)\\rangle"], nil),
+                ("Directional derivative", ["D_{\\vec{u}}f = \\nabla f\\cdot\\vec{u}"], "u a unit vector; largest along ∇f"),
+                ("Cross product", ["|\\vec{a}\\times\\vec{b}| = |\\vec{a}|\\,|\\vec{b}|\\sin\\theta"], nil),
+            ]),
+        ]
+        for section in sheet {
+            let group = try await store.addEquationGroup(named: section.group, to: classId)
+            for entry in section.entries {
+                try await store.addEquationEntry(
+                    EquationEntry(groupId: group.id, name: entry.name, equations: entry.equations, note: entry.note), at: nil
+                )
+            }
+        }
     }
 
     // MARK: Walkthrough
@@ -427,6 +458,41 @@ enum SmokeHarness {
             session.section = .questionBank
             await sleep(0.5)
 
+            // 05d–05f — The equation sheet, its entry editor, and the read-only panel beside a question.
+            let equations = session.equations
+            session.section = .equations
+            await waitUntil(timeout: 6) { equations.isLoaded && equations.sheetPage.isPageReady }
+            await sleep(2)
+            written.append(try await capture(window: window, name: "05d-equations", in: directory))
+
+            if let list = equations.sheet.sections.first?.entries.first(where: { $0.isList }) {
+                equations.editing = EquationEntryDraft(editing: list)
+                let sheetWindow = try await waitForWindow(timeout: 5) { $0.sheetParent === window && $0.isVisible }
+                await sleep(3)
+                // The window server's own pixels: a web snapshot leaves MathLive fields in a sheet blank.
+                let file = directory.appendingPathComponent("05e-equation-editor.png")
+                let screen = Process()
+                screen.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                screen.arguments = ["-x", "-o", "-l", String(sheetWindow.windowNumber), file.path]
+                try screen.run()
+                screen.waitUntilExit()
+                written.append(file)
+                equations.editing = nil
+                await sleep(1)
+            }
+
+            session.section = .study
+            let graphWasOpen = session.showGraph
+            session.showGraph = false
+            session.showEquations = true
+            await waitUntil(timeout: 6) { equations.panelPage.isPageReady }
+            await sleep(2.5)
+            written.append(try await capture(window: window, name: "05f-study-equations", in: directory))
+            session.showEquations = false
+            session.showGraph = graphWasOpen
+            session.section = .questionBank
+            await sleep(0.5)
+
             // 06 — Settings window.
             app.perform(.openSettings)
             let settings = try await waitForWindow(timeout: 5) { $0.title == "Settings" }
@@ -442,6 +508,11 @@ enum SmokeHarness {
             window.makeKeyAndOrderFront(nil)
             await sleep(6)   // the graph page is re-created with the pane and loads Desmos again
             written.append(try await capture(window: window, name: "07-study-dark-cobalt", in: directory))
+
+            // 08 — The equation sheet in the dark scheme.
+            session.section = .equations
+            await sleep(3)
+            written.append(try await capture(window: window, name: "08-equations-dark", in: directory))
 
             for url in written { print("smoke: wrote \(url.path)") }
             print("smoke: done")

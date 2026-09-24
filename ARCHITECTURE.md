@@ -32,7 +32,10 @@ ThubanStudy/                         App target (imports ThubanCore)
     web/graph/     graph.html, graph.js                        (Desmos 2D/3D)
     web/calc/      calc.html, calc.js                          (Desmos scientific + fallback)
     web/chat/      chat.html, chat.js, chat.css                (tutor transcript: marked + MathLive static)
-    web/shared/    theme.css (CSS variables set by Swift), bridge.js (postMessage helpers)
+    web/equations/ sheet.html/js/css (equation sheet, MathLive static), editor.html/js/css (live equation fields)
+    web/shared/    theme.css (CSS variables set by Swift), bridge.js (postMessage helpers),
+                   mathinput.js/.css (MathLive field options, inline shortcuts, virtual keyboard — shared by
+                   question.html and equations/editor.html)
     web/vendor/    mathlive/, compute-engine/ (esm + chunks), marked/, dompurify/
     Assets.xcassets, Info.plist, ThubanStudy.entitlements
     Secrets.plist (gitignored; DesmosAPIKey) + Secrets.example.plist
@@ -160,6 +163,13 @@ public struct Attempt: Codable, Identifiable, Sendable {
   public var score: Double; public var createdAt: Date
 }
 
+/// Equation sheets (Models/EquationSheet.swift): one per class, curated by hand (never filled from imports).
+public struct EquationGroup { id: EquationGroupID; classId; name; position; createdAt }          // "Derivatives"
+public struct EquationEntry { id: EquationEntryID; groupId; name; equations: [String] /* LaTeX, ≥1; >1 = a named
+  list */; note: String? /* short plain text, "for |r| < 1" */; position; createdAt }
+public struct EquationSheet { classId; sections: [Section(group, entries)]; func filtered(by query:) }  // search:
+  every word must match name, note or LaTeX (backslashes/braces optional); a matching group keeps all its entries
+
 public struct QuestionProgress: Codable, Sendable { public var questionId: QuestionID; public var status: ProgressStatus; public var streak: Int; public var lastAttemptAt: Date?; public var lastScore: Double? }
 
 public enum ChatRole: String, Codable, Sendable { case student, tutor, system }
@@ -188,7 +198,14 @@ public protocol AttemptRepository { func record(_ attempt: Attempt) async throws
 public protocol MessageRepository { func messages(for: ClassID, question: QuestionID?) ; func append(_:) ; func clear(for: ClassID, question: QuestionID?) }
 public protocol SettingsRepository { func get<T: Codable>(_ key: SettingsKey, as: T.Type) async throws -> T?; func set<T: Codable>(_:_:) }
 ```
-`Store` conforms to all of them. `QuestionFilter` = kinds, statuses, documentIds, search text. Progress rule (in
+`Store` conforms to all of them, and to `EquationSheetRepository` (`equationSheet(for:)`, add/rename/delete/move
+group, add/update/delete/move entry). Migration "v6-equation-sheets" adds `equation_groups` (classId → classes, ON
+DELETE CASCADE) and `equation_entries` (groupId → equation_groups, ON DELETE CASCADE), each with a dense `position`
+(0, 1, 2, … within its parent; every move rewrites the list it touches). An entry's equations are one JSON array of
+LaTeX strings rather than a child table: they are only ever read and written with their entry, never queried or
+referenced one by one, and a JSON column keeps reordering within an entry a plain array edit (the schema already
+stores nested values this way). Deleting a class removes its sheet; the Data & storage export (a DB snapshot)
+includes it. `QuestionFilter` = kinds, statuses, documentIds, search text. Progress rule (in
 `ProgressRules`): correct on first try twice in a row ⇒ mastered; any correct ⇒ learning; wrong after mastered ⇒
 needsReview.
 
@@ -400,7 +417,8 @@ JS → Swift: `ready`, `linkClicked {href, url}` (`href` as written, `url` resol
   selected class, per-class `ClassSession` (section, current question instance, inputs, verdicts, graph state,
   toggles, tutor transcript, import queue). Persists UI state in Settings (`SettingsKey.lastClass`, `.theme`, `.modelPolicy`, `.desmosKey`).
 - Shell: `ShellView` (title bar with app mark + name, class tabs (drag to reorder optional), + button, connection chip,
-  Settings), `SectionBar` (Study | Question Bank | Import; Study toggles Graph / Calculator / Keyboard; "Question n of N").
+  Settings), `SectionBar` (Study | Question Bank | Equations | Import; Study toggles Equations / Graph / Calculator / Keyboard;
+  "Question n of N").
 - Study: `StudyView` = HStack: `QuestionPane` (QuestionFormWebView + action bar: Check answers, Regenerate numbers
   (templates only), Show a hint (asks tutor for a hint), Source link, bank progress bar) | optional `GraphPane`
   (GraphWebView + header with 2D/3D segmented, reset, "Tutor is editing" chip when the tutor changed it in the last
@@ -417,6 +435,16 @@ JS → Swift: `ready`, `linkClicked {href, url}` (`href` as written, `url` resol
   progress; right rail cards; `ImportProgressSheet` (escalation notice with Keep Opus / Use Sonnet anyway = sets
   policy.pinned for this run); `FigureReviewView` (original vs standardized via a small GraphWebView rendering the
   StandardChart; accept / keep original / skip; prev/next).
+- Equations: `EquationSheetView` (Views/Equations; header with counts, search ⌘F, Add group, Add equation ⌘⇧N; the
+  `EquationSheetWebView` page in `.sheet` mode: groups under micro eyebrows, cards in CSS columns, MathLive
+  `convertLatexToMarkup`; drag a card to reorder / move between groups; right-click, the "…" buttons or the menu key
+  ask Swift for a native `PopupMenu` (Edit, Copy LaTeX, Move up/down, Move to group, Delete; group: Add, Rename,
+  Move up/down, Delete); keys: Enter edits, ⌥↑/⌥↓ move, Delete deletes (confirmed), ⌘C copies LaTeX).
+  `EquationEntryEditor` sheet: name, group menu (+ New group), `EquationEditorWebView` (one MathLive field per
+  equation via shared/mathinput.js, LaTeX echo under each, add/remove), note; ⌘⏎ saves. State per class in
+  `EquationsState` (`ClassSession.equations`, App/ClassSession+Equations.swift). Study: the "Equations" toggle
+  (⌘⇧E, saved per class) opens `EquationsPane` beside the question — the same page in read-only `.panel` mode
+  (own search, collapsible groups, Copy LaTeX menu) with "Edit" jumping to the Equations section.
 - Settings: `SettingsView` window (Appearance: mode segmented, 9 scheme cards, preview, Custom… → `CustomSchemeSheet`
   (design board Modal-Custom-Scheme: two live previews, 8 slot rows with hex fields, hue/lightness/saturation for the
   selected slot, suggestions, Derive from accent, Reset, Start from); Claude account: status card, Connect (→
@@ -426,7 +454,7 @@ JS → Swift: `ready`, `linkClicked {href, url}` (`href` as written, `url` resol
 - Modals: `DeleteClassAlert` (confirmation with checkbox "Also delete imported files"), `NewClassSheet`.
 - App mark: `ThubanMark` SwiftUI `Shape`/`Path` from the icon set; `AppIconRenderer` draws the squircle plate (bg) +
   mark (accent) and sets `NSApp.applicationIconImage` whenever the theme changes.
-- Menu commands: New Class ⌘N, Import ⌘I, Toggle Graph ⌘G, Toggle Calculator ⌘K, Toggle Keyboard ⌘⇧K, Check Answers ⌘⏎, Next Question ⌘→.
+- Menu commands: New Class ⌘N, Import ⌘I, Toggle Graph ⌘G, Toggle Calculator ⌘K, Toggle Keyboard ⌘⇧K, Toggle Equations ⌘⇧E, Check Answers ⌘⏎, Next Question ⌘→.
 
 ## Conventions
 

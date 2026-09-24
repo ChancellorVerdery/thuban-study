@@ -401,6 +401,8 @@ final class AppModel {
             studySession?.showCalculator.toggle()
         case .toggleKeyboard:
             studySession?.showKeyboard.toggle()
+        case .toggleEquations:
+            studySession?.showEquations.toggle()
         case .nextQuestion:
             studySession?.next()
         case .regenerate:
