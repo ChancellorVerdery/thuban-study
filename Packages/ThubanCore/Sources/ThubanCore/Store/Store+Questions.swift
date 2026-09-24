@@ -30,6 +30,16 @@ extension Store: QuestionRepository {
         }
     }
 
+    /// Renames problem types within one class (old → new).
+    public func renameTypes(_ map: [String: String], in classId: ClassID) async throws {
+        guard !map.isEmpty else { return }
+        try await write { db in
+            for (old, new) in map {
+                try db.execute(sql: "UPDATE questions SET type = ? WHERE classId = ? AND type = ?", arguments: [new, classId, old])
+            }
+        }
+    }
+
     /// Clears every question's problem type, in every class (they are then categorized again).
     public func clearAllTypes() async throws {
         try await write { db in try db.execute(sql: "UPDATE questions SET type = ''") }

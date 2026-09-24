@@ -96,6 +96,79 @@ public struct QuestionCategorizer: Sendable {
         return Self.assignments(from: call.input, batch: batch, known: known)
     }
 
+    static let mergeToolName = "merge_types"
+
+    static let mergeSpec = ToolSpec(
+        name: mergeToolName,
+        description: "Record the types to fold into another type of the list.",
+        inputSchema: [
+            "type": "object",
+            "properties": [
+                "merges": [
+                    "type": "array",
+                    "items": [
+                        "type": "object",
+                        "properties": [
+                            "from": ["type": "string", "description": "A type of the list, exactly as written."],
+                            "into": ["type": "string", "description": "The type it joins: one of the list, or a better name for both."],
+                        ],
+                        "required": ["from", "into"],
+                    ],
+                ],
+            ],
+            "required": ["merges"],
+        ]
+    )
+
+    static let mergeSystem = """
+    You tidy the problem types of a study app's question bank. Given a class's types with how many questions each \
+    holds, fold together names that describe the same kind of problem ("Domain of functions" and "Domain and range \
+    of functions"; "Polar to Cartesian coordinates" and "Cartesian equation of polar curve"), and fold a type with \
+    one or two questions into a broader existing type when a student would look for those questions there. Keep \
+    types that a course teaches as different techniques apart. Prefer the name already holding more questions. \
+    Call merge_types once; an empty list is fine.
+    """
+
+    /// Old type → new type for the class's types that name the same kind of problem.
+    public func consolidate(_ types: [(type: String, count: Int)], classContext: String) async throws -> [String: String] {
+        guard types.count > 1 else { return [:] }
+        let listed = types.map { "- \($0.type) (\($0.count))" }.joined(separator: "\n")
+        let response = try await client.complete(
+            model: Self.model,
+            system: Self.mergeSystem,
+            messages: [ChatMessage.user("Class: \(classContext)\nTypes:\n\(listed)")],
+            tools: [Self.mergeSpec],
+            maxTokens: 3000,
+            toolChoice: .tool(name: Self.mergeToolName)
+        )
+        guard let call = response.parts.compactMap(\.toolUseValue).first(where: { $0.name == Self.mergeToolName }) else {
+            throw ThubanError.parse("The categorizer did not return merges.")
+        }
+        return Self.merges(from: call.input, types: types.map(\.type))
+    }
+
+    /// Reads the merge call: only types of the list are renamed, chains are followed, and nothing maps to itself.
+    static func merges(from input: JSONValue, types: [String]) -> [String: String] {
+        guard case .object(let object) = input, case .array(let items)? = object["merges"] else { return [:] }
+        let known = Set(types)
+        var map: [String: String] = [:]
+        for item in items {
+            guard case .object(let entry) = item, case .string(let from)? = entry["from"], case .string(let rawInto)? = entry["into"] else { continue }
+            let into = Question.normalizedType(rawInto)
+            guard known.contains(from), !into.isEmpty, into != from else { continue }
+            map[from] = into
+        }
+        // "A → B" and "B → C" make "A → C"; a cycle is dropped.
+        var resolved: [String: String] = [:]
+        for from in map.keys {
+            var target = map[from]!
+            var seen: Set<String> = [from]
+            while let next = map[target], !seen.contains(target) { seen.insert(target); target = next }
+            if target != from { resolved[from] = target }
+        }
+        return resolved
+    }
+
     /// Reads the tool call; a name that differs from an existing type only in case or spacing becomes that type.
     static func assignments(from input: JSONValue, batch: [Question], known: [String]) -> [QuestionID: String] {
         guard case .object(let object) = input, case .array(let items)? = object["assignments"] else { return [:] }

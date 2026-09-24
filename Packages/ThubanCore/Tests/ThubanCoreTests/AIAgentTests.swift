@@ -585,6 +585,17 @@ final class AIAgentTests: XCTestCase {
         XCTAssertTrue(primed.hasSuffix("Excerpt 1:\n\nBody"))
     }
 
+    func testCategorizerMergesFollowChainsAndIgnoreUnknownTypes() {
+        let input: JSONValue = ["merges": [
+            ["from": "Domain and range of functions", "into": "Domain of functions"],
+            ["from": "Domain of functions", "into": "Domains"],
+            ["from": "Not a type here", "into": "Dot product"],
+            ["from": "Dot product", "into": "Dot product"],
+        ]]
+        let merges = QuestionCategorizer.merges(from: input, types: ["Domain and range of functions", "Domain of functions", "Dot product"])
+        XCTAssertEqual(merges, ["Domain and range of functions": "Domains", "Domain of functions": "Domains"])
+    }
+
     func testCategorizerReusesExistingTypeNames() {
         let classId = ClassID.new()
         let questions = (0..<3).map { Question(classId: classId, kind: .shortAnswer, stem: "q\($0)", parts: [QuestionPart(id: "a", prompt: "p", answerKind: .text)]) }

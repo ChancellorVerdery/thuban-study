@@ -7,6 +7,8 @@ import ThubanCore
 extension AppModel {
     /// Settings flag: the types written by the import agents were cleared once so the categorizer could name them all.
     static let categoriesResetKey = SettingsKey("categories.resetForCategorizer")
+    /// Settings flag: every class's types were consolidated once (later, a class is consolidated after it gains types).
+    static let categoriesConsolidatedKey = SettingsKey("categories.consolidated")
 
     /// `questions` with their problem types, reusing the class's existing types. Without a sign-in (or on failure)
     /// they come back unclassified and are categorized at a later launch.
@@ -46,23 +48,47 @@ extension AppModel {
             return
         }
         guard connection.isConnected else { return }
+        let consolidatedOnce = (try? await store.get(Self.categoriesConsolidatedKey, as: Bool.self)) == true
+        var allConsolidated = true
         for studyClass in classes {
-            guard let all = try? await store.questions(in: studyClass.id, filter: nil) else { continue }
+            guard let all = try? await store.questions(in: studyClass.id, filter: nil) else { allConsolidated = false; continue }
             let unclassified = all.filter { $0.type.isEmpty }
-            guard !unclassified.isEmpty else { continue }
+            guard !unclassified.isEmpty || !consolidatedOnce else { continue }
             categorizingClass = studyClass.id
-            let existing = (try? await store.questionTypes(in: studyClass.id))?.map(\.type) ?? []
-            do {
-                let types = try await QuestionCategorizer(client: claudeClient)
-                    .categorize(unclassified, existing: existing, classContext: classContext(for: studyClass.id))
-                try await store.setTypes(types)
-                Self.logger.info("categorized \(types.count, privacy: .public) of \(unclassified.count, privacy: .public) in \(studyClass.name, privacy: .public)")
-            } catch {
-                Self.logger.error("categorize \(studyClass.name, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+            defer { categoriesChanged &+= 1 }
+            if !unclassified.isEmpty {
+                await categorize(unclassified, of: studyClass)
             }
+            if await !consolidate(studyClass) { allConsolidated = false }
             if let session = sessions[studyClass.id] { await session.loadQuestions() }
-            categoriesChanged &+= 1
         }
+        if !consolidatedOnce, allConsolidated { try? await store.set(Self.categoriesConsolidatedKey, true) }
         categorizingClass = nil
+    }
+
+    /// Folds together the class's types that name the same kind of problem. False when it could not run.
+    private func consolidate(_ studyClass: StudyClass) async -> Bool {
+        guard let types = try? await store.questionTypes(in: studyClass.id) else { return false }
+        do {
+            let map = try await QuestionCategorizer(client: claudeClient).consolidate(types, classContext: classContext(for: studyClass.id))
+            try await store.renameTypes(map, in: studyClass.id)
+            Self.logger.info("merged \(map.count, privacy: .public) types in \(studyClass.name, privacy: .public)")
+            return true
+        } catch {
+            Self.logger.error("consolidate \(studyClass.name, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    private func categorize(_ unclassified: [Question], of studyClass: StudyClass) async {
+        let existing = (try? await store.questionTypes(in: studyClass.id))?.map(\.type) ?? []
+        do {
+            let types = try await QuestionCategorizer(client: claudeClient)
+                .categorize(unclassified, existing: existing, classContext: classContext(for: studyClass.id))
+            try await store.setTypes(types)
+            Self.logger.info("categorized \(types.count, privacy: .public) of \(unclassified.count, privacy: .public) in \(studyClass.name, privacy: .public)")
+        } catch {
+            Self.logger.error("categorize \(studyClass.name, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }
