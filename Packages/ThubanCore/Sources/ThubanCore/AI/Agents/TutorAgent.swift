@@ -100,10 +100,11 @@ public enum TutorEvent: Sendable {
 public actor TutorAgent {
     public static let defaultMaxRounds = 6
 
-    /// Output budget for an ordinary (guiding) reply.
-    public static let defaultMaxTokens = 1500
+    /// Output budget for an ordinary (guiding) reply. The model reasons before it answers and that reasoning counts
+    /// here, so the budget is generous even though the visible reply is a few sentences (1 500 left nothing).
+    public static let defaultMaxTokens = 16_000
     /// Output budget for a turn with `solutionRequested`: a worked solution needs far more room than a hint.
-    public static let defaultSolutionMaxTokens = 6000
+    public static let defaultSolutionMaxTokens = 32_000
 
     private let client: ClaudeClient
     private let maxRounds: Int

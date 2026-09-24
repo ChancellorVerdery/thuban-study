@@ -66,7 +66,15 @@ public enum TemplateFormatting {
             guard let value = values[name] else { continue }
             output += source.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
             let following = source.substring(from: match.range.location + match.range.length)
+            // `{n}` that is a command's argument (`\frac{1}{n}`, `\sqrt{n}`) keeps its braces: `\frac{1000000}2287`
+            // would read as (1000000/2)·287.
+            let before = output
+            let isArgument = before.hasSuffix("}")
+                || before.range(of: #"\\(frac|dfrac|tfrac|cfrac|sqrt|binom|dbinom|tbinom)\s*$"#, options: .regularExpression) != nil
             output = insert(value, after: output, before: following)
+            if isArgument, output.hasPrefix(before) {
+                output = before + "{" + output.dropFirst(before.count) + "}"
+            }
             cursor = match.range.location + match.range.length
         }
         output += source.substring(from: cursor)

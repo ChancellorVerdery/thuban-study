@@ -1089,8 +1089,11 @@ var thubanMath = (function () {
     if (level === 'no') return out;
     var failed = [];
     var roundingAllowed = cond.roundingDecimals != null;
-    if (!roundingAllowed && student.decimals.has && level === 'exact' && !exactlyEqual(student, expected, hints)) level = 'float';
-    if (!roundingAllowed && student.decimals.has && level !== 'exact') failed.push('exactForm');
+    // Decimals the expected answer itself contains (e^{-0.1t}, 0.5 g) are data, not rounding: exact form only
+    // bars rounding when the answer is exact without decimals.
+    var decimalsAreData = expected.decimals.has;
+    if (!roundingAllowed && !decimalsAreData && student.decimals.has && level === 'exact' && !exactlyEqual(student, expected, hints)) level = 'float';
+    if (!roundingAllowed && !decimalsAreData && student.decimals.has && level !== 'exact') failed.push('exactForm');
     failed = failed.concat(checkConditions(student, expected, cond, level));
     if (failed.length) {
       out.outcome = 'equivalentButConditionFailed';
