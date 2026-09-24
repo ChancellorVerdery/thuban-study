@@ -10,6 +10,21 @@ extension Store: MessageRepository {
         }
     }
 
+    /// One set of numbers' thread of a question: messages recorded with `seed` (`nil` = those without a seed).
+    public func messages(for classId: ClassID, question: QuestionID, seed: String?) async throws -> [TutorMessage] {
+        try await read { db in
+            try Store.threadRequest(classId: classId, question: question, seed: seed)
+                .order(Col.createdAt, Column.rowID)
+                .fetchAll(db)
+        }
+    }
+
+    public func clear(for classId: ClassID, question: QuestionID, seed: String?) async throws {
+        try await write { db in
+            _ = try Store.threadRequest(classId: classId, question: question, seed: seed).deleteAll(db)
+        }
+    }
+
     public func append(_ message: TutorMessage) async throws {
         try await write { db in try message.insert(db) }
     }
@@ -25,6 +40,11 @@ extension Store: MessageRepository {
         try await write { db in
             _ = try TutorMessage.filter(Col.classId == classId).deleteAll(db)
         }
+    }
+
+    private static func threadRequest(classId: ClassID, question: QuestionID, seed: String?) -> QueryInterfaceRequest<TutorMessage> {
+        let base = TutorMessage.filter(Col.classId == classId).filter(Col.questionId == question)
+        return base.filter(Column("seed") == seed)
     }
 
     /// Messages of one thread: the class-level thread when `question` is `nil`.

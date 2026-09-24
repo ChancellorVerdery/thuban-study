@@ -53,8 +53,11 @@ struct StudyView: View {
             if session.questions.isEmpty { await session.loadQuestions() }
         }
         .task(id: session.currentQuestion?.id) {
-            await session.loadTranscriptIfNeeded()
             await session.loadFigures()
+        }
+        // A regenerated question starts a new thread (one per set of numbers).
+        .task(id: session.currentThread) {
+            await session.loadTranscriptIfNeeded()
         }
         .onAppear { registerCommands() }
         .onDisappear { unregisterCommands() }

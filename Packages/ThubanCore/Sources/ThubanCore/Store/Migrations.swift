@@ -49,11 +49,17 @@ extension Store {
             try db.rename(table: "figures_v4", to: "figures")
             try db.create(index: "figures_on_documentId", on: "figures", columns: ["documentId"])
         }
+        migrator.registerMigration("v5-message-seed") { db in
+            // A regenerated question's thread belongs to one set of numbers (its instance seed).
+            try db.alter(table: "messages") { t in
+                t.add(column: "seed", .text)
+            }
+        }
         return migrator
     }
 
     /// Every migration identifier, in order.
-    public static let migrationIdentifiers = ["v1", "v2-document-warnings", "v3-question-type", "v4-figures-outlive-documents"]
+    public static let migrationIdentifiers = ["v1", "v2-document-warnings", "v3-question-type", "v4-figures-outlive-documents", "v5-message-seed"]
 
     /// Every table "v1" creates, in dependency order.
     public static let tableNames = [

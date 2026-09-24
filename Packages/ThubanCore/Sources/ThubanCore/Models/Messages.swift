@@ -50,6 +50,9 @@ public struct TutorMessage: Codable, Identifiable, Sendable, Equatable {
     public var id: MessageID
     public var classId: ClassID
     public var questionId: QuestionID?
+    /// The instance seed of a regenerated (template) question the message is about: each set of numbers has its own
+    /// thread. `nil` for the class thread, static questions and messages from before seeds were recorded.
+    public var seed: String?
     public var role: ChatRole
     /// Markdown + LaTeX.
     public var content: String
@@ -63,6 +66,7 @@ public struct TutorMessage: Codable, Identifiable, Sendable, Equatable {
         id: MessageID = .new(),
         classId: ClassID,
         questionId: QuestionID? = nil,
+        seed: String? = nil,
         role: ChatRole,
         content: String,
         toolEvents: [ToolEvent] = [],
@@ -72,6 +76,7 @@ public struct TutorMessage: Codable, Identifiable, Sendable, Equatable {
         self.id = id
         self.classId = classId
         self.questionId = questionId
+        self.seed = seed
         self.role = role
         self.content = content
         self.toolEvents = toolEvents
@@ -80,7 +85,7 @@ public struct TutorMessage: Codable, Identifiable, Sendable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, classId, questionId, role, content, toolEvents, solutionRequested, createdAt
+        case id, classId, questionId, seed, role, content, toolEvents, solutionRequested, createdAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -88,6 +93,7 @@ public struct TutorMessage: Codable, Identifiable, Sendable, Equatable {
         id = try c.decode(MessageID.self, forKey: .id)
         classId = try c.decode(ClassID.self, forKey: .classId)
         questionId = try c.decodeIfPresent(QuestionID.self, forKey: .questionId)
+        seed = try c.decodeIfPresent(String.self, forKey: .seed)
         role = try c.decode(ChatRole.self, forKey: .role)
         content = try c.decodeIfPresent(String.self, forKey: .content) ?? ""
         toolEvents = try c.decodeIfPresent([ToolEvent].self, forKey: .toolEvents) ?? []

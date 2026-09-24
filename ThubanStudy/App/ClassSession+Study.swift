@@ -63,7 +63,8 @@ final class StudyState {
 
     enum TranscriptThread: Equatable {
         case classLevel
-        case question(QuestionID)
+        /// A question's thread; a regenerated question has one per set of numbers (its seed).
+        case question(QuestionID, seed: String?)
     }
 
     func graphController(desmosKey: String, mode: GraphMode) -> GraphWebView.Controller {
@@ -357,12 +358,24 @@ extension ClassSession {
 
     /// The thread the tutor pane shows: the current question's, or the class thread when there is no question.
     var currentThread: StudyState.TranscriptThread {
-        if let id = currentQuestion?.id { return .question(id) }
-        return .classLevel
+        guard let question = currentQuestion else { return .classLevel }
+        guard question.kind == .mathTemplate else { return .question(question.id, seed: nil) }
+        return .question(question.id, seed: currentInstance?.questionId == question.id ? currentInstance?.seed : nil)
+    }
+
+    /// False while a regenerated question's numbers are still being drawn (its thread is not known yet).
+    private var threadIsSettled: Bool {
+        guard let question = currentQuestion, question.kind == .mathTemplate else { return true }
+        return currentInstance?.questionId == question.id
     }
 
     private var currentThreadQuestionId: QuestionID? {
-        if case .question(let id) = currentThread { return id }
+        if case .question(let id, _) = currentThread { return id }
+        return nil
+    }
+
+    private var currentThreadSeed: String? {
+        if case .question(_, let seed) = currentThread { return seed }
         return nil
     }
 
@@ -370,16 +383,18 @@ extension ClassSession {
     func loadTranscriptIfNeeded() async {
         let state = studyState
         let thread = currentThread
-        guard state.loadedThread != thread else { return }
+        guard threadIsSettled, state.loadedThread != thread else { return }
         state.loadedThread = thread
         state.tutorError = nil
         // Let a reply in flight finish (and persist what arrived) before the thread is replaced.
         await cancelTutorAndWait()
-        let questionId: QuestionID?
-        if case .question(let id) = thread { questionId = id } else { questionId = nil }
         var loaded: [TutorMessage] = []
         do {
-            loaded = try await store.messages(for: classId, question: questionId)
+            if case .question(let id, let seed) = thread {
+                loaded = try await store.messages(for: classId, question: id, seed: seed)
+            } else {
+                loaded = try await store.messages(for: classId, question: nil)
+            }
         } catch {
             Self.logger.error("transcript load failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -395,7 +410,11 @@ extension ClassSession {
         studyState.chat.clear()
         studyState.tutorError = nil
         do {
-            try await store.clear(for: classId, question: currentThreadQuestionId)
+            if let questionId = currentThreadQuestionId {
+                try await store.clear(for: classId, question: questionId, seed: currentThreadSeed)
+            } else {
+                try await store.clear(for: classId, question: nil)
+            }
         } catch {
             lastError = error.localizedDescription
         }
@@ -427,9 +446,10 @@ extension ClassSession {
         guard !trimmed.isEmpty, !isTutorStreaming else { return }
         state.tutorError = nil
         let questionId = currentThreadQuestionId
+        let seed = currentThreadSeed
 
         let studentMessage = TutorMessage(
-            classId: classId, questionId: questionId, role: .student, content: trimmed, solutionRequested: solutionRequested
+            classId: classId, questionId: questionId, seed: seed, role: .student, content: trimmed, solutionRequested: solutionRequested
         )
         let history = transcript
         transcript.append(studentMessage)
@@ -437,7 +457,7 @@ extension ClassSession {
         // The student message is persisted together with the reply once something arrived, so a failed or
         // cancelled request never leaves an unanswered message behind in the store.
 
-        var reply = TutorMessage(classId: classId, questionId: questionId, role: .tutor, content: "")
+        var reply = TutorMessage(classId: classId, questionId: questionId, seed: seed, role: .tutor, content: "")
         transcript.append(reply)
         state.streamingMessageId = reply.id
         state.chat.appendMessage(reply, streaming: true)

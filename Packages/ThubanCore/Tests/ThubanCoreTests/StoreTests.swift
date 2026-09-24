@@ -651,6 +651,30 @@ final class StoreTests: XCTestCase {
 
     // MARK: Messages
 
+    func testRegeneratedQuestionHasOneThreadPerSeed() async throws {
+        let store = try makeMemoryStore()
+        let studyClass = sampleClass()
+        try await store.insert(studyClass)
+        let question = sampleQuestion(classId: studyClass.id)
+        try await store.insert([question])
+
+        let old = TutorMessage(classId: studyClass.id, questionId: question.id, role: .student, content: "before seeds", createdAt: at(1))
+        let first = TutorMessage(classId: studyClass.id, questionId: question.id, seed: "aaaa1111", role: .student, content: "202 mg", createdAt: at(2))
+        let second = TutorMessage(classId: studyClass.id, questionId: question.id, seed: "bbbb2222", role: .student, content: "127 mg", createdAt: at(3))
+        for message in [old, first, second] { try await store.append(message) }
+
+        let firstThread = try await store.messages(for: studyClass.id, question: question.id, seed: "aaaa1111")
+        XCTAssertEqual(firstThread, [first])
+        let secondThread = try await store.messages(for: studyClass.id, question: question.id, seed: "bbbb2222")
+        XCTAssertEqual(secondThread, [second])
+        let fresh = try await store.messages(for: studyClass.id, question: question.id, seed: "cccc3333")
+        XCTAssertTrue(fresh.isEmpty)
+
+        try await store.clear(for: studyClass.id, question: question.id, seed: "aaaa1111")
+        let remaining = try await store.messages(for: studyClass.id, question: question.id)
+        XCTAssertEqual(remaining, [old, second])
+    }
+
     func testMessagesPerThread() async throws {
         let store = try makeMemoryStore()
         let studyClass = sampleClass()
