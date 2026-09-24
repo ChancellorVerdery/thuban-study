@@ -53,6 +53,10 @@ final class AppModel {
         }
     }
     private(set) var sessions: [ClassID: ClassSession] = [:]
+    /// Each class's state from the last run, read at launch and applied when its session is made.
+    @ObservationIgnored var savedClassStates: [ClassID: SavedClassState] = [:]
+    /// Set once every class's state has been written for a quit.
+    @ObservationIgnored var classStatesSaved = false
     private(set) var isLoaded = false
 
     var selectedClass: StudyClass? {
@@ -141,6 +145,7 @@ final class AppModel {
             await migrateCredentialsFromKeychainOnce()
             classes = try await store.allClasses()
             let last = try await store.get(.lastClass, as: ClassID.self)
+            await loadSavedClassStates()
             selectedClassID = classes.first { $0.id == last }?.id ?? classes.first?.id
         } catch {
             Self.logger.error("Load failed: \(error.localizedDescription, privacy: .public)")

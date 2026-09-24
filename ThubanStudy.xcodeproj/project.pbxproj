@@ -65,6 +65,7 @@
 		D8121396F229C3621712CAD5 /* ThubanSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57D930C066D04D1B08182F2 /* ThubanSchemeHandler.swift */; };
 		D91612C56563A4C9A6CC4437 /* ConnectClaudeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7894F9FB81802ADA1BED0437 /* ConnectClaudeSheet.swift */; };
 		D9E52116495A98ACC0E1B261 /* ClassSession+QuestionBankandImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1710E26A041E0E14AE2E570F /* ClassSession+QuestionBankandImport.swift */; };
+		D9E5A549FB369DA0C6843067 /* ClassSession+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3C15105DF698D21DA2F608 /* ClassSession+Persistence.swift */; };
 		DBC3689599DC3AE8F2FC9EFC /* WebBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 629F19F6ECDB6EF2A1B4BD1C /* WebBridge.swift */; };
 		DEB76CDE8C55648A6B92EB01 /* QuestionBankView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10D54CDF78E7A6F2E150EAB6 /* QuestionBankView.swift */; };
 		E19CA64ADBB21FDAC007E741 /* QuestionBankSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 602C1A81214764A12216C714 /* QuestionBankSettings.swift */; };
@@ -124,6 +125,7 @@
 		A161475E8A77D80B61222775 /* AppModel+Study.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+Study.swift"; sourceTree = "<group>"; };
 		A391222166318AE58BCB0724 /* ImportPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportPipeline.swift; sourceTree = "<group>"; };
 		AC23E75A3BD4D34CA12E5CDF /* GraphPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphPane.swift; sourceTree = "<group>"; };
+		AE3C15105DF698D21DA2F608 /* ClassSession+Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ClassSession+Persistence.swift"; sourceTree = "<group>"; };
 		AF01898BFEC3AFE7B8E8CF3F /* CalculatorPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorPanel.swift; sourceTree = "<group>"; };
 		B204DFD6226F3128D480D100 /* SegmentedPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedPicker.swift; sourceTree = "<group>"; };
 		B95708AF55B38145A7A43AE8 /* QuestionBankModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionBankModel.swift; sourceTree = "<group>"; };
@@ -251,6 +253,7 @@
 				9138405FEDB4C9F2D51C45F2 /* AppModel+SettingsandModals.swift */,
 				A161475E8A77D80B61222775 /* AppModel+Study.swift */,
 				2886ED56B0FBA5FDB2A38A0A /* ClassSession.swift */,
+				AE3C15105DF698D21DA2F608 /* ClassSession+Persistence.swift */,
 				1710E26A041E0E14AE2E570F /* ClassSession+QuestionBankandImport.swift */,
 				C463C7A24FD856196E75CCB0 /* ClassSession+Study.swift */,
 				ECB3AFA5D45551F433544E15 /* CommandBus.swift */,
@@ -459,6 +462,7 @@
 				E1AE33EB7B734FAF3F8A4CDD /* ChatWebView.swift in Sources */,
 				A198BBFA60FBA8552B5CA174 /* Chip.swift in Sources */,
 				F75F107537F9CCA0CBB5226F /* ChoiceFigureImages.swift in Sources */,
+				D9E5A549FB369DA0C6843067 /* ClassSession+Persistence.swift in Sources */,
 				D9E52116495A98ACC0E1B261 /* ClassSession+QuestionBankandImport.swift in Sources */,
 				57E3D38B19ACD154D4C9EF08 /* ClassSession+Study.swift in Sources */,
 				70CA6676D30B924DA53E159F /* ClassSession.swift in Sources */,

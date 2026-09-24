@@ -3,6 +3,7 @@ import ThubanCore
 
 @main
 struct ThubanStudyApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var appModel = AppModel()
 
     init() {
@@ -14,7 +15,10 @@ struct ThubanStudyApp: App {
             ShellView()
                 .environment(appModel)
                 .frame(minWidth: 1100, minHeight: 700)
-                .task { await appModel.load() }
+                .task {
+                    appDelegate.appModel = appModel
+                    await appModel.load()
+                }
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact)
@@ -73,5 +77,27 @@ private struct SettingsCommandButton: View {
     var body: some View {
         Button("Settings…") { openWindow(id: "settings") }
             .keyboardShortcut(",", modifiers: .command)
+    }
+}
+
+/// Quitting waits (briefly) for every class's state to be saved, so the next launch opens where this one left off.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    weak var appModel: AppModel?
+    private var savedForQuit = false
+
+    /// The first quit is held back while the states are written (at most 2 s), then the app quits for real.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let appModel, !savedForQuit else { return .terminateNow }
+        savedForQuit = true
+        Task { @MainActor in
+            let save = Task { await appModel.saveAllClassStates() }
+            let deadline = Date().addingTimeInterval(2)
+            while !appModel.classStatesSaved, Date() < deadline {
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+            _ = save
+            sender.terminate(nil)
+        }
+        return .terminateCancel
     }
 }

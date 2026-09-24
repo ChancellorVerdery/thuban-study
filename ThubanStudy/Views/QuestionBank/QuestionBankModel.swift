@@ -23,17 +23,25 @@ final class QuestionBankModel {
     // MARK: Filter
 
     var searchText = "" {
-        didSet { if searchText != oldValue { scheduleReload() } }
+        didSet { if searchText != oldValue { scheduleReload(); remember() } }
     }
     /// Selected agent-classified types (`Question.type`; "" = unclassified). Empty = All types.
     var types: Set<String> = [] {
-        didSet { if types != oldValue { reload() } }
+        didSet { if types != oldValue { reload(); remember() } }
     }
     var statuses: Set<ProgressStatus> = [] {
-        didSet { if statuses != oldValue { reload() } }
+        didSet { if statuses != oldValue { reload(); remember() } }
     }
     var documentIds: Set<DocumentID> = [] {
-        didSet { if documentIds != oldValue { reload() } }
+        didSet { if documentIds != oldValue { reload(); remember() } }
+    }
+
+    /// The filters live on in the session (and across launches).
+    private func remember() {
+        session.bankFilter = BankFilterState(
+            search: searchText, types: types.sorted(),
+            statuses: statuses.sorted { $0.rawValue < $1.rawValue }, documents: documentIds.sorted()
+        )
     }
     var screen: Screen = .table
 
@@ -56,6 +64,11 @@ final class QuestionBankModel {
     init(session: ClassSession) {
         self.classId = session.classId
         self.session = session
+        let saved = session.bankFilter
+        searchText = saved.search
+        types = Set(saved.types)
+        statuses = Set(saved.statuses)
+        documentIds = Set(saved.documents)
     }
 
     // MARK: Derived

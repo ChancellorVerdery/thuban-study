@@ -285,6 +285,8 @@ enum SmokeHarness {
             let window = try await waitForMainWindow()
             window.makeKeyAndOrderFront(nil)
             await waitUntil(timeout: 8) { !session.questions.isEmpty && session.studyState.form.bridge.isReady }
+            await waitUntil(timeout: 3) { session.currentInstance != nil }
+            print("smoke: opened on \(session.currentQuestion?.sourceRef ?? "none") seed \(session.currentInstance?.seed ?? "-") inputs \(session.inputs.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")) filter \(session.isStudyFiltered)")
             // THUBAN_SMOKE_COMPOSER: a draft (with $…$ math) in the tutor composer, captured.
             if let draft = ProcessInfo.processInfo.environment["THUBAN_SMOKE_COMPOSER"], !draft.isEmpty {
                 session.studyState.composerText = draft
