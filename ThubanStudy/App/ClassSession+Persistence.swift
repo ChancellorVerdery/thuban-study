@@ -17,6 +17,8 @@ struct SavedClassState: Codable, Equatable {
     var showGraph = false
     var showCalculator = false
     var showKeyboard = false
+    /// Optional so states saved before the equations panel existed still decode.
+    var showEquations: Bool?
     var graphMode: GraphMode = .twoD
     /// Optional so states saved before shuffle existed still decode.
     var shuffle: Bool?
@@ -44,6 +46,7 @@ extension ClassSession {
             state.showGraph = showGraph
             state.showCalculator = showCalculator
             state.showKeyboard = showKeyboard
+            state.showEquations = showEquations
             state.graphMode = graphMode
             state.shuffle = shuffle
             state.bank = bankFilter
@@ -61,6 +64,7 @@ extension ClassSession {
             showGraph: showGraph,
             showCalculator: showCalculator,
             showKeyboard: showKeyboard,
+            showEquations: showEquations,
             graphMode: graphMode,
             shuffle: shuffle,
             bank: bankFilter
@@ -73,6 +77,7 @@ extension ClassSession {
         showGraph = saved.showGraph
         showCalculator = saved.showCalculator
         showKeyboard = saved.showKeyboard
+        showEquations = saved.showEquations ?? false
         graphMode = saved.graphMode
         shuffle = saved.shuffle ?? false
         bankFilter = saved.bank

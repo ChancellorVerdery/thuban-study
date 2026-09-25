@@ -13,13 +13,14 @@ final class ClassSession {
     static let logger = Logger(subsystem: "com.thuban.study", category: "session")
 
     enum Section: String, CaseIterable, Identifiable, Sendable {
-        case study, questionBank, importDocs
+        case study, questionBank, equations, importDocs
 
         var id: String { rawValue }
         var label: String {
             switch self {
             case .study: return "Study"
             case .questionBank: return "Question Bank"
+            case .equations: return "Equations"
             case .importDocs: return "Import"
             }
         }
@@ -128,6 +129,8 @@ final class ClassSession {
     var showGraph = false { didSet { scheduleSave() } }
     var showCalculator = false { didSet { scheduleSave() } }
     var showKeyboard = false { didSet { scheduleSave() } }
+    /// The read-only equation-sheet panel beside the question.
+    var showEquations = false { didSet { scheduleSave() } }
     var graphMode: GraphMode = .twoD { didSet { scheduleSave() } }
     /// Every expression the app knows about, in both modes (each row carries its `mode`; Desmos keeps one list per mode).
     var graphExpressions: [GraphExpression] = []

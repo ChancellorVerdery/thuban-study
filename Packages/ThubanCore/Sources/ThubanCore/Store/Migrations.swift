@@ -55,15 +55,21 @@ extension Store {
                 t.add(column: "seed", .text)
             }
         }
+        migrator.registerMigration("v6-equation-sheets") { db in
+            // Each class's hand-curated equation sheet: ordered groups, each holding ordered entries.
+            try createEquationSheets(db)
+        }
         return migrator
     }
 
     /// Every migration identifier, in order.
-    public static let migrationIdentifiers = ["v1", "v2-document-warnings", "v3-question-type", "v4-figures-outlive-documents", "v5-message-seed"]
+    public static let migrationIdentifiers = ["v1", "v2-document-warnings", "v3-question-type", "v4-figures-outlive-documents", "v5-message-seed",
+                                                 "v6-equation-sheets"]
 
-    /// Every table "v1" creates, in dependency order.
+    /// Every table the migrations create, in dependency order.
     public static let tableNames = [
         "classes", "documents", "questions", "figures", "attempts", "progress", "messages", "settings",
+        "equation_groups", "equation_entries",
     ]
 
     private static func createClasses(_ db: Database) throws {
@@ -162,6 +168,30 @@ extension Store {
             t.column("solutionRequested", .boolean).notNull().defaults(to: false)
             t.column("createdAt", .datetime).notNull()
         }
+    }
+
+    /// Groups belong to a class and entries to a group; both cascade, so deleting a class removes its sheet.
+    /// An entry's equations are one JSON array of LaTeX strings: they are always read and written with their entry
+    /// (never queried or referenced one by one), like the other nested values in this schema.
+    static func createEquationSheets(_ db: Database) throws {
+        try db.create(table: "equation_groups") { t in
+            t.primaryKey("id", .text)
+            t.column("classId", .text).notNull().references("classes", onDelete: .cascade)
+            t.column("name", .text).notNull()
+            t.column("position", .integer).notNull().defaults(to: 0)
+            t.column("createdAt", .datetime).notNull()
+        }
+        try db.create(index: "equation_groups_on_class_position", on: "equation_groups", columns: ["classId", "position"])
+        try db.create(table: "equation_entries") { t in
+            t.primaryKey("id", .text)
+            t.column("groupId", .text).notNull().references("equation_groups", onDelete: .cascade)
+            t.column("name", .text).notNull()
+            t.column("equations", .text).notNull().defaults(to: "[]")   // JSON [String] (LaTeX)
+            t.column("note", .text)
+            t.column("position", .integer).notNull().defaults(to: 0)
+            t.column("createdAt", .datetime).notNull()
+        }
+        try db.create(index: "equation_entries_on_group_position", on: "equation_entries", columns: ["groupId", "position"])
     }
 
     private static func createSettings(_ db: Database) throws {

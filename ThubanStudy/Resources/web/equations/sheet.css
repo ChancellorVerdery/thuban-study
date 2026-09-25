@@ -1,0 +1,214 @@
+/*
+ * Thuban Study — equation sheet page (the Equations section and the read-only Study panel).
+ * A calm cheat sheet: groups as sections under a micro eyebrow, entries as cards flowing in as many columns as
+ * the width allows. Every colour comes from the theme variables (Brass-light fallbacks).
+ */
+
+html, body { height: 100%; }
+body { background: var(--bg, #f6f2e8); overflow-x: hidden; }
+body.is-panel { background: var(--panel, #fffdf7); }
+[hidden] { display: none !important; }
+
+.sheet { padding: 18px 24px 40px; }
+.is-panel .sheet { padding: 10px 14px 24px; }
+
+.empty {
+  margin: 0;
+  padding: 28px 24px;
+  font-size: 14px;
+  color: var(--ink-dim, #535a68);
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- groups */
+
+.group + .group { margin-top: 28px; }
+.is-panel .group + .group { margin-top: 18px; }
+
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  margin-bottom: 10px;
+}
+.is-panel .group-head { margin-bottom: 6px; min-height: 28px; }
+
+.group-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-dim, #535a68);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.group-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-dim, #535a68);
+  font-variant-numeric: tabular-nums;
+}
+.group-rule { flex: 1; height: 1px; background: var(--line, #E3E0D9); min-width: 12px; }
+
+/* The panel's collapsible header: the whole row is one button. */
+.group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 6px 0 2px;
+  margin-left: -2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-dim, #535a68);
+  text-align: left;
+}
+.group-toggle:hover { background: var(--panel-2, #F1ECE0); }
+.group-toggle .chevron { width: 14px; height: 14px; flex: none; transition: transform 120ms ease; }
+.group.is-collapsed .group-toggle .chevron { transform: rotate(-90deg); }
+.group.is-collapsed .cards { display: none; }
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-dim, #535a68);
+  flex: none;
+}
+.icon-btn:hover { background: var(--panel-2, #F1ECE0); color: var(--ink, #161a21); }
+.icon-btn svg { width: 16px; height: 16px; }
+
+.add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent-text, #A5772A);
+  font-size: 13px;
+  font-weight: 600;
+  flex: none;
+}
+[data-theme="dark"] .add-btn { color: var(--accent, #e0b15c); }
+.add-btn:hover { background: var(--panel-2, #F1ECE0); }
+.add-btn svg { width: 14px; height: 14px; }
+
+/* ----------------------------------------------------------------- cards */
+
+/* As many columns as fit (one in a narrow panel). A grid fills each row left to right, so reading order is the
+   stored order, and the cards of a row share one height. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(270px, 100%), 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+.is-panel .cards { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+
+.eq-card {
+  position: relative;
+  min-width: 0;
+  margin: 0;
+  padding: 11px 14px 12px;
+  background: var(--panel, #fffdf7);
+  border: 1px solid var(--line, #E3E0D9);
+  border-radius: 10px;
+  outline: none;
+  transition: border-color 120ms ease;
+}
+.is-panel .eq-card {
+  padding: 8px 10px 9px;
+  background: var(--bg, #f6f2e8);
+}
+.eq-card:hover { border-color: var(--line-2, #D3D0C8); }
+.eq-card:focus-visible { border-color: var(--accent, #e0b15c); outline: 2px solid var(--accent, #e0b15c); outline-offset: 2px; }
+.eq-card.is-dragging { opacity: 0.45; }
+/* Drop indicators: a bar at the side the card will land on (left/right in the grid, above/below in one column). */
+.eq-card.drop-before { box-shadow: -3px 0 0 0 var(--accent, #e0b15c); }
+.eq-card.drop-after { box-shadow: 3px 0 0 0 var(--accent, #e0b15c); }
+.eq-card.drop-vertical.drop-before { box-shadow: 0 -3px 0 0 var(--accent, #e0b15c); }
+.eq-card.drop-vertical.drop-after { box-shadow: 0 3px 0 0 var(--accent, #e0b15c); }
+
+.eq-head { display: flex; align-items: flex-start; gap: 6px; min-height: 20px; }
+.eq-name {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink, #161a21);
+  overflow-wrap: anywhere;
+}
+.is-panel .eq-name { font-size: 13px; }
+
+/* The card's action button only shows on hover or keyboard focus. */
+.card-menu { width: 24px; height: 24px; margin: -3px -6px 0 0; opacity: 0; }
+.eq-card:hover .card-menu, .eq-card:focus-within .card-menu { opacity: 1; }
+.card-menu svg { width: 15px; height: 15px; }
+
+.eq-list { margin-top: 6px; }
+.eq {
+  padding: 5px 0;
+  font-size: 17px;
+  color: var(--ink, #161a21);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.is-panel .eq { font-size: 15px; padding: 3px 0; }
+/* A named list: equations one under another with a quiet dashed rule between them. */
+.eq + .eq { border-top: 1px dashed var(--line-2, #D3D0C8); }
+/* Still too wide after shrinking: keep a thin scrollbar in view (macOS hides overlay scrollbars until scrolled). */
+.eq.is-overflowing { padding-bottom: 7px; }
+.eq.is-overflowing::-webkit-scrollbar { height: 4px; }
+.eq.is-overflowing::-webkit-scrollbar-track { background: transparent; }
+.eq.is-overflowing::-webkit-scrollbar-thumb { background: var(--line-2, #D3D0C8); border-radius: 2px; }
+.eq.is-invalid { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; color: var(--neg-text, #B5484A); }
+
+.eq-note {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-dim, #535a68);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.is-panel .eq-note { font-size: 12.5px; margin-top: 3px; }
+
+/* An empty group in the editable sheet: a dashed tile that adds the first equation. */
+.add-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 72px;
+  margin: 0;
+  border: 1px dashed var(--line-2, #D3D0C8);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-dim, #535a68);
+  font-size: 13px;
+  font-weight: 600;
+}
+.add-tile:hover { background: var(--panel-2, #F1ECE0); color: var(--ink, #161a21); }
+.add-tile svg { width: 14px; height: 14px; }
+.cards.drop-into .add-tile, .cards.drop-into:empty { border-color: var(--accent, #e0b15c); }
+.cards.drop-into { outline: 1px dashed var(--accent, #e0b15c); outline-offset: 4px; border-radius: 10px; }
+.cards:empty { min-height: 40px; }

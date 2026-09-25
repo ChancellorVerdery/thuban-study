@@ -17,6 +17,8 @@ extension QuestionID: DatabaseValueConvertible {}
 extension FigureID: DatabaseValueConvertible {}
 extension AttemptID: DatabaseValueConvertible {}
 extension MessageID: DatabaseValueConvertible {}
+extension EquationGroupID: DatabaseValueConvertible {}
+extension EquationEntryID: DatabaseValueConvertible {}
 
 extension TutorStyle: DatabaseValueConvertible {}
 extension DocumentKind: DatabaseValueConvertible {}
@@ -56,6 +58,14 @@ extension Attempt: FetchableRecord, PersistableRecord {
 
 extension TutorMessage: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "messages"
+}
+
+extension EquationGroup: FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "equation_groups"
+}
+
+extension EquationEntry: FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "equation_entries"
 }
 
 // MARK: - Internal rows
@@ -121,4 +131,6 @@ enum Col {
     static let pageOrIndex = Column("pageOrIndex")
     static let storedPath = Column("storedPath")
     static let originalPath = Column("originalPath")
+    static let groupId = Column("groupId")
+    static let position = Column("position")
 }

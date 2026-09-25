@@ -157,7 +157,7 @@ struct ThemePreviewCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14.z) {
             HStack(spacing: 4.z) {
-                ThubanMarkView(size: 16, color: theme.brassInkColor)
+                AppArtView(size: 16, theme: theme)
                     .padding(.trailing, 6.z)
                 previewTab("Multivariable Calculus", active: true)
                 previewTab("Organic Chemistry II", active: false)

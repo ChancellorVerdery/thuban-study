@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The twelve icons from `docs/icons.md`, shipped as template SVGs in `Assets.xcassets/Icons`.
+/// The twelve icons from `docs/icons.md` (plus `equations`), shipped as template SVGs in `Assets.xcassets/Icons`.
 enum IconName: String, CaseIterable {
     case thubanMark = "thuban-mark"
     case classTab = "class"
@@ -14,6 +14,8 @@ enum IconName: String, CaseIterable {
     case figureClip = "figure-clip"
     case mathEngine = "math-engine"
     case themePalette = "theme-palette"
+    /// A sheet with a radical: the class's equation sheet (added with the Equations section).
+    case equations
 }
 
 /// A template icon at 16/18/20 pt, tinted with the current foreground style.

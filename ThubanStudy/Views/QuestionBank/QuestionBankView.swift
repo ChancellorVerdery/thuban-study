@@ -258,34 +258,13 @@ private struct BankHeader: View {
     }
 }
 
-/// Search field in the app's control chrome: search glyph, placeholder, clear button.
+/// The bank's search field.
 private struct BankSearchField: View {
-    @Environment(\.thubanTheme) private var theme
     @Binding var text: String
     var focused: FocusState<Bool>.Binding
 
     var body: some View {
-        HStack(spacing: 8.z) {
-            Glyph(.search, size: 15)
-                .foregroundStyle(theme.inkFaintColor)
-            TextField("Search questions  ⌘F", text: $text)
-                .textFieldStyle(.plain)
-                .font(ThubanFont.body(14))
-                .foregroundStyle(theme.inkColor)
-                .focused(focused)
-                .onExitCommand { text = ""; focused.wrappedValue = false }
-            if !text.isEmpty {
-                IconButton(glyph: .close, label: "Clear search", size: 22, iconSize: 12) { text = "" }
-            }
-        }
-        .padding(.horizontal, 10.z)
-        .frame(height: ThubanMetrics.buttonHeight)
-        .background(theme.panelColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: ThubanMetrics.controlRadius, style: .continuous)
-                .strokeBorder(focused.wrappedValue ? theme.accentColor : theme.line2Color, lineWidth: ThubanMetrics.hairline)
-        )
-        .accessibilityLabel("Search questions")
+        SearchField(placeholder: "Search questions  ⌘F", label: "Search questions", text: $text, focused: focused)
     }
 }
 

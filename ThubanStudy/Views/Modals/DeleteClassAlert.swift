@@ -59,7 +59,7 @@ struct DeleteClassAlert: View {
                     .tint(theme.accentColor)
                     .disabled((counts?.documents ?? 0) == 0)
 
-                Text("Attempts, progress and the tutor transcript go with the class. This cannot be undone.")
+                Text("Attempts, progress, the equation sheet and the tutor transcript go with the class. This cannot be undone.")
                     .font(ThubanFont.small)
                     .foregroundStyle(theme.inkDimColor)
                     .fixedSize(horizontal: false, vertical: true)
