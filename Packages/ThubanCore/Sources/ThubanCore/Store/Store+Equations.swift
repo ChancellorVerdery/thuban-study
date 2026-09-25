@@ -22,6 +22,21 @@ public protocol EquationSheetRepository: Sendable {
     func deleteEquationEntry(_ id: EquationEntryID) async throws
     /// Moves an entry to `index` (clamped) in `groupId` (its own group or another group of the same class).
     func moveEquationEntry(_ id: EquationEntryID, to groupId: EquationGroupID, index: Int) async throws
+    /// Moves an entry into `groupId` next to another entry of that group (or to its end), resolved against the
+    /// group's full stored order, so a position picked in a filtered view lands where the user saw it.
+    func moveEquationEntry(_ id: EquationEntryID, to groupId: EquationGroupID, placement: EquationEntryPlacement) async throws
+    /// Moves an entry `delta` places within its group, from its current stored position (clamped).
+    func moveEquationEntry(_ id: EquationEntryID, by delta: Int) async throws
+    /// Moves a group `delta` places among its class's groups, from its current stored position (clamped).
+    func moveEquationGroup(_ id: EquationGroupID, by delta: Int) async throws
+}
+
+/// Where a moved entry goes, relative to another entry of the target group.
+public enum EquationEntryPlacement: Sendable, Equatable {
+    case before(EquationEntryID)
+    case after(EquationEntryID)
+    /// At the end of the group (also the fallback when the anchor is not in the group).
+    case end
 }
 
 extension Store: EquationSheetRepository {
@@ -128,29 +143,73 @@ extension Store: EquationSheetRepository {
     }
 
     public func moveEquationEntry(_ id: EquationEntryID, to groupId: EquationGroupID, index: Int) async throws {
+        try await write { db in try Store.moveEntry(db, id, to: groupId, index: index) }
+    }
+
+    public func moveEquationEntry(_ id: EquationEntryID, to groupId: EquationGroupID,
+                                  placement: EquationEntryPlacement) async throws {
+        try await write { db in
+            var ids = try Store.entryIds(db, groupId: groupId)
+            ids.removeAll { $0 == id }
+            let index: Int
+            switch placement {
+            case .before(let anchor): index = ids.firstIndex(of: anchor) ?? ids.count
+            case .after(let anchor): index = ids.firstIndex(of: anchor).map { $0 + 1 } ?? ids.count
+            case .end: index = ids.count
+            }
+            try Store.moveEntry(db, id, to: groupId, index: index)
+        }
+    }
+
+    public func moveEquationEntry(_ id: EquationEntryID, by delta: Int) async throws {
         try await write { db in
             guard let entry = try EquationEntry.fetchOne(db, id: id) else {
                 throw ThubanError.store("No equation entry \(id.raw)")
             }
-            guard let source = try EquationGroup.fetchOne(db, id: entry.groupId),
-                  let target = try EquationGroup.fetchOne(db, id: groupId) else {
-                throw ThubanError.store("No equation group \(groupId.raw)")
-            }
-            guard source.classId == target.classId else {
-                throw ThubanError.store("An entry cannot move to another class's sheet")
-            }
-            if entry.groupId != groupId {
-                try db.execute(sql: "UPDATE equation_entries SET groupId = ? WHERE id = ?", arguments: [groupId, id])
-                try Store.renumberEntries(db, groupId: entry.groupId)
-            }
-            var ids = try Store.entryIds(db, groupId: groupId)
-            ids.removeAll { $0 == id }
-            ids.insert(id, at: min(max(0, index), ids.count))
+            var ids = try Store.entryIds(db, groupId: entry.groupId)
+            guard let current = ids.firstIndex(of: id) else { return }
+            ids.remove(at: current)
+            ids.insert(id, at: min(max(0, current + delta), ids.count))
             try Store.writePositions(db, table: "equation_entries", ids: ids.map(\.raw))
         }
     }
 
+    public func moveEquationGroup(_ id: EquationGroupID, by delta: Int) async throws {
+        try await write { db in
+            guard let group = try EquationGroup.fetchOne(db, id: id) else {
+                throw ThubanError.store("No equation group \(id.raw)")
+            }
+            var ids = try Store.groupIds(db, classId: group.classId)
+            guard let current = ids.firstIndex(of: id) else { return }
+            ids.remove(at: current)
+            ids.insert(id, at: min(max(0, current + delta), ids.count))
+            try Store.writePositions(db, table: "equation_groups", ids: ids.map(\.raw))
+        }
+    }
+
     // MARK: Positions
+
+    /// Moves an entry to `index` (clamped, counted without the entry itself) in `groupId`, within one transaction.
+    private static func moveEntry(_ db: Database, _ id: EquationEntryID, to groupId: EquationGroupID, index: Int) throws {
+        guard let entry = try EquationEntry.fetchOne(db, id: id) else {
+            throw ThubanError.store("No equation entry \(id.raw)")
+        }
+        guard let source = try EquationGroup.fetchOne(db, id: entry.groupId),
+              let target = try EquationGroup.fetchOne(db, id: groupId) else {
+            throw ThubanError.store("No equation group \(groupId.raw)")
+        }
+        guard source.classId == target.classId else {
+            throw ThubanError.store("An entry cannot move to another class's sheet")
+        }
+        if entry.groupId != groupId {
+            try db.execute(sql: "UPDATE equation_entries SET groupId = ? WHERE id = ?", arguments: [groupId, id])
+            try renumberEntries(db, groupId: entry.groupId)
+        }
+        var ids = try entryIds(db, groupId: groupId)
+        ids.removeAll { $0 == id }
+        ids.insert(id, at: min(max(0, index), ids.count))
+        try writePositions(db, table: "equation_entries", ids: ids.map(\.raw))
+    }
 
     private static func groupIds(_ db: Database, classId: ClassID) throws -> [EquationGroupID] {
         try EquationGroupID.fetchAll(

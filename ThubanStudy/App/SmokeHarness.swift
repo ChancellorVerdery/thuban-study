@@ -214,7 +214,7 @@ enum SmokeHarness {
             ("Partial derivatives", [
                 ("Chain rule", ["\\frac{\\mathrm{d}z}{\\mathrm{d}t} = \\frac{\\partial z}{\\partial x}\\frac{\\mathrm{d}x}{\\mathrm{d}t} + \\frac{\\partial z}{\\partial y}\\frac{\\mathrm{d}y}{\\mathrm{d}t}"], "z = f(x, y) with x and y functions of t"),
                 ("Clairaut's theorem", ["f_{xy}(a, b) = f_{yx}(a, b)"], "when both mixed partials are continuous near (a, b)"),
-                ("Implicit differentiation", ["\\frac{\\partial z}{\\partial x} = -\\frac{F_x}{F_z}", "\\frac{\\partial z}{\\partial y} = -\\frac{F_y}{F_z}"], "for F(x, y, z) = 0 with F_z ≠ 0"),
+                ("Implicit differentiation", ["\\frac{\\partial z}{\\partial x} = -\\frac{F_x}{F_z}", "\\frac{\\partial z}{\\partial y} = -\\frac{F_y}{F_z}"], "for F(x, y, z) = 0 with ∂F/∂z ≠ 0"),
             ]),
             ("Tangent planes", [
                 ("Tangent plane", ["z - z_0 = f_x(x_0, y_0)(x - x_0) + f_y(x_0, y_0)(y - y_0)"], nil),
@@ -222,10 +222,10 @@ enum SmokeHarness {
                 ("Total differential", ["\\mathrm{d}z = f_x\\,\\mathrm{d}x + f_y\\,\\mathrm{d}y"], nil),
             ]),
             ("Vectors", [
-                ("Dot product", ["\\vec{a}\\cdot\\vec{b} = a_1b_1 + a_2b_2 + a_3b_3", "\\vec{a}\\cdot\\vec{b} = |\\vec{a}|\\,|\\vec{b}|\\cos\\theta"], nil),
+                ("Dot product", ["\\vec{a}\\,\\cdot\\,\\vec{b} = a_1b_1 + a_2b_2 + a_3b_3", "\\vec{a}\\,\\cdot\\,\\vec{b} = \\lVert\\vec{a}\\rVert\\,\\lVert\\vec{b}\\rVert\\cos\\theta"], nil),
                 ("Gradient", ["\\nabla f(x, y) = \\langle f_x(x, y), f_y(x, y)\\rangle"], nil),
                 ("Directional derivative", ["D_{\\vec{u}}f = \\nabla f\\cdot\\vec{u}"], "u a unit vector; largest along ∇f"),
-                ("Cross product", ["|\\vec{a}\\times\\vec{b}| = |\\vec{a}|\\,|\\vec{b}|\\sin\\theta"], nil),
+                ("Cross product", ["\\left\\lVert\\vec{a}\\times\\vec{b}\\right\\rVert = \\lVert\\vec{a}\\rVert\\,\\lVert\\vec{b}\\rVert\\sin\\theta"], nil),
             ]),
         ]
         for section in sheet {
@@ -464,6 +464,14 @@ enum SmokeHarness {
             await waitUntil(timeout: 6) { equations.isLoaded && equations.sheetPage.isPageReady }
             await sleep(2)
             written.append(try await capture(window: window, name: "05d-equations", in: directory))
+
+            // 05g — The empty state (shown with the sheet cleared in memory only, then restored).
+            let seeded = equations.sheet
+            equations.setSheet(EquationSheet(classId: seeded.classId))
+            await sleep(1)
+            written.append(try await capture(window: window, name: "05g-equations-empty", in: directory))
+            equations.setSheet(seeded)
+            await sleep(1)
 
             if let list = equations.sheet.sections.first?.entries.first(where: { $0.isList }) {
                 equations.editing = EquationEntryDraft(editing: list)

@@ -52,7 +52,7 @@ struct EquationEntryEditor: View {
                         ToggleChip(label: "Keyboard", icon: .mathKeyboard, isOn: $keyboardOn)
                     }
                     EquationEditorWebView(controller: page)
-                        .frame(height: min(max(page.contentHeight, 110.z), 520.z))
+                        .frame(height: min(max(page.contentHeight * AppZoom.shared.scale, 110.z), 520.z))
                         .accessibilityLabel("Equation fields")
                     Text("Type math as in an answer box. One equation makes a card; add more to make a named list. Enter moves to the next field, ⌘⏎ saves.")
                         .font(ThubanFont.small)
@@ -76,14 +76,6 @@ struct EquationEntryEditor: View {
                 }
             }
         } actions: {
-            if !draft.isNew {
-                Button("Delete…") {
-                    let id = draft.id
-                    dismiss()
-                    session.confirmDeleteEquationEntry(id)
-                }
-                .buttonStyle(.thubanDangerOutline)
-            }
             Button("Cancel") { dismiss() }
                 .buttonStyle(.thubanSecondary)
                 .keyboardShortcut(.cancelAction)
@@ -93,6 +85,7 @@ struct EquationEntryEditor: View {
                 .disabled(!draft.canSave || isSaving)
                 .help(draft.canSave ? "Save (⌘⏎)" : "Give the entry a name and at least one equation")
         }
+        .leadingAction(deleteButton)
         .onAppear {
             page.onChange = { list in draft.equations = list }
             page.onSubmit = { save() }
@@ -104,6 +97,19 @@ struct EquationEntryEditor: View {
         }
         .onChange(of: page.isKeyboardVisible) { _, visible in
             if keyboardOn != visible { keyboardOn = visible }
+        }
+    }
+
+    /// Delete… for a stored entry (nothing for a new one), on the leading edge away from Save.
+    @ViewBuilder
+    private var deleteButton: some View {
+        if !draft.isNew {
+            Button("Delete…") {
+                let id = draft.id
+                dismiss()
+                session.confirmDeleteEquationEntry(id)
+            }
+            .buttonStyle(.thubanDangerOutline)
         }
     }
 

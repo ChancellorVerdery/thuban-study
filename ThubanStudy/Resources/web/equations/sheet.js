@@ -12,7 +12,10 @@
  *                menu {kind: "entry"|"group"|"equation", groupId, entryId?, index?, x, y}
  *                                                                   right-click, a "…" button or the menu key;
  *                                                                   x/y in page CSS pixels; Swift shows the menu
- *                moveEntry {entryId, groupId, index}                drag and drop
+ *                moveEntry {entryId, groupId, beforeId? | afterId?}   drag and drop; the neighbour the card was dropped
+ *                                                                   next to (neither: the end of the group). Ids, not an
+ *                                                                   index: the page shows only the entries that match the
+ *                                                                   search, the store resolves them in the full order
  *                moveEntryBy {entryId, delta}                       ⌥↑ / ⌥↓
  *                deleteEntry {entryId}                              Delete (Swift asks first)
  *                copyLatex {entryId, index?}                        ⌘C on a card (index: one equation, else all)
@@ -243,15 +246,18 @@
 
   /* ================================================================ fit */
 
-  // A long equation shrinks (down to 70 %) to fit its card; beyond that it scrolls sideways.
-  const MIN_SCALE = 0.7;
+  // A long equation shrinks to fit its card (to 70 %, or 55 % in the narrow Study panel); beyond that it scrolls
+  // sideways, and `is-overflowing` keeps a thin scrollbar visible so the cut-off end never reads as clipped text.
   function fit(row) {
     row.style.fontSize = '';
+    row.classList.remove('is-overflowing');
     const width = row.clientWidth;
     const needed = row.scrollWidth;
     if (!width || needed <= width + 1) return;
+    const minScale = mode === 'panel' ? 0.55 : 0.7;
     const base = parseFloat(getComputedStyle(row).fontSize) || 17;
-    row.style.fontSize = (base * Math.max(MIN_SCALE, (width - 2) / needed)).toFixed(2) + 'px';
+    row.style.fontSize = (base * Math.max(minScale, (width - 2) / needed)).toFixed(2) + 'px';
+    if (row.scrollWidth > row.clientWidth + 1) row.classList.add('is-overflowing');
   }
   function fitAll() { for (const row of sheetEl.querySelectorAll('.eq')) fit(row); }
   let fitTimer = 0;
@@ -317,15 +323,16 @@
   /* ======================================================== drag and drop */
 
   function clearDropMarks() {
-    for (const node of sheetEl.querySelectorAll('.drop-before, .drop-after, .drop-into')) {
-      node.classList.remove('drop-before', 'drop-after', 'drop-into');
+    for (const node of sheetEl.querySelectorAll('.drop-before, .drop-after, .drop-into, .drop-vertical')) {
+      node.classList.remove('drop-before', 'drop-after', 'drop-into', 'drop-vertical');
     }
   }
 
-  /// Where a drop at (clientX, clientY) lands in `cards`: before the nearest card (or after the last one).
+  /// Where a drop at (clientX, clientY) lands in `cards`: before or after the nearest card. Cards fill rows left to
+  /// right, so in a multi-column grid the side is decided by x; in a single column (a narrow window) by y.
   function dropTarget(cards, clientX, clientY) {
     const list = Array.from(cards.querySelectorAll('.eq-card')).filter((c) => !dragged || c.dataset.entryId !== dragged.entryId);
-    if (list.length === 0) return { index: 0, card: null, after: false };
+    if (list.length === 0) return { card: null, after: false, vertical: false };
     let best = null, bestDistance = Infinity;
     for (const card of list) {
       const r = card.getBoundingClientRect();
@@ -335,9 +342,9 @@
       if (distance < bestDistance) { bestDistance = distance; best = card; }
     }
     const r = best.getBoundingClientRect();
-    const after = clientY > r.top + r.height / 2;
-    const index = list.indexOf(best) + (after ? 1 : 0);
-    return { index, card: best, after };
+    const vertical = r.width > cards.clientWidth * 0.6;
+    const after = vertical ? clientY > r.top + r.height / 2 : clientX > r.left + r.width / 2;
+    return { card: best, after, vertical };
   }
 
   function wireDrop(cards, group) {
@@ -347,8 +354,10 @@
       e.dataTransfer.dropEffect = 'move';
       clearDropMarks();
       const target = dropTarget(cards, e.clientX, e.clientY);
-      if (target.card) target.card.classList.add(target.after ? 'drop-after' : 'drop-before');
-      else cards.classList.add('drop-into');
+      if (target.card) {
+        target.card.classList.add(target.after ? 'drop-after' : 'drop-before');
+        target.card.classList.toggle('drop-vertical', target.vertical);
+      } else cards.classList.add('drop-into');
     });
     cards.addEventListener('dragleave', (e) => {
       if (!cards.contains(e.relatedTarget)) clearDropMarks();
@@ -361,7 +370,9 @@
       clearDropMarks();
       dragged = null;
       pendingFocus = entryId;
-      thuban.send('moveEntry', { entryId, groupId: group.id, index: target.index });
+      const payload = { entryId, groupId: group.id };
+      if (target.card) payload[target.after ? 'afterId' : 'beforeId'] = target.card.dataset.entryId;
+      thuban.send('moveEntry', payload);
     });
   }
 

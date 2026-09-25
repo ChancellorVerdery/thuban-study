@@ -266,6 +266,8 @@ struct ModalCard<Content: View, Actions: View>: View {
     var width: CGFloat = 460
     @ViewBuilder var content: () -> Content
     @ViewBuilder var actions: () -> Actions
+    /// A destructive action shown on the leading edge, away from the default button (see `leadingAction(_:)`).
+    var leading: AnyView?
 
     /// The content's natural height at the current width.
     @State private var contentHeight: CGFloat = 0
@@ -297,6 +299,7 @@ struct ModalCard<Content: View, Actions: View>: View {
                 measuredContent
             }
             HStack(spacing: 10.z) {
+                if let leading { leading }
                 Spacer()
                 actions()
             }
@@ -309,6 +312,14 @@ struct ModalCard<Content: View, Actions: View>: View {
                 .strokeBorder(theme.lineColor, lineWidth: ThubanMetrics.hairline)
         )
         .foregroundStyle(theme.inkColor)
+    }
+
+    /// Puts `view` (a destructive action such as Delete…) on the leading edge of the action row, as macOS sheets
+    /// do, so a misclick near Cancel / Save never lands on it.
+    func leadingAction<V: View>(_ view: V) -> ModalCard {
+        var card = self
+        card.leading = AnyView(view)
+        return card
     }
 
     private var measuredContent: some View {

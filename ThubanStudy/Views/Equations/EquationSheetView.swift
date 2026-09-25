@@ -107,9 +107,12 @@ struct EquationSheetView: View {
                             text: $state.search, focused: $searchFocused)
                     .frame(width: 260.z)
             }
-            Button("Add group") { state.groupNaming = EquationsState.GroupNaming(group: nil) }
-                .buttonStyle(.thubanSecondary)
-                .help("Add a group, such as “Series tests”")
+            // An empty sheet has one action, the empty state's primary "Add a group".
+            if !state.sheet.isEmpty {
+                Button("Add group") { state.groupNaming = EquationsState.GroupNaming(group: nil) }
+                    .buttonStyle(.thubanSecondary)
+                    .help("Add a group, such as “Series tests”")
+            }
             if let first = state.sheet.groups.first {
                 Button {
                     state.editing = EquationEntryDraft(new: first.id)

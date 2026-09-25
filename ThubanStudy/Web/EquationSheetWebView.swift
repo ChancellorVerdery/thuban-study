@@ -35,7 +35,9 @@ struct EquationSheetWebView: View {
         var onEdit: ((EquationEntryID) -> Void)?
         var onAddEntry: ((EquationGroupID) -> Void)?
         var onMenu: ((MenuRequest) -> Void)?
-        var onMoveEntry: ((EquationEntryID, EquationGroupID, Int) -> Void)?
+        /// A drop: the entry, its new group, and where among that group's entries (by a neighbour's id, since the page
+        /// only shows the entries that match the search).
+        var onMoveEntry: ((EquationEntryID, EquationGroupID, EquationEntryPlacement) -> Void)?
         var onMoveEntryBy: ((EquationEntryID, Int) -> Void)?
         var onDeleteEntry: ((EquationEntryID) -> Void)?
         var onCopyLatex: ((EquationEntryID, Int?) -> Void)?
@@ -65,9 +67,16 @@ struct EquationSheetWebView: View {
                 self?.onMenu?(request)
             }
             bridge.on("moveEntry") { [weak self] payload in
-                guard let entry = payload["entryId"]?.stringValue, let group = payload["groupId"]?.stringValue,
-                      let index = payload["index"]?.doubleValue else { return }
-                self?.onMoveEntry?(EquationEntryID(raw: entry), EquationGroupID(raw: group), Int(index))
+                guard let entry = payload["entryId"]?.stringValue, let group = payload["groupId"]?.stringValue else { return }
+                let placement: EquationEntryPlacement
+                if let before = payload["beforeId"]?.stringValue {
+                    placement = .before(EquationEntryID(raw: before))
+                } else if let after = payload["afterId"]?.stringValue {
+                    placement = .after(EquationEntryID(raw: after))
+                } else {
+                    placement = .end
+                }
+                self?.onMoveEntry?(EquationEntryID(raw: entry), EquationGroupID(raw: group), placement)
             }
             bridge.on("moveEntryBy") { [weak self] payload in
                 guard let entry = payload["entryId"]?.stringValue, let delta = payload["delta"]?.doubleValue else { return }

@@ -60,6 +60,8 @@ final class EquationsState {
     var pendingDeleteEntry: EquationEntry?
     var pendingDeleteGroup: EquationSheet.Section?
     var error: String?
+    /// The last queued sheet change; the next one waits for it (see `ClassSession.enqueueSheetChange`).
+    @ObservationIgnored var changeQueue: Task<Void, Never>?
 
     struct GroupNaming: Identifiable, Equatable {
         var group: EquationGroup?
@@ -130,11 +132,11 @@ extension ClassSession {
             page.onEdit = { [weak self] id in self?.editEquationEntry(id) }
             page.onAddEntry = { [weak self] groupId in self?.equations.editing = EquationEntryDraft(new: groupId) }
             page.onDeleteEntry = { [weak self] id in self?.confirmDeleteEquationEntry(id) }
-            page.onMoveEntry = { [weak self] id, groupId, index in
-                Task { await self?.moveEquationEntry(id, to: groupId, index: index) }
+            page.onMoveEntry = { [weak self] id, groupId, placement in
+                self?.enqueueSheetChange { await self?.moveEquationEntry(id, to: groupId, placement: placement) }
             }
             page.onMoveEntryBy = { [weak self] id, delta in
-                Task { await self?.moveEquationEntry(id, by: delta) }
+                self?.enqueueSheetChange { await self?.moveEquationEntry(id, by: delta) }
             }
         }
         state.panelPage.onToggleGroup = { [weak state] groupId, collapsed in
@@ -154,6 +156,16 @@ extension ClassSession {
         } catch {
             equations.error = error.localizedDescription
             Self.logger.error("load equation sheet failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Runs sheet changes one after another, so each starts from the sheet the one before left (two quick ⌥↓
+    /// presses move a card two places, not one).
+    func enqueueSheetChange(_ operation: @escaping @MainActor () async -> Void) {
+        let previous = equations.changeQueue
+        equations.changeQueue = Task { @MainActor in
+            await previous?.value
+            await operation()
         }
     }
 
@@ -190,8 +202,7 @@ extension ClassSession {
     }
 
     func moveEquationGroup(_ id: EquationGroupID, by delta: Int) async {
-        guard let index = equations.sheet.groups.firstIndex(where: { $0.id == id }) else { return }
-        await changeSheet { try await store.moveEquationGroup(id, to: index + delta) }
+        await changeSheet { try await store.moveEquationGroup(id, by: delta) }
     }
 
     func confirmDeleteEquationGroup(_ id: EquationGroupID) {
@@ -241,18 +252,29 @@ extension ClassSession {
         await changeSheet { try await store.deleteEquationEntry(id) }
     }
 
-    func moveEquationEntry(_ id: EquationEntryID, to groupId: EquationGroupID, index: Int) async {
-        await changeSheet { try await store.moveEquationEntry(id, to: groupId, index: index) }
+    func moveEquationEntry(_ id: EquationEntryID, to groupId: EquationGroupID, placement: EquationEntryPlacement) async {
+        await changeSheet { try await store.moveEquationEntry(id, to: groupId, placement: placement) }
         equations.sheetPage.focus(entry: id)
     }
 
-    /// Move up / Move down within the entry's group.
+    /// Move up / Move down within the entry's group, past the neighbour the user can see: with no search that is
+    /// the next stored entry (resolved in the store's transaction); while searching it is the next matching entry,
+    /// so the card visibly moves instead of stepping past a hidden one.
     func moveEquationEntry(_ id: EquationEntryID, by delta: Int) async {
-        guard let section = equations.sheet.sections.first(where: { $0.entries.contains { $0.id == id } }),
-              let index = section.entries.firstIndex(where: { $0.id == id }) else { return }
-        let target = index + delta
-        guard section.entries.indices.contains(target) else { return }
-        await moveEquationEntry(id, to: section.group.id, index: target)
+        guard delta != 0 else { return }
+        if equations.search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            await changeSheet { try await store.moveEquationEntry(id, by: delta) }
+        } else {
+            guard let section = equations.filteredSheet.sections.first(where: { $0.entries.contains { $0.id == id } }),
+                  let index = section.entries.firstIndex(where: { $0.id == id }),
+                  section.entries.indices.contains(index + delta) else { return }
+            let neighbour = section.entries[index + delta].id
+            await changeSheet {
+                try await store.moveEquationEntry(id, to: section.group.id,
+                                                  placement: delta < 0 ? .before(neighbour) : .after(neighbour))
+            }
+        }
+        equations.sheetPage.focus(entry: id)
     }
 
     // MARK: Copy
@@ -303,21 +325,22 @@ extension ClassSession {
                 return items
             }
 
-            guard let section = sheet.sections.first(where: { $0.group.id == entry.groupId }),
+            // Positions as the user sees them (the search may hide some entries).
+            guard let section = equations.filteredSheet.sections.first(where: { $0.group.id == entry.groupId }),
                   let position = section.entries.firstIndex(where: { $0.id == entryId }) else { return items }
             items.insert(.action("Edit…") { self.editEquationEntry(entryId) }, at: 0)
             items.insert(.separator, at: 1)
             items.append(.separator)
             items.append(.action("Move Up", enabled: position > 0) {
-                Task { await self.moveEquationEntry(entryId, by: -1) }
+                self.enqueueSheetChange { await self.moveEquationEntry(entryId, by: -1) }
             })
             items.append(.action("Move Down", enabled: position < section.entries.count - 1) {
-                Task { await self.moveEquationEntry(entryId, by: 1) }
+                self.enqueueSheetChange { await self.moveEquationEntry(entryId, by: 1) }
             })
             let others = sheet.groups.filter { $0.id != entry.groupId }
             items.append(.submenu("Move to Group", others.map { group in
                 .action(group.name) {
-                    Task { await self.moveEquationEntry(entryId, to: group.id, index: Int.max) }
+                    self.enqueueSheetChange { await self.moveEquationEntry(entryId, to: group.id, placement: .end) }
                 }
             }))
             items.append(.separator)
@@ -332,9 +355,11 @@ extension ClassSession {
             .action("Add Equation…") { self.equations.editing = EquationEntryDraft(new: group.id) },
             .action("Rename Group…") { self.equations.groupNaming = EquationsState.GroupNaming(group: group) },
             .separator,
-            .action("Move Group Up", enabled: index > 0) { Task { await self.moveEquationGroup(group.id, by: -1) } },
+            .action("Move Group Up", enabled: index > 0) {
+                self.enqueueSheetChange { await self.moveEquationGroup(group.id, by: -1) }
+            },
             .action("Move Group Down", enabled: index < sheet.groups.count - 1) {
-                Task { await self.moveEquationGroup(group.id, by: 1) }
+                self.enqueueSheetChange { await self.moveEquationGroup(group.id, by: 1) }
             },
             .separator,
             .action("Delete Group…") { self.confirmDeleteEquationGroup(group.id) },

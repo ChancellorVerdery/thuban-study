@@ -162,6 +162,51 @@ final class EquationSheetTests: XCTestCase {
         XCTAssertEqual(sheet.sections[1].entries.map(\.position), [0])
     }
 
+    func testPlacementAndRelativeMoves() async throws {
+        let store = try makeStore()
+        let classId = try await makeClass(store)
+        let a = try await store.addEquationGroup(named: "A", to: classId)
+        let b = try await store.addEquationGroup(named: "B", to: classId)
+        let c = try await store.addEquationGroup(named: "C", to: classId)
+        var ids: [String: EquationEntryID] = [:]
+        for name in ["A", "B", "C", "D"] {
+            ids[name] = try await store.addEquationEntry(EquationEntry(groupId: a.id, name: name, equations: ["x"]), at: nil).id
+        }
+        let x = try await store.addEquationEntry(EquationEntry(groupId: b.id, name: "X", equations: ["y"]), at: nil)
+        let id = { (name: String) in try XCTUnwrap(ids[name]) }
+
+        // A search shows only A and D; X dropped after D lands at the end of the full list, not between B and C.
+        try await store.moveEquationEntry(x.id, to: a.id, placement: .after(try id("D")))
+        var sheet = try await store.equationSheet(for: classId)
+        XCTAssertEqual(names(sheet)["A"], ["A", "B", "C", "D", "X"])
+        try await store.moveEquationEntry(x.id, to: a.id, placement: .before(try id("B")))
+        sheet = try await store.equationSheet(for: classId)
+        XCTAssertEqual(names(sheet)["A"], ["A", "X", "B", "C", "D"])
+        try await store.moveEquationEntry(x.id, to: b.id, placement: .end)
+        sheet = try await store.equationSheet(for: classId)
+        XCTAssertEqual(names(sheet)["A"], ["A", "B", "C", "D"])
+        XCTAssertEqual(names(sheet)["B"], ["X"])
+        XCTAssertEqual(sheet.sections[0].entries.map(\.position), [0, 1, 2, 3])
+
+        // Relative moves read the stored position each time, so two quick steps move two places.
+        try await store.moveEquationEntry(try id("A"), by: 1)
+        try await store.moveEquationEntry(try id("A"), by: 1)
+        sheet = try await store.equationSheet(for: classId)
+        XCTAssertEqual(names(sheet)["A"], ["B", "C", "A", "D"])
+        try await store.moveEquationEntry(try id("A"), by: 9)   // clamped
+        sheet = try await store.equationSheet(for: classId)
+        XCTAssertEqual(names(sheet)["A"], ["B", "C", "D", "A"])
+
+        try await store.moveEquationGroup(a.id, by: 1)
+        try await store.moveEquationGroup(a.id, by: 1)
+        sheet = try await store.equationSheet(for: classId)
+        XCTAssertEqual(sheet.groups.map(\.name), ["B", "C", "A"])
+        try await store.moveEquationGroup(c.id, by: -5)
+        sheet = try await store.equationSheet(for: classId)
+        XCTAssertEqual(sheet.groups.map(\.name), ["C", "B", "A"])
+        XCTAssertEqual(sheet.groups.map(\.position), [0, 1, 2])
+    }
+
     func testEntriesCannotMoveToAnotherClass() async throws {
         let store = try makeStore()
         let first = try await makeClass(store, name: "One")

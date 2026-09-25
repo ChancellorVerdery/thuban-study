@@ -22,8 +22,8 @@ body.is-panel { background: var(--panel, #fffdf7); }
 
 /* ---------------------------------------------------------------- groups */
 
-.group + .group { margin-top: 16px; }
-.is-panel .group + .group { margin-top: 12px; }
+.group + .group { margin-top: 28px; }
+.is-panel .group + .group { margin-top: 18px; }
 
 .group-head {
   display: flex;
@@ -110,19 +110,20 @@ body.is-panel { background: var(--panel, #fffdf7); }
 
 /* ----------------------------------------------------------------- cards */
 
-/* As many columns as fit (one in a narrow panel); cards never split across columns. */
-.cards { column-width: 270px; column-gap: 12px; }
-.is-panel .cards { column-width: 230px; column-gap: 8px; }
+/* As many columns as fit (one in a narrow panel). A grid fills each row left to right, so reading order is the
+   stored order, and the cards of a row share one height. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(270px, 100%), 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+.is-panel .cards { grid-template-columns: minmax(0, 1fr); gap: 8px; }
 
-/* inline-block (not block) so a card's bottom margin never carries over to the top of the next column. */
 .eq-card {
   position: relative;
-  display: inline-block;
-  width: 100%;
-  vertical-align: top;
-  break-inside: avoid;
-  -webkit-column-break-inside: avoid;
-  margin: 0 0 12px;
+  min-width: 0;
+  margin: 0;
   padding: 11px 14px 12px;
   background: var(--panel, #fffdf7);
   border: 1px solid var(--line, #E3E0D9);
@@ -131,15 +132,17 @@ body.is-panel { background: var(--panel, #fffdf7); }
   transition: border-color 120ms ease;
 }
 .is-panel .eq-card {
-  margin-bottom: 8px;
   padding: 8px 10px 9px;
   background: var(--bg, #f6f2e8);
 }
 .eq-card:hover { border-color: var(--line-2, #D3D0C8); }
 .eq-card:focus-visible { border-color: var(--accent, #e0b15c); outline: 2px solid var(--accent, #e0b15c); outline-offset: 2px; }
 .eq-card.is-dragging { opacity: 0.45; }
-.eq-card.drop-before { box-shadow: 0 -3px 0 0 var(--accent, #e0b15c); }
-.eq-card.drop-after { box-shadow: 0 3px 0 0 var(--accent, #e0b15c); }
+/* Drop indicators: a bar at the side the card will land on (left/right in the grid, above/below in one column). */
+.eq-card.drop-before { box-shadow: -3px 0 0 0 var(--accent, #e0b15c); }
+.eq-card.drop-after { box-shadow: 3px 0 0 0 var(--accent, #e0b15c); }
+.eq-card.drop-vertical.drop-before { box-shadow: 0 -3px 0 0 var(--accent, #e0b15c); }
+.eq-card.drop-vertical.drop-after { box-shadow: 0 3px 0 0 var(--accent, #e0b15c); }
 
 .eq-head { display: flex; align-items: flex-start; gap: 6px; min-height: 20px; }
 .eq-name {
@@ -167,11 +170,15 @@ body.is-panel { background: var(--panel, #fffdf7); }
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
-  border-radius: 6px;
 }
 .is-panel .eq { font-size: 15px; padding: 3px 0; }
 /* A named list: equations one under another with a quiet dashed rule between them. */
 .eq + .eq { border-top: 1px dashed var(--line-2, #D3D0C8); }
+/* Still too wide after shrinking: keep a thin scrollbar in view (macOS hides overlay scrollbars until scrolled). */
+.eq.is-overflowing { padding-bottom: 7px; }
+.eq.is-overflowing::-webkit-scrollbar { height: 4px; }
+.eq.is-overflowing::-webkit-scrollbar-track { background: transparent; }
+.eq.is-overflowing::-webkit-scrollbar-thumb { background: var(--line-2, #D3D0C8); border-radius: 2px; }
 .eq.is-invalid { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; color: var(--neg-text, #B5484A); }
 
 .eq-note {
@@ -180,6 +187,7 @@ body.is-panel { background: var(--panel, #fffdf7); }
   line-height: 1.4;
   color: var(--ink-dim, #535a68);
   overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 .is-panel .eq-note { font-size: 12.5px; margin-top: 3px; }
 
@@ -191,8 +199,7 @@ body.is-panel { background: var(--panel, #fffdf7); }
   gap: 8px;
   width: 100%;
   min-height: 72px;
-  margin: 0 0 12px;
-  break-inside: avoid;
+  margin: 0;
   border: 1px dashed var(--line-2, #D3D0C8);
   border-radius: 10px;
   background: transparent;
