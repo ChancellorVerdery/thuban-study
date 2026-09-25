@@ -46,7 +46,7 @@ struct Icon: View {
 
 /// Minimal stroke glyphs the icon set does not include (plus, close, check, chevron, search, send, lock, drag, reset).
 struct Glyph: View {
-    enum Kind { case plus, close, check, chevronDown, chevronRight, chevronLeft, search, send, lock, dragHandle, dot, reset }
+    enum Kind { case plus, close, check, chevronDown, chevronRight, chevronLeft, search, send, lock, dragHandle, dot, reset, shuffle }
     var kind: Kind
     var size: CGFloat = 16
 
@@ -92,6 +92,12 @@ struct Glyph: View {
                 }
             case .dot:
                 path.addEllipse(in: CGRect(x: 8 * s, y: 8 * s, width: 8 * s, height: 8 * s))
+            case .shuffle:
+                // Two crossing paths, each ending in an arrowhead on the right.
+                path.move(to: p(4, 7)); path.addCurve(to: p(19, 17), control1: p(11, 7), control2: p(12, 17))
+                path.move(to: p(4, 17)); path.addCurve(to: p(19, 7), control1: p(11, 17), control2: p(12, 7))
+                path.move(to: p(16, 4)); path.addLine(to: p(19.5, 7)); path.addLine(to: p(16, 10))
+                path.move(to: p(16, 14)); path.addLine(to: p(19.5, 17)); path.addLine(to: p(16, 20))
             case .reset:
                 // Counter-clockwise arc with an arrowhead at its start (the "reset view" convention).
                 path.addArc(center: p(12, 12.5), radius: 7 * s, startAngle: .degrees(-150), endAngle: .degrees(120), clockwise: false)

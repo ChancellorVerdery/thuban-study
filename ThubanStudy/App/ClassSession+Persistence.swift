@@ -18,6 +18,8 @@ struct SavedClassState: Codable, Equatable {
     var showCalculator = false
     var showKeyboard = false
     var graphMode: GraphMode = .twoD
+    /// Optional so states saved before shuffle existed still decode.
+    var shuffle: Bool?
     var bank = BankFilterState()
 
     static func key(for classId: ClassID) -> SettingsKey { SettingsKey("classState.\(classId.raw)") }
@@ -43,6 +45,7 @@ extension ClassSession {
             state.showCalculator = showCalculator
             state.showKeyboard = showKeyboard
             state.graphMode = graphMode
+            state.shuffle = shuffle
             state.bank = bankFilter
             return state
         }
@@ -59,6 +62,7 @@ extension ClassSession {
             showCalculator: showCalculator,
             showKeyboard: showKeyboard,
             graphMode: graphMode,
+            shuffle: shuffle,
             bank: bankFilter
         )
     }
@@ -70,6 +74,7 @@ extension ClassSession {
         showCalculator = saved.showCalculator
         showKeyboard = saved.showKeyboard
         graphMode = saved.graphMode
+        shuffle = saved.shuffle ?? false
         bankFilter = saved.bank
     }
 

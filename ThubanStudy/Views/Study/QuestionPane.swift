@@ -281,6 +281,17 @@ struct QuestionPane: View {
                 Spacer()
                 if session.questionCount > 1 {
                     Button {
+                        session.shuffle.toggle()
+                    } label: {
+                        HStack(spacing: 4.z) { Glyph(.shuffle, size: 14); Text("Shuffle") }
+                            .foregroundStyle(session.shuffle ? theme.brassInkColor : theme.inkDimColor)
+                    }
+                    .buttonStyle(GhostButtonStyle(height: 26, tinted: session.shuffle, horizontalPadding: 8))
+                    .fixedSize()
+                    .help(session.shuffle ? "Shuffle is on: Next picks a random question. Click to go in order." : "Go through the questions in a random order")
+                    .accessibilityLabel("Shuffle")
+                    .accessibilityAddTraits(session.shuffle ? [.isSelected] : [])
+                    Button {
                         session.previous()
                     } label: {
                         HStack(spacing: 4.z) { Glyph(.chevronLeft, size: 14); Text("Previous") }

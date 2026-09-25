@@ -112,6 +112,19 @@ final class ClassSession {
 
     // MARK: Tool toggles and graph
 
+    /// Next / Previous move through the queue in a random order instead of down the list.
+    var shuffle = false {
+        didSet {
+            guard shuffle != oldValue else { return }
+            shuffleHistory = []
+            shuffleSeen = []
+            scheduleSave()
+        }
+    }
+    /// Questions shown while shuffling, for Previous (most recent last).
+    @ObservationIgnored var shuffleHistory: [QuestionID] = []
+    /// Questions already shown in this shuffle round; a round ends once every question has come up.
+    @ObservationIgnored var shuffleSeen: Set<QuestionID> = []
     var showGraph = false { didSet { scheduleSave() } }
     var showCalculator = false { didSet { scheduleSave() } }
     var showKeyboard = false { didSet { scheduleSave() } }
@@ -240,17 +253,47 @@ final class ClassSession {
         await instantiate(question, seed: nil)
     }
 
-    /// Advances to the next question in the queue (wrapping) and instantiates it.
+    /// Advances to the next question in the queue (wrapping), or with shuffle on to a random question not yet shown
+    /// this round, and instantiates it.
     func next() {
         guard !questions.isEmpty else { return }
-        currentIndex = (currentIndex + 1) % questions.count
+        if shuffle, questions.count > 1 {
+            currentIndex = nextShuffledIndex()
+        } else {
+            currentIndex = (currentIndex + 1) % questions.count
+        }
         instantiateCurrentInBackground()
     }
 
+    /// The previous question in the queue, or with shuffle on the question shown before this one.
     func previous() {
         guard !questions.isEmpty else { return }
+        if shuffle {
+            while let id = shuffleHistory.popLast() {
+                guard let index = questions.firstIndex(where: { $0.id == id }), index != currentIndex else { continue }
+                currentIndex = index
+                instantiateCurrentInBackground()
+                return
+            }
+        }
         currentIndex = (currentIndex - 1 + questions.count) % questions.count
         instantiateCurrentInBackground()
+    }
+
+    /// A random question other than the current one that has not come up this round (a new round starts when all have).
+    private func nextShuffledIndex() -> Int {
+        let current = currentQuestion?.id
+        if let current {
+            shuffleSeen.insert(current)
+            shuffleHistory.append(current)
+            if shuffleHistory.count > 200 { shuffleHistory.removeFirst(shuffleHistory.count - 200) }
+        }
+        var candidates = questions.indices.filter { !shuffleSeen.contains(questions[$0].id) }
+        if candidates.isEmpty {
+            shuffleSeen = current.map { [$0] } ?? []
+            candidates = questions.indices.filter { questions[$0].id != current }
+        }
+        return candidates.randomElement() ?? currentIndex
     }
 
     /// One in-flight background instantiate at a time: a newer Next/Previous replaces the older one.
