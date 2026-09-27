@@ -5,7 +5,7 @@ import ThubanCore
 /// are checked as they are imported, and the bank was checked once, each constant pinned at the document's value.
 extension AppModel {
     /// Settings flag: every class's templates were checked for constants once.
-    static let constantsPinnedKey = SettingsKey("templates.constantsPinned")
+    static let constantsPinnedKey = SettingsKey("templates.constantsPinned.v2")
 
     /// `questions` with the constants of their templates pinned. On failure (no sign-in) they come back unchanged.
     func pinningConstants(in questions: [Question]) async -> [Question] {

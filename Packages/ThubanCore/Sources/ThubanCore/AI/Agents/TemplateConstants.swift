@@ -80,9 +80,13 @@ public struct TemplateConstants: Sendable {
     (9.81 m/s², 9.8 m/s², 32.2 ft/s², "local gravity" included), g_c, universal and specific gas constants, the speed \
     of light, Planck's and Boltzmann's constants, Avogadro's number, the elementary charge, standard atmospheric \
     pressure, the density and specific heat of water, unit-conversion factors, atomic masses, and any property read \
-    from a table. The problem's own givens (masses, lengths, forces, temperatures, pressures of a system, times, \
-    percentages, rates) may vary. For each question, list the parameters that are constants; list none when all \
-    parameters are the problem's own givens. Call mark_constants once, covering every question.
+    from a table. Real-world facts are fixed too, and so is the tolerance or spread that goes with them: normal \
+    human body temperature (98.6 °F ± 1 °F), the boiling and freezing points of water, room temperature when stated \
+    as the standard 20–25 °C, the radius or mass of the Earth, Moon or Sun, the length of a day or year — any number \
+    a reader would find wrong if it changed. The problem's own givens (the mass of this object, the length of this \
+    beam, the pressure in this tank, times, percentages, rates) may vary. For each question, list the parameters \
+    that are constants or fixed facts; list none when all parameters are the problem's own givens. Call \
+    mark_constants once, covering every question.
     """
 
     private let client: ClaudeClient

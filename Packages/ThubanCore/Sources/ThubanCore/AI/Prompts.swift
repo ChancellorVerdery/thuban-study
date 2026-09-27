@@ -231,8 +231,10 @@ public enum Prompts {
         - Physical constants and reference values never vary: the acceleration of gravity (9.81 m/s², 32.2 ft/s², \
           including a stated "local" g), g_c, gas constants, the speed of light, Avogadro's number, standard \
           atmospheric pressure, the density or specific heat of water, conversion factors, atomic masses and any \
-          value read from a table. Write them into the stem as fixed numbers, not placeholders; only the problem's \
-          own givens (masses, lengths, forces, temperatures, times, rates) become params.
+          value read from a table; neither do real-world facts and their stated spread (normal body temperature \
+          98.6 °F ± 1 °F, water's boiling and freezing points, the Earth's radius). Write them into the stem as fixed \
+          numbers, not placeholders; only the problem's own givens (masses, lengths, forces, temperatures, times, \
+          rates) become params.
         Also fill the ordinary `parts` with the ORIGINAL numbers worked out (a concrete instance), so the question still \
         works if the template is rejected. Choose ranges that keep answers clean (integers, small fractions).
 
