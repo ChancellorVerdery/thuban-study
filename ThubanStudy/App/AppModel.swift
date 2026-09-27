@@ -60,8 +60,6 @@ final class AppModel {
     var categoriesChanged = 0
     /// Each class's state from the last run, read at launch and applied when its session is made.
     @ObservationIgnored var savedClassStates: [ClassID: SavedClassState] = [:]
-    /// Set once every class's state has been written for a quit.
-    @ObservationIgnored var classStatesSaved = false
     private(set) var isLoaded = false
 
     var selectedClass: StudyClass? {

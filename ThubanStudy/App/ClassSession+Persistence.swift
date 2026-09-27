@@ -118,8 +118,20 @@ extension AppModel {
     }
 
     /// Writes every open class's state (before the app quits).
-    func saveAllClassStates() async {
-        for session in sessions.values { await session.saveNow() }
-        classStatesSaved = true
+    /// Writes every class's unsaved state, blocking (up to 2 s) until the store has it. The snapshots are taken here
+    /// on the main thread; the writes run off it, so waiting cannot deadlock.
+    func saveAllClassStatesBeforeExit() {
+        let pending = sessions.values.compactMap { session -> (SettingsKey, SavedClassState)? in
+            let state = session.savedState
+            return state == session.lastSaved ? nil : (SavedClassState.key(for: session.classId), state)
+        }
+        guard !pending.isEmpty else { return }
+        let store = store
+        let done = DispatchSemaphore(value: 0)
+        Task.detached {
+            for (key, state) in pending { try? await store.set(key, state) }
+            done.signal()
+        }
+        _ = done.wait(timeout: .now() + 2)
     }
 }
