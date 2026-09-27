@@ -350,7 +350,7 @@ final class ModelsTests: XCTestCase {
     func testSettingsKeys() {
         XCTAssertEqual(SettingsKey.lastClass.rawValue, "lastClass")
         XCTAssertEqual(SettingsKey.theme, SettingsKey(rawValue: "theme"))
-        let all: Set<SettingsKey> = [.lastClass, .theme, .modelPolicy, .desmosKey, .tutorMayEditGraph, .windowFrame, .onboardingDone]
-        XCTAssertEqual(all.count, 7)
+        let all: Set<SettingsKey> = [.lastClass, .theme, .modelPolicy, .tutorMayEditGraph, .windowFrame, .onboardingDone]
+        XCTAssertEqual(all.count, 6)
     }
 }

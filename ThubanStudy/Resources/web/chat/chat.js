@@ -277,7 +277,7 @@
     var k = String(kind || '').toLowerCase();
     var name = 'info';
     if (/warn|error|fail/.test(k)) name = 'warn';
-    else if (/graph|plot|surface|desmos/.test(k)) name = 'graph';
+    else if (/graph|plot|surface/.test(k)) name = 'graph';
     else if (/calc/.test(k)) name = 'calculator';
     else if (/hint/.test(k)) name = 'hint';
     else if (/solution|lock/.test(k)) name = 'lock';

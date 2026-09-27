@@ -17,12 +17,12 @@ public struct SettingsKey: RawRepresentable, Hashable, Codable, Sendable, Custom
     public static let theme: SettingsKey = "theme"
     /// `ModelPolicy`.
     public static let modelPolicy: SettingsKey = "modelPolicy"
-    /// Desmos API key (String).
-    public static let desmosKey: SettingsKey = "desmosKey"
     /// Bool: credentials were moved out of the login Keychain (or the move was attempted) once.
     public static let credentialsMigrated: SettingsKey = "credentials.migratedFromKeychain"
     /// Bool: the tutor may add/remove graph expressions.
     public static let tutorMayEditGraph: SettingsKey = "tutorMayEditGraph"
+    /// Bool: draw the graph paper in the opposite light/dark mode (Settings › Graph). Off by default.
+    public static let graphReverseContrast: SettingsKey = "graphReverseContrast"
     /// Main window frame as `[Double]` (x, y, w, h).
     public static let windowFrame: SettingsKey = "windowFrame"
     /// Bool: show figures' written descriptions (captions and spoken labels) while studying. Off by default.

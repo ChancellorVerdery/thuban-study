@@ -94,6 +94,7 @@ extension ClassSession {
     }
 
     func saveNow() async {
+        await studyState.graph?.saveNow()
         let state = savedState
         guard state != lastSaved else { return }
         do {

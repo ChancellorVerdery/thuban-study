@@ -110,9 +110,6 @@ struct AboutLink: Identifiable {
         URL(string: "https://claude.ai/artifact/MbqgQgK5BeX9tkoCsXkV9X").map {
             AboutLink(title: "Design canvas", detail: "Every screen of Thuban Study as it was designed.", url: $0)
         },
-        URL(string: "https://www.desmos.com/api").map {
-            AboutLink(title: "Desmos API", detail: "Where the grapher and calculator key comes from.", url: $0)
-        },
         URL(string: "https://console.anthropic.com").map {
             AboutLink(title: "Anthropic Console", detail: "Manage API keys for the tutor and the import agent.", url: $0)
         },
@@ -165,10 +162,19 @@ struct Acknowledgement: Identifiable {
     var url: URL?
     var id: String { name }
 
+    /// The Thuban Graph checkout this build was made from (Info.plist `ThubanGraphKitRevision`, set by the scripts).
+    static var graphKitRevision: String {
+        let revision = (Bundle.main.object(forInfoDictionaryKey: "ThubanGraphKitRevision") as? String)?
+            .trimmingCharacters(in: .whitespaces) ?? ""
+        return revision.isEmpty ? "" : " \(revision)"
+    }
+
     static let all: [Acknowledgement] = [
         Acknowledgement(name: "MathLive", role: "Math input fields and the virtual keyboard", license: "MIT", url: URL(string: "https://cortexjs.io/mathlive/")),
         Acknowledgement(name: "Cortex Compute Engine", role: "Symbolic math for grading and template generation", license: "MIT", url: URL(string: "https://cortexjs.io/compute-engine/")),
-        Acknowledgement(name: "Desmos", role: "2D/3D grapher and scientific calculator", license: "Desmos API terms", url: URL(string: "https://www.desmos.com/api")),
+        Acknowledgement(name: "Thuban Graph engine", role: "The 2D/3D graph and the calculator, fully offline (ThubanGraphKit\(graphKitRevision))", license: "Thuban", url: nil),
+        Acknowledgement(name: "Compute Engine (Thuban Graph)", role: "Symbolic math inside the graph engine", license: "MIT", url: URL(string: "https://cortexjs.io/compute-engine/")),
+        Acknowledgement(name: "MathLive (Thuban Graph)", role: "The graph's expression list, keypad and calculator input", license: "MIT", url: URL(string: "https://cortexjs.io/mathlive/")),
         Acknowledgement(name: "GRDB.swift", role: "SQLite database", license: "MIT", url: URL(string: "https://github.com/groue/GRDB.swift")),
         Acknowledgement(name: "ZIPFoundation", role: "Reading Office files and writing exports", license: "MIT", url: URL(string: "https://github.com/weichsel/ZIPFoundation")),
         Acknowledgement(name: "SwiftSoup", role: "HTML and Office XML parsing", license: "MIT", url: URL(string: "https://github.com/scinfu/SwiftSoup")),

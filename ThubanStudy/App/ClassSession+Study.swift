@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import StudyGraph
 import ThubanCore
 import os
 
@@ -11,13 +12,14 @@ import os
 @MainActor
 @Observable
 final class StudyState {
-    /// The answer form, the transcript and (lazily) the grapher and calculator — one controller per pane.
+    /// The answer form, the transcript and (lazily, `ClassSession.graphHost`) the graphs and calculator.
     let form = QuestionFormWebView.Controller()
     let chat = ChatWebView.Controller()
     /// The tutor composer (text with inline math).
     let composer = ComposerWebView.Controller()
-    private(set) var graph: GraphWebView.Controller?
-    private(set) var calculator: CalculatorWebView.Controller?
+    /// The class's graphs and calculator on the Thuban Graph engine; created on first use (possibly during a view
+    /// update, so not observed: the views hold the host they got).
+    @ObservationIgnored var graph: StudyGraphHost?
 
     /// Height reported by the question page; the form hugs it inside a scroll view.
     var formHeight: CGFloat = 0
@@ -65,30 +67,6 @@ final class StudyState {
         case classLevel
         /// A question's thread; a regenerated question has one per set of numbers (its seed).
         case question(QuestionID, seed: String?)
-    }
-
-    func graphController(desmosKey: String, mode: GraphMode) -> GraphWebView.Controller {
-        if let graph {
-            if graph.desmosKey != desmosKey { graph.configure(desmosKey: desmosKey) }
-            return graph
-        }
-        let controller = GraphWebView.Controller(desmosKey: desmosKey, mode: mode)
-        graph = controller
-        return controller
-    }
-
-    func calculatorController(desmosKey: String) -> CalculatorWebView.Controller {
-        if let calculator {
-            // The sticky `config` is replayed on every page load, so a key changed while the panel was closed
-            // must replace it (mirrors `graphController`).
-            if calculator.desmosKey != desmosKey {
-                calculator.configure(desmosKey: desmosKey, forceFallback: desmosKey.isEmpty)
-            }
-            return calculator
-        }
-        let controller = CalculatorWebView.Controller(desmosKey: desmosKey)
-        calculator = controller
-        return controller
     }
 }
 
@@ -558,7 +536,7 @@ extension ClassSession {
             questionType: currentQuestion?.type,
             inputs: inputs,
             verdicts: verdicts,
-            graphExpressions: visibleGraphExpressions.map(\.latex),
+            graphExpressions: visibleGraphLatex,
             mayEditGraph: app.tutorMayEditGraph,
             model: app.tutorModel,
             includeReferenceAnswers: true
@@ -567,73 +545,11 @@ extension ClassSession {
 
     // MARK: Tutor tools
 
-    /// Executes one tutor tool call against the session (graph, calculator, reading the student's work).
-    func handleTutorTool(name: String, input: JSONValue) -> JSONValue {
-        let state = studyState
-        let graphTools: Set<String> = [TutorTools.showGraph, TutorTools.graphAddExpression, TutorTools.graphRemoveExpression, TutorTools.graphClear, TutorTools.graphSetViewport]
-        if graphTools.contains(name), !app.hasDesmosKey {
-            return Self.toolError("The grapher is not configured (no Desmos API key in Settings › Grapher), so nothing can be drawn.")
-        }
+    /// Executes one tutor tool call: the graph tools on the class's graph sessions (`StudyGraphTools`), the
+    /// calculator and reading the student's work here.
+    func handleTutorTool(name: String, input: JSONValue) async -> JSONValue {
+        if let reply = await handleGraphTool(name: name, input: input) { return reply }
         switch name {
-        case TutorTools.showGraph:
-            let mode = GraphMode(rawValue: input["mode"]?.stringValue ?? "2d") ?? .twoD
-            showGraph = true
-            if graphMode != mode { graphMode = mode }
-            tutorEditedAt = Date()
-            return ["ok": true, "mode": .string(mode.rawValue)]
-
-        case TutorTools.hideGraph:
-            showGraph = false
-            return ["ok": true]
-
-        case TutorTools.graphAddExpression:
-            guard app.tutorMayEditGraph else { return Self.toolError("The student has disabled tutor graph edits.") }
-            guard let id = input["id"]?.stringValue, !id.isEmpty, let latex = input["latex"]?.stringValue, !latex.isEmpty else {
-                return Self.toolError("id and latex are required.")
-            }
-            let expression = GraphExpression(
-                id: id,
-                latex: latex,
-                color: input["color"]?.stringValue,
-                dashed: input["dashed"]?.boolValue ?? false,
-                label: input["label"]?.stringValue,
-                hidden: input["hidden"]?.boolValue ?? false,
-                fromTutor: true,
-                mode: graphMode
-            )
-            upsertGraphExpression(expression)
-            showGraph = true
-            state.graph?.addExpression(expression)
-            return ["ok": true, "mode": .string(graphMode.rawValue), "count": .number(Double(visibleGraphExpressions.count))]
-
-        case TutorTools.graphRemoveExpression:
-            guard app.tutorMayEditGraph else { return Self.toolError("The student has disabled tutor graph edits.") }
-            guard let id = input["id"]?.stringValue else { return Self.toolError("id is required.") }
-            guard graphExpressions.contains(where: { $0.id == id }) else { return Self.toolError("No expression with id '\(id)'.") }
-            removeGraphExpression(id: id, byTutor: true)
-            state.graph?.removeExpression(id: id)
-            return ["ok": true]
-
-        case TutorTools.graphClear:
-            guard app.tutorMayEditGraph else { return Self.toolError("The student has disabled tutor graph edits.") }
-            clearGraph(byTutor: true)
-            state.graph?.clear()
-            return ["ok": true]
-
-        case TutorTools.graphSetViewport:
-            guard app.tutorMayEditGraph else { return Self.toolError("The student has disabled tutor graph edits.") }
-            guard let xmin = input["xmin"]?.doubleValue, let xmax = input["xmax"]?.doubleValue,
-                  let ymin = input["ymin"]?.doubleValue, let ymax = input["ymax"]?.doubleValue, xmin < xmax, ymin < ymax
-            else { return Self.toolError("xmin < xmax and ymin < ymax are required.") }
-            guard graphMode == .twoD else { return Self.toolError("The viewport can only be set in 2D mode; the graph is in 3D.") }
-            let viewport = GraphViewport(xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax)
-            showGraph = true
-            tutorEditedAt = Date()
-            // Kept on the session so the pane can apply it once the page is up (see GraphPane.attach).
-            graphViewport = viewport
-            state.graph?.setViewport(viewport)
-            return ["ok": true]
-
         case TutorTools.showCalculator:
             showCalculator = true
             return ["ok": true]
@@ -676,7 +592,7 @@ extension ClassSession {
             "seed": .string(instance.seed),
             "parts": .array(parts),
             "graphMode": .string(graphMode.rawValue),
-            "graph": .array(visibleGraphExpressions.map { .string($0.latex) }),
+            "graph": .array(visibleGraphLatex.map { .string($0) }),
         ])
     }
 

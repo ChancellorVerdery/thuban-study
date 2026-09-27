@@ -8,11 +8,16 @@ options:
 packages:
   ThubanCore:
     path: Packages/ThubanCore
+  # The Thuban Graph engine bridge; reaches ThubanGraphKit through the gitignored Vendor/ThubanGraph symlink that
+  # scripts/link-graph.sh creates (every script runs it first).
+  StudyGraph:
+    path: Packages/StudyGraph
 settings:
   base:
     SWIFT_VERSION: "5.0"
     SWIFT_STRICT_CONCURRENCY: minimal
     MARKETING_VERSION: "0.1.0"
+    THUBAN_GRAPH_KIT_REVISION: ""
     CURRENT_PROJECT_VERSION: "1"
 targets:
   ThubanStudy:
@@ -25,10 +30,9 @@ targets:
       - path: ThubanStudy/Resources/Assets.xcassets
       - path: ThubanStudy/Resources/web
         type: folder
-      - path: ThubanStudy/Resources/Secrets.plist
-        optional: true
     dependencies:
       - package: ThubanCore
+      - package: StudyGraph
     info:
       path: ThubanStudy/Resources/Info.plist
       properties:
@@ -41,6 +45,9 @@ targets:
         NSPrincipalClass: NSApplication
         NSSupportsAutomaticTermination: false
         NSSupportsSuddenTermination: false
+        # The Thuban Graph checkout this build used (`git rev-parse --short HEAD`, "-dirty" when modified); the
+        # scripts pass it, About › Acknowledgements shows it.
+        ThubanGraphKitRevision: $(THUBAN_GRAPH_KIT_REVISION)
     entitlements:
       path: ThubanStudy/Resources/ThubanStudy.entitlements
       properties:

@@ -20,7 +20,7 @@ final class PaneWebView: WKWebView {
 }
 
 /// Hosts one bundled page (`thuban://bundle/<page>`) in a transparent WKWebView wired to a `WebBridge`.
-/// Navigation stays inside `thuban://` and Desmos; any other link opens in the default browser.
+/// Navigation stays inside `thuban://`; any other link opens in the default browser.
 struct BridgeWebView: NSViewRepresentable {
     /// Path under `Resources/web`, e.g. "question/question.html".
     var page: String
@@ -112,12 +112,10 @@ struct BridgeWebView: NSViewRepresentable {
             webView.load(URLRequest(url: url))
         }
 
-        /// Hosts the page may navigate to (frames included): our bundle and Desmos.
+        /// What the page may navigate to (frames included): our bundle only. Every page is bundled and offline.
         static func isAllowed(_ url: URL) -> Bool {
             if url.scheme == ThubanSchemeHandler.scheme { return true }
-            if url.scheme == "about" || url.scheme == "blob" || url.scheme == "data" { return true }
-            guard url.scheme == "https", let host = url.host?.lowercased() else { return false }
-            return host == "desmos.com" || host.hasSuffix(".desmos.com")
+            return url.scheme == "about" || url.scheme == "blob" || url.scheme == "data"
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,

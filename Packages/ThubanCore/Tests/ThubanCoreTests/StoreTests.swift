@@ -715,14 +715,14 @@ final class StoreTests: XCTestCase {
         let store = try makeMemoryStore()
         let classId = ClassID.new()
         try await store.set(.lastClass, classId)
-        try await store.set(.desmosKey, "abc-123")
+        try await store.set(.lastSearch, "abc-123")
         try await store.set(.tutorMayEditGraph, true)
         try await store.set(.windowFrame, [10.5, 20, 800, 600])
         try await store.set(.modelPolicy, ModelPolicy(defaultModel: .opus, allowEscalation: false, pinned: .sonnet))
 
         let last = try await store.get(.lastClass, as: ClassID.self)
         XCTAssertEqual(last, classId)
-        let key = try await store.get(.desmosKey, as: String.self)
+        let key = try await store.get(.lastSearch, as: String.self)
         XCTAssertEqual(key, "abc-123")
         let flag = try await store.get(.tutorMayEditGraph, as: Bool.self)
         XCTAssertEqual(flag, true)
@@ -734,15 +734,15 @@ final class StoreTests: XCTestCase {
         let missing = try await store.get(.onboardingDone, as: Bool.self)
         XCTAssertNil(missing)
 
-        try await store.set(.desmosKey, "replaced")
-        let replaced = try await store.get(.desmosKey, as: String.self)
+        try await store.set(.lastSearch, "replaced")
+        let replaced = try await store.get(.lastSearch, as: String.self)
         XCTAssertEqual(replaced, "replaced")
 
         let keys = try await store.settingsKeys()
-        XCTAssertEqual(keys.map(\.rawValue), ["desmosKey", "lastClass", "modelPolicy", "tutorMayEditGraph", "windowFrame"])
+        XCTAssertEqual(keys.map(\.rawValue), ["lastClass", "lastSearch", "modelPolicy", "tutorMayEditGraph", "windowFrame"])
 
-        try await store.remove(.desmosKey)
-        let removed = try await store.get(.desmosKey, as: String.self)
+        try await store.remove(.lastSearch)
+        let removed = try await store.get(.lastSearch, as: String.self)
         XCTAssertNil(removed)
 
         do {
@@ -920,4 +920,9 @@ final class StoreTests: XCTestCase {
         try await store.exportArchive(to: exportURL)
         XCTAssertTrue(FileManager.default.fileExists(atPath: exportURL.path))
     }
+}
+
+/// A plain string setting for the round-trip test (the old `desmosKey` row is gone).
+private extension SettingsKey {
+    static let lastSearch: SettingsKey = "lastSearch"
 }

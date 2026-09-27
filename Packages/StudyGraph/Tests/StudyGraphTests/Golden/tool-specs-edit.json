@@ -1,0 +1,141 @@
+[
+  {
+    "description" : "Open the graph pane beside the question in 2D or 3D mode. Use before adding expressions.",
+    "input_schema" : {
+      "properties" : {
+        "mode" : {
+          "description" : "Graph mode.",
+          "enum" : [
+            "2d",
+            "3d"
+          ],
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "mode"
+      ],
+      "type" : "object"
+    },
+    "name" : "show_graph"
+  },
+  {
+    "description" : "Close the graph pane.",
+    "input_schema" : {
+      "properties" : {
+
+      },
+      "type" : "object"
+    },
+    "name" : "hide_graph"
+  },
+  {
+    "description" : "Add (or replace, by id) an expression on the graph. Tell the student what you added.",
+    "input_schema" : {
+      "properties" : {
+        "color" : {
+          "description" : "Optional hex color; omit for the theme default.",
+          "type" : "string"
+        },
+        "dashed" : {
+          "description" : "Draw dashed (for helper lines).",
+          "type" : "boolean"
+        },
+        "hidden" : {
+          "description" : "Add but keep hidden.",
+          "type" : "boolean"
+        },
+        "id" : {
+          "description" : "Short stable id, e.g. \"f\", \"tangent1\".",
+          "type" : "string"
+        },
+        "label" : {
+          "description" : "Optional label shown on the graph.",
+          "type" : "string"
+        },
+        "latex" : {
+          "description" : "Desmos-compatible LaTeX, e.g. \"y=x^2\", \"(2,3)\", \"x^2+y^2=4\".",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "id",
+        "latex"
+      ],
+      "type" : "object"
+    },
+    "name" : "graph_add_expression"
+  },
+  {
+    "description" : "Remove one expression by id.",
+    "input_schema" : {
+      "properties" : {
+        "id" : {
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "id"
+      ],
+      "type" : "object"
+    },
+    "name" : "graph_remove_expression"
+  },
+  {
+    "description" : "Remove every expression from the graph.",
+    "input_schema" : {
+      "properties" : {
+
+      },
+      "type" : "object"
+    },
+    "name" : "graph_clear"
+  },
+  {
+    "description" : "Set the visible region of the 2D graph.",
+    "input_schema" : {
+      "properties" : {
+        "xmax" : {
+          "type" : "number"
+        },
+        "xmin" : {
+          "type" : "number"
+        },
+        "ymax" : {
+          "type" : "number"
+        },
+        "ymin" : {
+          "type" : "number"
+        }
+      },
+      "required" : [
+        "xmin",
+        "xmax",
+        "ymin",
+        "ymax"
+      ],
+      "type" : "object"
+    },
+    "name" : "graph_set_viewport"
+  },
+  {
+    "description" : "Open the floating scientific calculator for the student.",
+    "input_schema" : {
+      "properties" : {
+
+      },
+      "type" : "object"
+    },
+    "name" : "show_calculator"
+  },
+  {
+    "description" : "Read the student's current inputs and the latest verdicts for every part of the question.",
+    "input_schema" : {
+      "properties" : {
+
+      },
+      "type" : "object"
+    },
+    "name" : "get_student_work"
+  }
+]

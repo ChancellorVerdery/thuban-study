@@ -26,7 +26,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     case appearance = "Appearance"
     case account = "Claude account"
     case agents = "Agents"
-    case grapher = "Grapher"
+    case graph = "Graph"
     case questionBank = "Question bank"
     case storage = "Data & storage"
     case about = "About"
@@ -39,7 +39,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: return "Mode and color scheme. Colors follow the scheme in every class tab."
         case .account: return "The tutor and the import agent run on your Claude account or an API key."
         case .agents: return "Which models the tutor and the import agent use, and what the tutor may touch."
-        case .grapher: return "The Desmos key behind the 2D/3D grapher and the calculator."
+        case .graph: return "The 2D/3D graph and the calculator, drawn offline by the Thuban Graph engine."
         case .questionBank: return "Defaults for generating, regenerating and mastering questions."
         case .storage: return "Everything lives on this Mac. Export it, find it, or start over."
         case .about: return "Thuban Study and the projects it is built on."
@@ -51,7 +51,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: return .themePalette
         case .account: return .tutor
         case .agents: return .mathEngine
-        case .grapher: return .graph2D
+        case .graph: return .graph2D
         case .questionBank: return .questionBank
         case .storage: return .importDocs
         case .about: return .thubanMark
@@ -145,7 +145,7 @@ private struct SettingsContent: View {
                 case .appearance: AppearanceSettings()
                 case .account: ClaudeAccountSettings()
                 case .agents: AgentsSettings()
-                case .grapher: GrapherSettings()
+                case .graph: GraphSettings()
                 case .questionBank: QuestionBankSettings()
                 case .storage: DataSettings()
                 case .about: AboutSettings()

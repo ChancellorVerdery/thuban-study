@@ -211,20 +211,16 @@ final class FigureReviewModel {
         }
     }
 
-    // MARK: Chart → Desmos (see ChartRenderer)
+    // MARK: Chart (drawn natively by FigureCanvasView from the chart's FigureScene)
 
     var engine: MathEngine { session.engine }
-
-    nonisolated static func viewport(for chart: StandardChart) -> GraphViewport? {
-        ChartRenderer.viewport(for: chart)
-    }
 
     nonisolated static func format(_ value: Double) -> String { ChartGeometry.number(value) }
 }
 
 // MARK: - View
 
-/// Figure review: breadcrumb, original PNG beside the standardized Desmos rendering, the extracted series
+/// Figure review: breadcrumb, original PNG beside the standardized native rendering, the extracted series
 /// with an editor, detection chips, accept / keep original / skip, a pager, and a rail of the document's figures.
 struct FigureReviewView: View {
     @Environment(AppModel.self) private var app
@@ -234,7 +230,6 @@ struct FigureReviewView: View {
     var onClose: () -> Void
 
     @State private var model: FigureReviewModel
-    /// One grapher for the pane's lifetime; the Desmos key is applied from the environment on appear.
 
     init(session: ClassSession, scope: FigureReviewModel.Scope, breadcrumbRoot: String = "Import", onClose: @escaping () -> Void) {
         self.session = session

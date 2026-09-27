@@ -1,5 +1,7 @@
 import AppKit
 import Foundation
+import Network
+import StudyGraph
 import ThubanCore
 import WebKit
 import os
@@ -20,6 +22,80 @@ enum SmokeHarness {
     }
 
     static var isEnabled: Bool { outputDirectory != nil }
+
+    /// A smoke run seeds demo data and saves graph rows, so it may only run against a temporary `THUBAN_HOME`. Called
+    /// before the model opens any store or credentials: with `THUBAN_SMOKE` set and `THUBAN_HOME` unset, pointing
+    /// at the default Application Support folder, or holding sign-in credentials, the app exits at once.
+    static func exitIfPointedAtLiveData() {
+        guard isEnabled else { return }
+        let override = ProcessInfo.processInfo.environment[AppPaths.homeOverrideVariable]?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let base = AppPaths.baseDirectory.resolvingSymlinksInPath().standardizedFileURL
+        let live = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("Thuban Study", isDirectory: true).resolvingSymlinksInPath().standardizedFileURL
+        let hasCredentials = FileManager.default.fileExists(atPath: base.appendingPathComponent("credentials.json").path)
+        guard override.isEmpty || base.path == live?.path || hasCredentials else { return }
+        fputs("smoke: refusing to run: THUBAN_SMOKE needs THUBAN_HOME set to a temporary directory without credentials (got \(override.isEmpty ? "none" : base.path))\n", stderr)
+        exit(64)
+    }
+
+    // MARK: Offline trap
+
+    static let proxyTrapVariable = "THUBAN_SMOKE_PROXY_TRAP"
+
+    /// `OFFLINE=1` smoke: WebKit loads run in WebKit's own networking process, which the sandbox around the app does
+    /// not reach, so `THUBAN_SMOKE_PROXY_TRAP=127.0.0.1:<port>` sends every WebKit connection (the default website
+    /// data store, which every Study and kit web view uses) to a listener that scripts/smoke.sh runs: it records each
+    /// attempt and never forwards it. Must run before any web view exists.
+    static func installProxyTrapIfRequested() {
+        guard isEnabled, let raw = ProcessInfo.processInfo.environment[proxyTrapVariable],
+              let colon = raw.lastIndex(of: ":"),
+              let port = NWEndpoint.Port(String(raw[raw.index(after: colon)...])) else { return }
+        let host = NWEndpoint.Host(String(raw[..<colon]))
+        WKWebsiteDataStore.default().proxyConfigurations = [ProxyConfiguration(httpCONNECTProxy: .hostPort(host: host, port: port))]
+        print("smoke: WebKit network trapped at \(raw)")
+    }
+
+    /// Proves the trap: a web view load of a real site must fail (smoke.sh then finds the probe host in the trap's
+    /// log, and fails the run on any other host).
+    private static func probeOfflineTrap() async {
+        guard ProcessInfo.processInfo.environment[proxyTrapVariable] != nil else { return }
+        let probe = OfflineProbe()
+        let loaded = await probe.load(URL(string: "https://example.com/thuban-offline-probe")!)
+        if loaded {
+            fputs("smoke: FAIL offline probe: a WebKit load reached the network\n", stderr)
+        } else {
+            print("smoke: offline probe blocked")
+        }
+    }
+
+    /// One throwaway web view that reports whether a load finished.
+    @MainActor
+    private final class OfflineProbe: NSObject, WKNavigationDelegate {
+        private let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 200, height: 200), configuration: WKWebViewConfiguration())
+        private var continuation: CheckedContinuation<Bool, Never>?
+
+        func load(_ url: URL) async -> Bool {
+            webView.navigationDelegate = self
+            return await withCheckedContinuation { continuation in
+                self.continuation = continuation
+                webView.load(URLRequest(url: url, timeoutInterval: 15))
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .seconds(20))
+                    self?.finish(false)
+                }
+            }
+        }
+
+        private func finish(_ loaded: Bool) {
+            continuation?.resume(returning: loaded)
+            continuation = nil
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { finish(true) }
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { finish(false) }
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { finish(false) }
+    }
 
     /// Seed that instantiates the tangent-plane template with a = 1, b = 2, so the form shows P(1, 2, f(1, 2)) and
     /// matches the seeded transcript (which talks about f_x(1, 2), (x − 1) and (y − 2)). Instantiation is
@@ -382,6 +458,7 @@ enum SmokeHarness {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             NSApp.activate(ignoringOtherApps: true)
+            await probeOfflineTrap()
 
             guard let session = app.selectedSession else {
                 throw ThubanError.store("smoke: no selected class after load")
@@ -407,23 +484,140 @@ enum SmokeHarness {
             await sleep(2)
             written.append(try await capture(window: window, name: "01-study", in: directory))
 
-            // 02 — Graph pane with the surface slice and its tangent line.
+            // 02 — The graph pane on the Thuban Graph engine. The brief's 2D example: the student's rational function
+            // with its asymptotes, a labelled line and a point added by the tutor through the real tool path.
             session.graphMode = .twoD
-            // The brief's 2D example: a rational function with its asymptotes added by the tutor.
-            session.upsertGraphExpression(GraphExpression(id: "smoke-f", latex: "f(x) = \\frac{2x^2 + 1}{x^2 - 4}"))
-            session.upsertGraphExpression(GraphExpression(id: "smoke-va1", latex: "x = -2", dashed: true, fromTutor: true))
-            session.upsertGraphExpression(GraphExpression(id: "smoke-va2", latex: "x = 2", dashed: true, fromTutor: true))
-            session.upsertGraphExpression(GraphExpression(id: "smoke-ha", latex: "y = 2", dashed: true, label: "y = 2", fromTutor: true))
-            session.upsertGraphExpression(GraphExpression(id: "smoke-pt", latex: "(0, -0.25)", label: "(0, -0.25)", fromTutor: true))
+            // A roomier window for the graph scenes (the pane gets what the question and tutor leave).
+            let standardFrame = window.frame
+            window.setFrame(NSRect(x: standardFrame.minX, y: standardFrame.maxY - 940, width: 1560, height: 940), display: true)
             session.showGraph = true
-            await sleep(5)
-            written.append(try await capture(window: window, name: "02-study-graph", in: directory))
+            let host = session.graphHost
+            let standardGraphWidth = state.graphWidth
+            state.graphWidth = 700
+            host.listPreference = true   // the expression list beside the graph (a narrow pane starts without it)
+            await app.graphEngine.waitUntilWarm()
+            if let error = app.graphEngine.startupError { fputs("smoke: FAIL graph engine: \(error)\n", stderr) }
+            host.typeIntoBlankRow("f(x)=\\frac{2x^2+1}{x^2-4}", mode: .twoD)
+            // 02c — the tutor's replay (tool calls exactly as the tutor sends them), captured with its chip showing.
+            let replay: [(String, JSONValue)] = [
+                (TutorTools.showGraph, ["mode": "2d"]),
+                (TutorTools.graphAddExpression, ["id": "va1", "latex": "x=-2", "dashed": true]),
+                (TutorTools.graphAddExpression, ["id": "va2", "latex": "x=2", "dashed": true]),
+                (TutorTools.graphAddExpression, ["id": "ha", "latex": "y=2", "dashed": true, "label": "y=2"]),
+                (TutorTools.graphAddExpression, ["id": "pt", "latex": "\\left(0,-0.25\\right)", "label": "(0, -0.25)"]),
+                (TutorTools.graphSetViewport, ["xmin": -8, "xmax": 8, "ymin": -6, "ymax": 8]),
+            ]
+            for (name, input) in replay {
+                let reply = await session.handleTutorTool(name: name, input: input)
+                print("smoke: tool \(name) → \(reply.jsonString())")
+                if reply["error"] != nil || reply["warnings"] != nil { fputs("smoke: FAIL tool \(name): \(reply.jsonString())\n", stderr) }
+            }
+            await host.analyzeNow()
+            await sleep(2)
+            print("smoke: graph rows \(host.rows.map { "\($0.mode.rawValue):\($0.id)\($0.fromTutor ? "*" : "")" })")
+            written.append(try await captureGraph(window: window, name: "02c-study-graph-tutor", in: directory))
+            // The chip goes after 5 s: the plain pane.
+            await waitUntil(timeout: 8) { !host.tutorEditedRecently }
+            await sleep(1)
+            host.listPreference = nil
+            await sleep(1)
+            written.append(try await captureGraph(window: window, name: "02-study-graph", in: directory))
 
-            // 03 — Calculator overlay and the virtual keyboard.
+            // 02e — a slider row and a derivative row (the tutor's), a timed slider drag, then the rows go again.
+            let sliderRows: [JSONValue] = [
+                ["id": "a", "latex": "a=1"],
+                ["id": "par", "latex": "y=a\\left(x-1\\right)^2-3"],
+                ["id": "fp", "latex": "y=f'(x)", "color": "violet"],
+            ]
+            for input in sliderRows {
+                let reply = await session.handleTutorTool(name: TutorTools.graphAddExpression, input: input)
+                print("smoke: tool graph_add_expression (slider scene) → \(reply.jsonString())")
+                if reply["error"] != nil || reply["warnings"] != nil { fputs("smoke: FAIL slider scene: \(reply.jsonString())\n", stderr) }
+            }
+            await host.analyzeNow()
+            let dragValues = (0 ..< 40).map { 1 + 2 * Double($0) / 39 }
+            if let timing = await host.timeSliderDrag(id: "a", values: dragValues) {
+                print("smoke: perf slider drag: \(timing)")
+                if timing.meanMilliseconds > 50 { fputs("smoke: FAIL slider drag too slow: \(timing)\n", stderr) }
+            } else {
+                fputs("smoke: FAIL slider row a has no slider\n", stderr)
+            }
+            await sleep(1.5)
+            written.append(try await captureGraph(window: window, name: "02e-study-graph-slider-derivative", in: directory))
+            for id in ["a", "par", "fp"] {
+                _ = await session.handleTutorTool(name: TutorTools.graphRemoveExpression, input: ["id": .string(id)])
+            }
+
+            // 02b — 3D: its own rows and camera. A surface typed by the student, a space curve added by the tutor.
+            session.graphMode = .threeD
+            host.typeIntoBlankRow("z=\\sin(x)\\cos(y)", mode: .threeD)
+            let curve = await session.handleTutorTool(name: TutorTools.graphAddExpression,
+                                                      input: ["id": "helix", "latex": "\\left(2\\cos t,2\\sin t,\\frac{t}{3}\\right)"])
+            print("smoke: tool graph_add_expression (3D) → \(curve.jsonString())")
+            await host.analyzeNow()
+            await sleep(3)
+            written.append(try await captureGraph(window: window, name: "02b-study-graph-3d", in: directory))
+            let orbit = await host.timeOrbit(steps: 60, degrees: 3)
+            print("smoke: perf 3D orbit: \(orbit)")
+            if orbit.meanMilliseconds > 50 { fputs("smoke: FAIL 3D orbit too slow: \(orbit)\n", stderr) }
+            host.resetView()
+            session.graphMode = .twoD
+            // 02d — the standard window: a narrow pane starts with the list hidden, the graph keeps the room.
+            state.graphWidth = standardGraphWidth
+            window.setFrame(standardFrame, display: true)
+            await sleep(2)
+            written.append(try await captureGraph(window: window, name: "02d-study-graph-narrow", in: directory))
+
+            // 03 — Calculator overlay (the engine's Scientific calculator, with Insert) and the virtual keyboard.
             session.showCalculator = true
             session.showKeyboard = true
+            for latex in ["\\frac{3}{4}+\\frac{1}{6}", "\\sqrt{2}\\cdot 3", "\\sin\\left(\\frac{\\pi}{6}\\right)"] {
+                let result = await host.submitToCalculator(latex)
+                print("smoke: calculator \(latex) = \(result ?? "nil")")
+            }
+            if host.calculatorHistoryCount != 3 { fputs("smoke: FAIL calculator history \(host.calculatorHistoryCount)\n", stderr) }
             await sleep(4)
-            written.append(try await capture(window: window, name: "03-study-keyboard-calc", in: directory))
+            if ProcessInfo.processInfo.environment["THUBAN_SMOKE_DEBUG"] != nil, let content = window.contentView {
+                for web in subviews(of: content).compactMap({ $0 as? WKWebView }) {
+                    let text = (try? await web.evaluateJavaScript("(function(){var s=document.getElementById('sci');var a=document.getElementById('app');return document.readyState+' w='+innerWidth+' h='+innerHeight+' layout='+(a?a.dataset.layout:'-')+' sci='+(s?JSON.stringify(s.getBoundingClientRect()):'-')+' bodyOpacity='+getComputedStyle(document.body).opacity+' app='+(a?JSON.stringify(a.getBoundingClientRect())+getComputedStyle(a).display:'-');})()")) as? String
+                    print("smoke: web \(web.url?.absoluteString ?? "-") frame=\(web.frame) → \(text ?? "nil")")
+                    if web.url?.path.contains("calc") == true, let image = try? await web.takeSnapshot(configuration: nil),
+                       let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
+                       let png = rep.representation(using: .png, properties: [:]) {
+                        try? png.write(to: directory.appendingPathComponent("debug-calc-snapshot.png"))
+                        print("smoke: web calc hidden=\(web.isHiddenOrHasHiddenAncestor) alpha=\(web.alphaValue) layer=\(String(describing: web.layer?.isHidden)) superviews=\(sequence(first: web as NSView, next: { $0.superview }).map { "\(type(of: $0))[\($0.alphaValue)]" }.prefix(6).joined(separator: " < "))")
+                    }
+                }
+            }
+            // The calculator and keyboard pages must have painted before the capture (the window server's capture can
+            // miss a web view that has not): wait for both, then check the capture, falling back to the composite.
+            let pages = { (content: NSView?) -> [WKWebView] in
+                guard let content else { return [] }
+                return subviews(of: content).compactMap { $0 as? WKWebView }.filter {
+                    let url = $0.url?.absoluteString ?? ""
+                    return url.contains("calc") || url.contains("question")   // the keyboard is part of the form page
+                }
+            }
+            var painted = false
+            for _ in 0 ..< 30 {
+                let views = pages(window.contentView)
+                var all = views.count >= 2
+                for view in views where all { all = await isPainted(view) }
+                if all { painted = true; break }
+                await sleep(0.3)
+            }
+            if !painted {
+                let urls = pages(window.contentView).map { $0.url?.lastPathComponent ?? "-" }
+                fputs("smoke: FAIL calculator or question/keyboard page never painted (found \(urls))\n", stderr)
+            }
+            let calcShot = try await captureGraph(window: window, name: "03-study-keyboard-calc", in: directory)
+            if let calcView = pages(window.contentView).first(where: { $0.url?.absoluteString.contains("calc") == true }),
+               captureIsBlank(calcShot, over: calcView, in: window) {
+                print("smoke: 03: calculator blank in the window-server capture; using the composite")
+                written.append(try await capture(window: window, name: "03-study-keyboard-calc", in: directory))
+            } else {
+                written.append(calcShot)
+            }
 
             // 04 — Question bank.
             session.showCalculator = false
@@ -446,14 +640,14 @@ enum SmokeHarness {
 
             // 05b/05c — Figure review: the direction field, then the point-sampled curve.
             session.pendingFigureReview = session.importQueue.first?.id
-            await sleep(6)   // Desmos loads in the review pane
+            await sleep(4)   // the review pane draws the chart natively
             written.append(try await capture(window: window, name: "05b-figure-field", in: directory))
             session.section = .questionBank
             await sleep(0.5)
             session.section = .importDocs
             session.pendingFigureReviewIndex = 1
             session.pendingFigureReview = session.importQueue.first?.id
-            await sleep(6)
+            await sleep(4)
             written.append(try await capture(window: window, name: "05c-figure-curve", in: directory))
             session.section = .questionBank
             await sleep(0.5)
@@ -513,9 +707,21 @@ enum SmokeHarness {
             app.setAppearanceMode(.dark)
             app.selectScheme(id: "cobalt")
             session.section = .study
+            window.setFrame(NSRect(x: standardFrame.minX, y: standardFrame.maxY - 940, width: 1560, height: 940), display: true)
             window.makeKeyAndOrderFront(nil)
-            await sleep(6)   // the graph page is re-created with the pane and loads Desmos again
-            written.append(try await capture(window: window, name: "07-study-dark-cobalt", in: directory))
+            state.graphWidth = 700
+            host.listPreference = true
+            await sleep(6)   // a theme change is an environment update: the graph re-tints without a reload
+            written.append(try await capture(window: window, name: "07-study-dark-cobalt", in: directory))   // composited: see captureGraph
+
+            // 07b — the 3D graph in the dark scheme.
+            session.graphMode = .threeD
+            await sleep(3)
+            written.append(try await captureGraph(window: window, name: "07b-study-graph-3d-dark", in: directory))
+            session.graphMode = .twoD
+            host.listPreference = nil
+            state.graphWidth = standardGraphWidth
+            window.setFrame(standardFrame, display: true)
 
             // 08 — The equation sheet in the dark scheme.
             session.section = .equations
@@ -529,6 +735,33 @@ enum SmokeHarness {
             fputs("smoke: FAILED: \(error.localizedDescription)\n", stderr)
         }
         NSApp.terminate(nil)
+    }
+
+    /// Graph scenes: the window server's own pixels (`screencapture -l`), which include the Metal 3D view that
+    /// `cacheDisplay` cannot read; falls back to the composited capture when that is unavailable. Once the Settings
+    /// window has covered the main window, WebKit views come out blank in window-server captures (they are fine in
+    /// their own snapshots), so the later 2D scene (07) uses the composited capture.
+    private static func captureGraph(window: NSWindow, name: String, in directory: URL) async throws -> URL {
+        let file = directory.appendingPathComponent("\(name).png")
+        try? FileManager.default.removeItem(at: file)
+        let screen = Process()
+        screen.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        screen.arguments = ["-x", "-o", "-l", String(window.windowNumber), file.path]
+        do {
+            try screen.run()
+            screen.waitUntilExit()
+        } catch {
+            logger.error("screencapture failed: \(error.localizedDescription, privacy: .public)")
+        }
+        let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int) ?? 0
+        if screen.terminationStatus == 0, size > 20_000 {
+            print("smoke: \(name): window server capture")
+            if ProcessInfo.processInfo.environment["THUBAN_SMOKE_DEBUG"] != nil {
+                _ = try? await capture(window: window, name: "\(name)-composite", in: directory)
+            }
+            return file
+        }
+        return try await capture(window: window, name: name, in: directory)
     }
 
     // MARK: Waiting
@@ -639,6 +872,26 @@ enum SmokeHarness {
         logger.info("wrote \(url.path, privacy: .public) (\(overlays.count) web views composited, \(skipped) already rendered)")
         print("smoke: \(name): \(overlays.count) web view(s) composited, \(skipped) rendered natively")
         return url
+    }
+
+    /// The web view's own snapshot shows more than one flat colour (its page has painted).
+    private static func isPainted(_ webView: WKWebView) async -> Bool {
+        let configuration = WKSnapshotConfiguration()
+        configuration.afterScreenUpdates = true
+        guard let image = try? await webView.takeSnapshot(configuration: configuration),
+              let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) else { return false }
+        let bounds = NSRect(origin: .zero, size: rep.size)
+        return !isBlank(rep, region: bounds, bounds: bounds, scale: rep.size.width > 0 ? CGFloat(rep.pixelsWide) / rep.size.width : 1)
+    }
+
+    /// The window-server capture at `file` is one flat colour where `webView` sits.
+    private static func captureIsBlank(_ file: URL, over webView: WKWebView, in window: NSWindow) -> Bool {
+        guard let data = try? Data(contentsOf: file), let rep = NSBitmapImageRep(data: data) else { return false }
+        // `screencapture -l` covers the whole window frame (window coordinates, origin bottom left).
+        let frame = window.frame
+        let rect = webView.convert(webView.visibleRect, to: nil).insetBy(dx: 12, dy: 12)
+        let scale = CGFloat(rep.pixelsWide) / frame.width
+        return isBlank(rep, region: rect, bounds: NSRect(origin: .zero, size: frame.size), scale: scale)
     }
 
     /// True when the native capture holds a single flat colour inside `region` (content-view points, unflipped).

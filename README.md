@@ -3,15 +3,15 @@
 A native macOS study app: import course documents, let a Claude agent build a question bank per class,
 then work problems WebAssign-style next to a tutor that guides instead of answers. Math questions regenerate
 with fresh numbers and any algebraically equivalent answer is accepted unless the question sets conditions.
-Desmos-powered 2D/3D graphing and a calculator sit one toggle away. Everything is stored locally.
+Offline 2D/3D graphing and a calculator (the Thuban Graph engine) sit one toggle away. Everything is stored locally.
 
 Design canvas: https://claude.ai/artifact/MbqgQgK5BeX9tkoCsXkV9X
 
 ## Requirements
 
 - macOS 15 or newer, Xcode 26 (the project uses the Swift 6 toolchain in Swift 5 language mode).
-- A Desmos API key in `ThubanStudy/Resources/Secrets.plist` (gitignored; copy `Secrets.example.plist`). The key can
-  also be pasted later in Settings › Grapher.
+- A Thuban Graph checkout (for `ThubanGraphKit`) at `~/Desktop/Claude/Thuban Graph`, or set `THUBAN_GRAPH_ROOT`.
+  Every script runs `scripts/link-graph.sh`, which links it as `Vendor/ThubanGraph` (gitignored).
 - A Claude account (Settings › Claude account › Connect, a personal-use OAuth flow) or an Anthropic API key.
 
 ## Build and run
@@ -19,8 +19,9 @@ Design canvas: https://claude.ai/artifact/MbqgQgK5BeX9tkoCsXkV9X
 ```sh
 ./scripts/build.sh          # Debug build into .build/DerivedData
 open ".build/DerivedData/Build/Products/Debug/Thuban Study.app"
-./scripts/test.sh           # ThubanCore package tests (grading, templates, store, theme, parsers, AI client)
+./scripts/test.sh           # ThubanCore tests, then StudyGraph tests (tool schemas + replay, persistence, theme)
 ./scripts/smoke.sh          # launches with seeded demo data and writes screenshots of every screen
+OFFLINE=1 ./scripts/smoke.sh  # the same with the network denied (app sandboxed, WebKit routed to a logging trap)
 ```
 
 Or open `ThubanStudy.xcodeproj` in Xcode and run the `ThubanStudy` scheme. The project file is generated from
@@ -34,8 +35,10 @@ Or open `ThubanStudy.xcodeproj` in Xcode and run the `ThubanStudy` scheme. The p
   (PDF, Word, PowerPoint, Excel, CSV, HTML, MHTML, Markdown, text, images with OCR).
 - `ThubanStudy` — the SwiftUI app: shell with class tabs, Study (question form, tutor, graph, calculator,
   math keyboard), Question bank, Import with figure review, Settings, modals.
-- `ThubanStudy/Resources/web` — the WKWebView pages: MathLive question form and keyboard, Desmos graph and
-  scientific calculator, tutor transcript renderer. Vendored libraries live under `web/vendor`.
+- `ThubanStudy/Resources/web` — the WKWebView pages: MathLive question form and keyboard, tutor
+  transcript renderer, equation sheet.
+- `Packages/StudyGraph` — the graph pane, calculator, tutor graph tools and graph persistence on the Thuban Graph
+  engine (`ThubanGraphKit`). Vendored libraries live under `web/vendor`.
 - `docs/` — design brief, color values, icon set, architecture contract, integration notes.
 
 ## Data

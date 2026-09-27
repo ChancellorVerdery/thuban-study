@@ -131,18 +131,14 @@ final class ClassSession {
     var showKeyboard = false { didSet { scheduleSave() } }
     /// The read-only equation-sheet panel beside the question.
     var showEquations = false { didSet { scheduleSave() } }
-    var graphMode: GraphMode = .twoD { didSet { scheduleSave() } }
-    /// Every expression the app knows about, in both modes (each row carries its `mode`; Desmos keeps one list per mode).
-    var graphExpressions: [GraphExpression] = []
-    /// The rows on the calculator the student is looking at right now.
-    var visibleGraphExpressions: [GraphExpression] { graphExpressions.filter { $0.mode == graphMode } }
-    /// The last viewport the tutor asked for (2D); re-applied when the graph page comes up after the request.
-    var graphViewport: GraphViewport?
-    /// When the tutor last changed the graph (drives the "Tutor is editing" chip for 5 s).
-    var tutorEditedAt: Date?
-    var tutorEditedRecently: Bool {
-        guard let tutorEditedAt else { return false }
-        return Date().timeIntervalSince(tutorEditedAt) < 5
+    /// The graph mode on screen (saved with the class). The class's `StudyGraphHost` follows it and reports the
+    /// tutor's `show_graph {mode}` back through it; the rows live in the host's sessions (`ClassSession+Graph`).
+    var graphMode: GraphMode = .twoD {
+        didSet {
+            guard graphMode != oldValue else { return }
+            studyState.graph?.mode = graphMode
+            scheduleSave()
+        }
     }
 
     // MARK: Tutor
@@ -358,30 +354,6 @@ final class ClassSession {
                 return lhs.offset < rhs.offset
             }
             .map(\.element)
-    }
-
-    // MARK: Graph helpers
-
-    /// Adds or replaces an expression by id and marks tutor edits.
-    func upsertGraphExpression(_ expression: GraphExpression) {
-        if let index = graphExpressions.firstIndex(where: { $0.id == expression.id }) {
-            graphExpressions[index] = expression
-        } else {
-            graphExpressions.append(expression)
-        }
-        if expression.fromTutor { tutorEditedAt = Date() }
-    }
-
-    func removeGraphExpression(id: String, byTutor: Bool = false) {
-        graphExpressions.removeAll { $0.id == id }
-        if byTutor { tutorEditedAt = Date() }
-    }
-
-    /// Removes the rows of the mode on screen (what Desmos' `clear` does); the other mode's rows survive.
-    func clearGraph(byTutor: Bool = false) {
-        let mode = graphMode
-        graphExpressions.removeAll { $0.mode == mode }
-        if byTutor { tutorEditedAt = Date() }
     }
 
     // MARK: Documents

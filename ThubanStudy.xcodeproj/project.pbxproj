@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		001FD0245F2CA59E3F3E63A0 /* ClassSession+Graph.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDA9E115BCA50FF326131063 /* ClassSession+Graph.swift */; };
 		022274114360E72EEB83852F /* ToggleChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18F8238DE2B3A5DD7E6347D9 /* ToggleChip.swift */; };
 		056324BB9650D43E7DD9E14C /* AppModel+Study.swift in Sources */ = {isa = PBXBuildFile; fileRef = A161475E8A77D80B61222775 /* AppModel+Study.swift */; };
 		063BC9B7289680F3E06EC728 /* AppIconRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BF203952EBA1DDEF711F3B9 /* AppIconRenderer.swift */; };
@@ -18,25 +19,24 @@
 		0F3BB856007941681BA7EF9A /* QuestionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D57B1783CECAD81129F93064 /* QuestionRow.swift */; };
 		13539FEC06DBA060389E9552 /* QuestionBankModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95708AF55B38145A7A43AE8 /* QuestionBankModel.swift */; };
 		1B423C14F82D7556EE5EA8FD /* QuestionPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03C536510FF925E2F87F43FD /* QuestionPane.swift */; };
-		1B718E7426BAC757689A811B /* GraphWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F119C01B449C902DF167CD7A /* GraphWebView.swift */; };
 		1D1E746E95217F26B496CB21 /* ImportHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04557EC482ADCDDE7624D15A /* ImportHarness.swift */; };
 		1EAC7C08DF9EF74717D2D495 /* EquationSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C419DED060267A290DF7B94 /* EquationSheetView.swift */; };
 		1F69F4C538D8755C94947E64 /* PopupMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01CB1FCE926E6686699971FC /* PopupMenu.swift */; };
 		200ACCC663E1348C2BA273D6 /* StudyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEEEB0FFBDC1B6A9D80B320 /* StudyView.swift */; };
+		240B98E37156DD3DE276B804 /* StudyGraph in Frameworks */ = {isa = PBXBuildFile; productRef = 4E6F8956B6908C1BB01A2BA3 /* StudyGraph */; };
 		2604A79258DD0271E48FB0E2 /* NewClassSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15F03A03A4D361ACE53C61A3 /* NewClassSheet.swift */; };
 		33EBF0DC0EDC2D787F94C831 /* CalculatorPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF01898BFEC3AFE7B8E8CF3F /* CalculatorPanel.swift */; };
 		35447CB2A07C2703CCE35D49 /* AppArtSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6B89E7EF0B9A649D7EF9C86 /* AppArtSource.swift */; };
 		372D7354E20E09DF5D20D8C0 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103ADF805FA9261CE62259F6 /* Buttons.swift */; };
-		3DC7A321F7AFF374AB74AA96 /* CalculatorWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 792DD5DF1A29C472185321F8 /* CalculatorWebView.swift */; };
 		418A485B7A86954B315D5D9C /* FigureReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 240822C8E06814D5515BE58B /* FigureReviewView.swift */; };
 		426FF012AC3D7F668378A5D3 /* FigureCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64578554FC8FADC38BC8AFA8 /* FigureCache.swift */; };
 		48AAFC082686844540B24964 /* AgentsSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F600DBB9A79C49F036836DC /* AgentsSettings.swift */; };
 		4BC92D179C1FE4C4792A6A01 /* RegenerateHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = F917FE53C90B0E81BA94FB95 /* RegenerateHarness.swift */; };
 		4C78F88C2C2E92699073D159 /* AppZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6995D55A853B3641FFFB88B1 /* AppZoom.swift */; };
 		4E9A8D4FDA7D6CE5C5665833 /* BridgeWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF742A5BBBD3EE9A6AA601FC /* BridgeWebView.swift */; };
+		539DE7AAA3067F848F0CD797 /* GraphSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F19BC03C711D3172FB9103D /* GraphSettings.swift */; };
 		579E05E36348858B8D5D4627 /* AnswerResultsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ABB35DCD3AC0CE45BE92549 /* AnswerResultsSheet.swift */; };
 		57E3D38B19ACD154D4C9EF08 /* ClassSession+Study.swift in Sources */ = {isa = PBXBuildFile; fileRef = C463C7A24FD856196E75CCB0 /* ClassSession+Study.swift */; };
-		59AE510E5F6DD2F378A95AB6 /* Secrets.plist in Resources */ = {isa = PBXBuildFile; fileRef = 34F954E0F3E1D9921D4D2EFD /* Secrets.plist */; };
 		5DEDD52A79EB1C3F9730E9E3 /* ImportPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A391222166318AE58BCB0724 /* ImportPipeline.swift */; };
 		5FFC677A7BC3CAE782194A3C /* SmokeHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E03B635E9538573BCC73AD9 /* SmokeHarness.swift */; };
 		60B51877042C9AC310EC0738 /* ClassSession+Equations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B567165E7270FC29BF57D549 /* ClassSession+Equations.swift */; };
@@ -66,10 +66,8 @@
 		C205839B56E041CD0CE3B4C6 /* DataSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC21B934895FF778EEB1EFC /* DataSettings.swift */; };
 		C235CA97EED7B40B239A2DB2 /* web in Resources */ = {isa = PBXBuildFile; fileRef = 9676B93BD738E096D9763F0A /* web */; };
 		D27E19C594D5A91022B18FFC /* AppModel+QuestionBankandImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0A38543D1D943A77A1F22E /* AppModel+QuestionBankandImport.swift */; };
-		D38A840346A26E61E91FE503 /* ChartRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7900075AD4A03B3228B2EF7D /* ChartRenderer.swift */; };
 		D4C5BDB349959BF48E5AB1B2 /* AppModel+Categories.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEB2C99A3064061E49DE634B /* AppModel+Categories.swift */; };
 		D50835DDBE78AEA8CB2F6102 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2FF00823B59C2E35C3920F72 /* Assets.xcassets */; };
-		D603C8EC0D33212CDDB4786C /* GrapherSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BCA71970A36B0D2FF429D95 /* GrapherSettings.swift */; };
 		D63E35EC1C6DCD6F9BEA12D1 /* EquationEntryEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97A41A06602042BD7670EEC /* EquationEntryEditor.swift */; };
 		D761225C05EC7CF1F2172ACF /* FigureDump.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6130E36035D70355B9D2F14 /* FigureDump.swift */; };
 		D8121396F229C3621712CAD5 /* ThubanSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57D930C066D04D1B08182F2 /* ThubanSchemeHandler.swift */; };
@@ -100,7 +98,6 @@
 		15F03A03A4D361ACE53C61A3 /* NewClassSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewClassSheet.swift; sourceTree = "<group>"; };
 		1710E26A041E0E14AE2E570F /* ClassSession+QuestionBankandImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ClassSession+QuestionBankandImport.swift"; sourceTree = "<group>"; };
 		18F8238DE2B3A5DD7E6347D9 /* ToggleChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToggleChip.swift; sourceTree = "<group>"; };
-		1BCA71970A36B0D2FF429D95 /* GrapherSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrapherSettings.swift; sourceTree = "<group>"; };
 		1D0846196F21D1A6D3843390 /* CustomSchemeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomSchemeSheet.swift; sourceTree = "<group>"; };
 		240822C8E06814D5515BE58B /* FigureReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FigureReviewView.swift; sourceTree = "<group>"; };
 		2886ED56B0FBA5FDB2A38A0A /* ClassSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassSession.swift; sourceTree = "<group>"; };
@@ -109,7 +106,6 @@
 		2EEEEB0FFBDC1B6A9D80B320 /* StudyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyView.swift; sourceTree = "<group>"; };
 		2FF00823B59C2E35C3920F72 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		34CCBA064123C65B63E41283 /* DeleteClassAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteClassAlert.swift; sourceTree = "<group>"; };
-		34F954E0F3E1D9921D4D2EFD /* Secrets.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Secrets.plist; sourceTree = "<group>"; };
 		3D1D19F12B0561B08ED2F0C2 /* ChoiceFigureImages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoiceFigureImages.swift; sourceTree = "<group>"; };
 		3F600DBB9A79C49F036836DC /* AgentsSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsSettings.swift; sourceTree = "<group>"; };
 		4A0A38543D1D943A77A1F22E /* AppModel+QuestionBankandImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+QuestionBankandImport.swift"; sourceTree = "<group>"; };
@@ -121,13 +117,13 @@
 		629F19F6ECDB6EF2A1B4BD1C /* WebBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebBridge.swift; sourceTree = "<group>"; };
 		64578554FC8FADC38BC8AFA8 /* FigureCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FigureCache.swift; sourceTree = "<group>"; };
 		6995D55A853B3641FFFB88B1 /* AppZoom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppZoom.swift; sourceTree = "<group>"; };
+		69BCFECE650C2DE5E07DE26F /* StudyGraph */ = {isa = PBXFileReference; lastKnownFileType = folder; name = StudyGraph; path = Packages/StudyGraph; sourceTree = SOURCE_ROOT; };
 		6C419DED060267A290DF7B94 /* EquationSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquationSheetView.swift; sourceTree = "<group>"; };
 		6E03B635E9538573BCC73AD9 /* SmokeHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeHarness.swift; sourceTree = "<group>"; };
 		6EBC0D7EFE8A5CF32B4168F4 /* BatchEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchEditSheet.swift; sourceTree = "<group>"; };
+		6F19BC03C711D3172FB9103D /* GraphSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphSettings.swift; sourceTree = "<group>"; };
 		778E2B04690D737EF33E3A47 /* ChatWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatWebView.swift; sourceTree = "<group>"; };
 		7894F9FB81802ADA1BED0437 /* ConnectClaudeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectClaudeSheet.swift; sourceTree = "<group>"; };
-		7900075AD4A03B3228B2EF7D /* ChartRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartRenderer.swift; sourceTree = "<group>"; };
-		792DD5DF1A29C472185321F8 /* CalculatorWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorWebView.swift; sourceTree = "<group>"; };
 		79B2C18B5C7D4AF8FA65BAB0 /* ThubanCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ThubanCore; path = Packages/ThubanCore; sourceTree = SOURCE_ROOT; };
 		7BF203952EBA1DDEF711F3B9 /* AppIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconRenderer.swift; sourceTree = "<group>"; };
 		8996B72D9D053D080BFD7A4C /* FigureCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FigureCanvasView.swift; sourceTree = "<group>"; };
@@ -162,13 +158,13 @@
 		D2120D3155393CE3BAFC6A61 /* AppearanceSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettings.swift; sourceTree = "<group>"; };
 		D57B1783CECAD81129F93064 /* QuestionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionRow.swift; sourceTree = "<group>"; };
 		D6130E36035D70355B9D2F14 /* FigureDump.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FigureDump.swift; sourceTree = "<group>"; };
+		DDA9E115BCA50FF326131063 /* ClassSession+Graph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ClassSession+Graph.swift"; sourceTree = "<group>"; };
 		DEB2C99A3064061E49DE634B /* AppModel+Categories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+Categories.swift"; sourceTree = "<group>"; };
 		E0CF911E2DBCB6A859A6EAB4 /* QuestionEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionEditSheet.swift; sourceTree = "<group>"; };
 		E2C0EEBAC23E4206B4D86048 /* TutorPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorPane.swift; sourceTree = "<group>"; };
 		EB1E418EE8AF7B971BC9F46C /* Icon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Icon.swift; sourceTree = "<group>"; };
 		ECB3AFA5D45551F433544E15 /* CommandBus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandBus.swift; sourceTree = "<group>"; };
 		EFC21B934895FF778EEB1EFC /* DataSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataSettings.swift; sourceTree = "<group>"; };
-		F119C01B449C902DF167CD7A /* GraphWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphWebView.swift; sourceTree = "<group>"; };
 		F20DF246D546C4759E93C243 /* ProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBar.swift; sourceTree = "<group>"; };
 		F917FE53C90B0E81BA94FB95 /* RegenerateHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegenerateHarness.swift; sourceTree = "<group>"; };
 		FBEF16E5283165BA53AA11EA /* ThemeEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeEnvironment.swift; sourceTree = "<group>"; };
@@ -181,6 +177,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				6ED3DA554BD3A365D2EE3392 /* ThubanCore in Frameworks */,
+				240B98E37156DD3DE276B804 /* StudyGraph in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -243,6 +240,7 @@
 		425EF9849FEF3D36E99CE87C /* Packages */ = {
 			isa = PBXGroup;
 			children = (
+				69BCFECE650C2DE5E07DE26F /* StudyGraph */,
 				79B2C18B5C7D4AF8FA65BAB0 /* ThubanCore */,
 			);
 			path = Packages;
@@ -252,12 +250,9 @@
 			isa = PBXGroup;
 			children = (
 				FF742A5BBBD3EE9A6AA601FC /* BridgeWebView.swift */,
-				792DD5DF1A29C472185321F8 /* CalculatorWebView.swift */,
-				7900075AD4A03B3228B2EF7D /* ChartRenderer.swift */,
 				778E2B04690D737EF33E3A47 /* ChatWebView.swift */,
 				C86B038854C562FFF2118E74 /* ComposerWebView.swift */,
 				B7B07A87552BA88E1636E6BD /* EquationSheetWebView.swift */,
-				F119C01B449C902DF167CD7A /* GraphWebView.swift */,
 				2BC5BBCEB0C00BC5DD7BF2A4 /* QuestionFormWebView.swift */,
 				C57D930C066D04D1B08182F2 /* ThubanSchemeHandler.swift */,
 				629F19F6ECDB6EF2A1B4BD1C /* WebBridge.swift */,
@@ -276,6 +271,7 @@
 				A161475E8A77D80B61222775 /* AppModel+Study.swift */,
 				2886ED56B0FBA5FDB2A38A0A /* ClassSession.swift */,
 				B567165E7270FC29BF57D549 /* ClassSession+Equations.swift */,
+				DDA9E115BCA50FF326131063 /* ClassSession+Graph.swift */,
 				AE3C15105DF698D21DA2F608 /* ClassSession+Persistence.swift */,
 				1710E26A041E0E14AE2E570F /* ClassSession+QuestionBankandImport.swift */,
 				C463C7A24FD856196E75CCB0 /* ClassSession+Study.swift */,
@@ -299,7 +295,7 @@
 				7894F9FB81802ADA1BED0437 /* ConnectClaudeSheet.swift */,
 				1D0846196F21D1A6D3843390 /* CustomSchemeSheet.swift */,
 				EFC21B934895FF778EEB1EFC /* DataSettings.swift */,
-				1BCA71970A36B0D2FF429D95 /* GrapherSettings.swift */,
+				6F19BC03C711D3172FB9103D /* GraphSettings.swift */,
 				602C1A81214764A12216C714 /* QuestionBankSettings.swift */,
 				BF47D19073731C2724D19052 /* SettingsView.swift */,
 			);
@@ -397,7 +393,6 @@
 			isa = PBXGroup;
 			children = (
 				2FF00823B59C2E35C3920F72 /* Assets.xcassets */,
-				34F954E0F3E1D9921D4D2EFD /* Secrets.plist */,
 				9676B93BD738E096D9763F0A /* web */,
 			);
 			path = Resources;
@@ -421,6 +416,7 @@
 			name = ThubanStudy;
 			packageProductDependencies = (
 				76221F8984A6FD75CBCDF290 /* ThubanCore */,
+				4E6F8956B6908C1BB01A2BA3 /* StudyGraph */,
 			);
 			productName = ThubanStudy;
 			productReference = 2CF60844F1692EE86270D866 /* ThubanStudy.app */;
@@ -451,6 +447,7 @@
 			mainGroup = 37594E49B5345752C9EC046D;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				E24CA56AE2DB2611849938D9 /* XCLocalSwiftPackageReference "Packages/StudyGraph" */,
 				7DCF49D855B93C619F9A8056 /* XCLocalSwiftPackageReference "Packages/ThubanCore" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -469,7 +466,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				D50835DDBE78AEA8CB2F6102 /* Assets.xcassets in Resources */,
-				59AE510E5F6DD2F378A95AB6 /* Secrets.plist in Resources */,
 				C235CA97EED7B40B239A2DB2 /* web in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -498,12 +494,11 @@
 				4E9A8D4FDA7D6CE5C5665833 /* BridgeWebView.swift in Sources */,
 				372D7354E20E09DF5D20D8C0 /* Buttons.swift in Sources */,
 				33EBF0DC0EDC2D787F94C831 /* CalculatorPanel.swift in Sources */,
-				3DC7A321F7AFF374AB74AA96 /* CalculatorWebView.swift in Sources */,
-				D38A840346A26E61E91FE503 /* ChartRenderer.swift in Sources */,
 				E1AE33EB7B734FAF3F8A4CDD /* ChatWebView.swift in Sources */,
 				A198BBFA60FBA8552B5CA174 /* Chip.swift in Sources */,
 				F75F107537F9CCA0CBB5226F /* ChoiceFigureImages.swift in Sources */,
 				60B51877042C9AC310EC0738 /* ClassSession+Equations.swift in Sources */,
+				001FD0245F2CA59E3F3E63A0 /* ClassSession+Graph.swift in Sources */,
 				D9E5A549FB369DA0C6843067 /* ClassSession+Persistence.swift in Sources */,
 				D9E52116495A98ACC0E1B261 /* ClassSession+QuestionBankandImport.swift in Sources */,
 				57E3D38B19ACD154D4C9EF08 /* ClassSession+Study.swift in Sources */,
@@ -525,8 +520,7 @@
 				D761225C05EC7CF1F2172ACF /* FigureDump.swift in Sources */,
 				418A485B7A86954B315D5D9C /* FigureReviewView.swift in Sources */,
 				07F9F1538C63906F03C15A62 /* GraphPane.swift in Sources */,
-				1B718E7426BAC757689A811B /* GraphWebView.swift in Sources */,
-				D603C8EC0D33212CDDB4786C /* GrapherSettings.swift in Sources */,
+				539DE7AAA3067F848F0CD797 /* GraphSettings.swift in Sources */,
 				78089632D161182381DB77AC /* Icon.swift in Sources */,
 				1D1E746E95217F26B496CB21 /* ImportHarness.swift in Sources */,
 				5DEDD52A79EB1C3F9730E9E3 /* ImportPipeline.swift in Sources */,
@@ -642,6 +636,7 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.0;
+				THUBAN_GRAPH_KIT_REVISION = "";
 			};
 			name = Release;
 		};
@@ -730,6 +725,7 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.0;
+				THUBAN_GRAPH_KIT_REVISION = "";
 			};
 			name = Debug;
 		};
@@ -761,9 +757,17 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/ThubanCore;
 		};
+		E24CA56AE2DB2611849938D9 /* XCLocalSwiftPackageReference "Packages/StudyGraph" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/StudyGraph;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		4E6F8956B6908C1BB01A2BA3 /* StudyGraph */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = StudyGraph;
+		};
 		76221F8984A6FD75CBCDF290 /* ThubanCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ThubanCore;

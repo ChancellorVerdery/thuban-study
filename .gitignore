@@ -7,7 +7,8 @@ xcuserdata/
 *.xcscmblueprint
 *.xccheckout
 .swiftpm/xcode/
-# Secrets (never commit keys)
+# Secrets (never commit keys). Secrets.plist is no longer bundled (Desmos was removed) but stays ignored so a
+# leftover local copy can never be committed.
 Config/Secrets.xcconfig
 ThubanStudy/Resources/Secrets.plist
 # macOS
@@ -16,3 +17,5 @@ ThubanStudy/Resources/Secrets.plist
 .claude/worktrees/
 # Vendored JS is committed; node artifacts are not
 node_modules/
+# Thuban Graph checkout (scripts/link-graph.sh)
+/Vendor/ThubanGraph

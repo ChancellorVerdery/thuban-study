@@ -1,86 +1,58 @@
+import StudyGraph
 import SwiftUI
 import ThubanCore
 
-/// Floating 360×440 calculator over the study area: draggable by its header, closable; "copy to answer" inserts
-/// into the focused form field and fallback evaluations go through the MathEngine.
+/// Floating 360×480 calculator over the study area: draggable by its grip bar, closable. The Scientific calculator
+/// of the Thuban Graph engine (offline); "Insert" on a result puts it into the focused answer field. The page has
+/// its own "Scientific" title, so the bar above it carries no second title (only the grip and Close).
 struct CalculatorPanel: View {
-    static let size = CGSize(width: 360, height: 440)
+    static let size = CGSize(width: 360, height: 480)
 
     @Environment(AppModel.self) private var app
     @Environment(\.thubanTheme) private var theme
     @Bindable var session: ClassSession
 
-    @State private var controller: CalculatorWebView.Controller?
     @State private var dragStart: CGSize?
 
     private var state: StudyState { session.studyState }
 
     var body: some View {
+        let form = state.form
         VStack(spacing: 0.z) {
             header
-            if let controller {
-                CalculatorWebView(controller: controller)
-            } else {
-                theme.panel2Color
-            }
+            StudyCalculatorView(host: session.graphHost, onInsert: { latex in form.insert(latex: latex) })
+                .studyGraphTheme(app.theme, zoom: AppZoom.shared.scale)
         }
         .frame(width: Self.size.width, height: Self.size.height)
-        .background(theme.panelColor, in: RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous)
                 .strokeBorder(theme.line2Color, lineWidth: ThubanMetrics.hairline)
         )
-        .clipShape(RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous))
-        .shadow(color: theme.inkColor.opacity(theme.isDark ? 0.5 : 0.12), radius: 18, y: 8)
+        // The shadow belongs to the card's ground only: a shadow on the whole panel flattens it into one layer,
+        // and the calculator's web view (a native view) then never reaches the screen.
+        .background(
+            RoundedRectangle(cornerRadius: ThubanMetrics.cardRadius, style: .continuous)
+                .fill(theme.panelColor)
+                .shadow(color: theme.inkColor.opacity(theme.isDark ? 0.5 : 0.12), radius: 18, y: 8)
+        )
         .offset(state.calculatorOffset)
-        .onAppear { attach() }
-        .onChange(of: app.desmosKey) { _, key in
-            controller?.configure(desmosKey: key, forceFallback: key.isEmpty)
-        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Calculator")
     }
 
-    private func attach() {
-        let controller = state.calculatorController(desmosKey: app.desmosKey)
-        let engine = app.engine
-        let form = state.form
-        controller.onEvaluate = { [weak controller] id, latex in
-            Task {
-                do {
-                    let result = try await engine.evaluate(latex)
-                    controller?.sendResult(id: id, latex: result)
-                } catch {
-                    controller?.sendResult(id: id, error: error.localizedDescription)
-                }
-            }
-        }
-        controller.onCopyToAnswer = { latex in
-            form.insert(latex: latex)
-        }
-        controller.onError = { message in
-            ClassSession.logger.error("calculator: \(message, privacy: .public)")
-        }
-        self.controller = controller
-    }
-
     private var header: some View {
         HStack(spacing: 8.z) {
-            Icon(.calculator, size: 16)
-                .foregroundStyle(theme.brassInkColor)
-            Text("Calculator")
-                .font(ThubanFont.display(14))
-                .foregroundStyle(theme.inkColor)
-            Spacer()
             Glyph(.dragHandle, size: 14)
                 .foregroundStyle(theme.inkFaintColor)
-            IconButton(glyph: .close, label: "Close calculator", size: 26, iconSize: 13) {
+            Spacer()
+            IconButton(glyph: .close, label: "Close calculator", size: 24, iconSize: 12) {
                 session.showCalculator = false
             }
         }
         .padding(.leading, 12.z)
-        .padding(.trailing, 6.z)
-        .frame(height: 38.z)
+        .padding(.trailing, 4.z)
+        .frame(height: 28.z)
         .background(theme.panel2Color)
         .thubanHairline(.bottom, color: theme.lineColor)
         .contentShape(Rectangle())

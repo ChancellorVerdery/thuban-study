@@ -46,11 +46,14 @@ struct StudyView: View {
                     .clipped()
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
-            .overlay(alignment: .bottomTrailing) {
+            // The calculator starts at the bottom beside the tutor pane. While the math keyboard is open (it fills
+            // the question card, with its Insert key and Next question below) it starts at the top right, over the
+            // tutor's transcript and the graph, clear of the question pane.
+            .overlay(alignment: session.showKeyboard ? .topTrailing : .bottomTrailing) {
                 if session.showCalculator {
                     CalculatorPanel(session: session)
-                        .padding(.trailing, tutorWidth(total: geometry.size.width) + 16)
-                        .padding(.bottom, 16.z)
+                        .padding(.trailing, session.showKeyboard ? 16.z : tutorWidth(total: geometry.size.width) + 16)
+                        .padding(session.showKeyboard ? .top : .bottom, 16.z)
                         .transition(.opacity)
                 }
             }

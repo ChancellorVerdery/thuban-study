@@ -166,7 +166,7 @@ extension AppModel {
         setThemeSelection(.default)
         setModelPolicy(.default)
         setTutorMayEditGraph(true)
-        setDesmosKey(Self.bundledDesmosKey ?? "")
+        setGraphReverseContrast(false)
         Self.questionBankModels[ObjectIdentifier(self)]?.reset()
     }
 

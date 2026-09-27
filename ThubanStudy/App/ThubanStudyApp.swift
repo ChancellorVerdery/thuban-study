@@ -4,7 +4,11 @@ import ThubanCore
 @main
 struct ThubanStudyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var appModel = AppModel()
+    @State private var appModel: AppModel = {
+        SmokeHarness.exitIfPointedAtLiveData()   // before the model opens the store or the credentials
+        SmokeHarness.installProxyTrapIfRequested()   // before any web view exists
+        return AppModel()
+    }()
 
     init() {
         AppZoom.shared.installShortcuts()

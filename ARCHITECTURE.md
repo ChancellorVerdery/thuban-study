@@ -26,26 +26,25 @@ ThubanStudy/                         App target (imports ThubanCore)
   App/             ThubanStudyApp.swift, AppModel (root @Observable), windows, menu commands
   Views/           Shell (title bar, class tabs), Study, QuestionBank, Import, Settings, Modals, Components
   Web/             WKWebView hosting: ThubanSchemeHandler (thuban://bundle/…), bridge message plumbing,
-                   QuestionFormWebView, GraphWebView, CalculatorWebView, ChatWebView
+                   QuestionFormWebView, ChatWebView, ComposerWebView, EquationSheetWebView
   Resources/
     web/question/  question.html, question.js, question.css   (MathLive form + virtual keyboard)
-    web/graph/     graph.html, graph.js                        (Desmos 2D/3D)
-    web/calc/      calc.html, calc.js                          (Desmos scientific + fallback)
     web/chat/      chat.html, chat.js, chat.css                (tutor transcript: marked + MathLive static)
     web/equations/ sheet.html/js/css (equation sheet, MathLive static), editor.html/js/css (live equation fields)
     web/shared/    theme.css (CSS variables set by Swift), bridge.js (postMessage helpers),
                    mathinput.js/.css (MathLive field options, inline shortcuts, virtual keyboard — shared by
                    question.html and equations/editor.html)
-    web/vendor/    mathlive/, compute-engine/ (esm + chunks), marked/, dompurify/
-    Assets.xcassets, Info.plist, ThubanStudy.entitlements
-    Secrets.plist (gitignored; DesmosAPIKey) + Secrets.example.plist
+    web/vendor/    mathlive/, marked/, dompurify/
+    Assets.xcassets, Info.plist (ThubanGraphKitRevision), ThubanStudy.entitlements
+Packages/StudyGraph/                 Everything that talks to the Thuban Graph engine (see "Graph and calculator")
+Vendor/ThubanGraph -> Thuban Graph checkout (gitignored symlink; scripts/link-graph.sh, THUBAN_GRAPH_ROOT overrides)
 scripts/build.sh   xcodebuild Debug build;  scripts/test.sh  swift test for the package + xcodebuild test
 docs/              design-brief.md, atlas-theme.md (color values), this file
 ```
 
 Web resources are served to WKWebView through a custom scheme `thuban://bundle/<path under Resources/web>` by
-`ThubanSchemeHandler` (so ES modules and fonts load without file:// CORS trouble). Remote loads allowed only for
-`https://www.desmos.com` (Desmos API script) — Info.plist ATS default is fine (https).
+`ThubanSchemeHandler` (so ES modules and fonts load without file:// CORS trouble). No page loads anything remote:
+navigation is limited to `thuban://` (plus about/blob/data), and the graph and calculator run fully offline.
 
 ## Domain model (ThubanCore/Models)
 
@@ -146,7 +145,7 @@ public struct Figure: Codable, Identifiable, Sendable {
   public var caption: String?
 }
 
-/// Standardized chart: everything needed to redraw the figure in the app's own graph style (Desmos expressions or
+/// Standardized chart: everything needed to redraw the figure in the app's own graph style (Desmos-style expressions or
 /// a table of series). This is the "one graph style across the app" representation.
 public struct StandardChart: Codable, Sendable {
   public var chartType: String                     // "line" | "scatter" | "bar" | "function" | "histogram"
@@ -384,27 +383,47 @@ question.html (`QuestionFormWebView`):
   Function names render upright automatically (\sin etc.); ensure `d` in derivatives uses `\mathrm{d}`.
 - Static math in stems/prompts: `renderMathInElement` from MathLive, Markdown via marked + DOMPurify.
 
-graph.html (`GraphWebView`) — Desmos:
-- loads `https://www.desmos.com/api/v1.11/calculator.js?apiKey=<key>` (key injected by Swift via the sticky
-  `config {desmosKey, mode?: "2d"|"3d"}` before init; page shows an inline notice if the script fails).
-- Swift → JS: `setMode {mode:"2d"|"3d"}` (creates `Desmos.GraphingCalculator` or `Desmos.Calculator3D` in the container;
-  keeps expression lists per mode — Swift follows every `setMode` with `setExpressions` for that mode, because the
-  session's per-mode rows are the source of truth), `setExpressions {expressions:[{id, latex, color?, lineStyle?:"SOLID"|"DASHED"|"DOTTED", label?, showLabel?, hidden?, sliderBounds?}]}`
-  (replaces the rows of the mode on screen, viewport kept), `addExpression {…}`, `removeExpression {id}`, `clear {}`,
-  `setViewport {xmin,xmax,ymin,ymax}`, `getState {}`, `setState {state}`, `resetView {}`.
-- JS → Swift: `ready`, `expressionsChanged {expressions:[{id, latex}], mode}` (observer on the calculator; debounced;
-  only the calculator on screen), `state {state, mode}` (reply to `getState`), `error {message}`.
-- Options: `{expressions: true, keypad: false, settingsMenu: true, zoomButtons: true, border: false, lockViewport: false}`;
-  colors default to the theme accent for user rows; tutor-added rows use `signal` (solid) or `accentDeep` dashed.
-  Theming: 2D (and the scientific calculator) pass Desmos' own `backgroundColor`/`textColor`/`accentColor` settings
-  from `--panel`/`--ink`/`--accent` (never together with `invertedColors`, which is a CSS invert filter over the
-  whole calculator); 3D uses `invertedColors: isDark` because its plane material keys off it.
-
-calc.html (`CalculatorWebView`): Swift → JS: sticky `config {desmosKey, forceFallback?}` (an empty key or
-`forceFallback` shows the fallback right away), `result {id, latex}` | `result {id, error}`. `Desmos.ScientificCalculator(elt, {})`
-when the key allows it; if `Desmos.ScientificCalculator` is undefined or errors, a fallback: a MathLive field evaluated
-by Swift (`evaluate {latex, id}` → `result` via `MathEngine.evaluate`). JS → Swift: `ready`, `evaluate {latex, id}`,
-`copyToAnswer {latex}`, `error {message}`.
+Graph and calculator — the Thuban Graph engine (`Packages/StudyGraph`, no Desmos, fully offline):
+- Dependency: Thuban Graph's `ThubanGraphKit` library (package `Packages/ThubanGraphCore` in the Graph checkout),
+  reached through the gitignored symlink `Vendor/ThubanGraph` that `scripts/link-graph.sh` creates (every script calls
+  it; `THUBAN_GRAPH_ROOT` points it at another checkout or worktree). `StudyGraph` imports the Graph modules
+  `internal`ly so their names (MathEngine, ResolvedTheme, `\.thubanTheme`, `12.z`) never reach the app. The builds
+  stamp `ThubanGraphKitRevision` (Graph's short commit, `-dirty` when modified) into Info.plist; About shows it.
+- Engines: grading stays on ThubanCore's `MathEngine` (Compute Engine 0.128); graphs and the calculator run on one
+  `StudyGraphEngine` per app (Graph's `MathEngine`, Compute Engine 0.136 + thuban-*.js), warmed when a graph opens.
+- `StudyGraphHost` (one per class, `ClassSession.graphHost`, kept in `StudyState.graph`): a 2D and a 3D
+  `GraphEmbedSession` (own rows, viewport, camera; each on its own `MathEngineClient` lane of the shared engine) and
+  the class's Scientific calculator (radians). The sessions are the only source of truth; `rows` / `visibleLatex`
+  are read-only projections for the tutor context and `get_student_work`. `mode` follows `ClassSession.graphMode`.
+- `GraphPane`: header (2D/3D picker, "Tutor is editing" chip for 5 s after a tutor edit, list toggle, Reset view)
+  in tiers that fold into a "More" menu as the pane narrows (the mode switch last), with Close outside the tiers
+  (never clipped), over `StudyGraphView` = `GraphEmbedView` of the mode on screen with the kit's MathLive list
+  (240–300 pt, hidden by default below a 640 pt pane; keypad via Control-K), themed by
+  `.studyGraphTheme(app.theme, paper:)` (a field copy of Study's resolved scheme; reverse contrast draws the paper
+  from the opposite mode). In a 3D pane narrower than the kit's overlays need (520 pt), `graphZoom` shrinks the kit
+  zoom (to 60 % at most) instead of clipping them. The graph shows once the class's saved graph is loaded.
+  User rows take the accent (series 0, `.brass`), tutor rows the signal (`.teal`), dashed tutor rows dashed.
+  Tutor ownership survives undo / redo (a returning tutor row is the tutor's again; restored rows keep their color).
+- `CalculatorPanel`: 360 x 480 draggable overlay with the kit's `ScientificCalculatorView` under a grip bar (the page
+  has its own title); bottom right of the study area, or top right of the window while the math keyboard is open.
+  "Insert" on a result calls `form.insert(latex:)`.
+- Tutor tools: `StudyGraphTools.execute(name:arguments:host:mayEditGraph:)` runs `show_graph`, `hide_graph`,
+  `graph_add_expression` (`upsert`, new rows above the list's blank row; ids are unique across both modes, so an id
+  the other mode holds moves to the mode on screen; a Desmos-style run of points `(1,2),(3,4)` becomes a point list;
+  reply adds `warnings [{id, message}]` for tutor rows the engine cannot use, only from an analysis of the edit, and
+  `analysisPending: true` instead when that takes over 1.5 s), `graph_remove_expression` (either mode),
+  `graph_clear` (mode on screen, undoable, viewport kept) and `graph_set_viewport` (2D only, exact bounds, turns
+  equal axes off; Reset view turns them back on) headlessly; ids are trimmed. Every call first waits for the class's
+  saved graph to load (`StudyGraphHost.connect` starts the load synchronously). `show_calculator` /
+  `get_student_work` stay in `ClassSession`. Tool names and schemas are ThubanCore's `TutorTools`, locked by golden
+  files (`Packages/StudyGraph/Tests/StudyGraphTests/Golden`).
+- Stored state: settings row `classGraph.<class id>` = `{format: "thuban-study-graph", version: 1, twoD, threeD,
+  tutorIDs}`, each half a `.thgraph` document (`GraphFile`), saved 400 ms after a change. A row from a newer Study
+  (or one the store cannot read) is never written this launch; any other unreadable row is copied to
+  `classGraph.<class id>.unreadable` before it is replaced. Launch migration
+  (`StudyGraphMigration`, marker `migrations.graphKit = 1`) deletes the old `desmosKey` row. Desmos-era rows
+  (`GraphExpression` / payload dictionaries) and full Desmos `getState` JSON convert through
+  `GraphExpressionConverter` (GraphModel's `DesmosImport`).
 
 chat.html (`ChatWebView`): Swift → JS: `setTranscript {messages:[{id, role, html?, markdown, toolEvents, streaming}]}`,
 `appendMessage {message}` (adds or replaces by id), `appendDelta {id, text, role?}`, `finish {id, markdown?}`, `clear {}`;
@@ -415,7 +434,7 @@ JS → Swift: `ready`, `linkClicked {href, url}` (`href` as written, `url` resol
 
 - `AppModel` (@MainActor @Observable): store, engine, credentials, theme selection + resolved theme, classes,
   selected class, per-class `ClassSession` (section, current question instance, inputs, verdicts, graph state,
-  toggles, tutor transcript, import queue). Persists UI state in Settings (`SettingsKey.lastClass`, `.theme`, `.modelPolicy`, `.desmosKey`).
+  toggles, tutor transcript, import queue). Persists UI state in Settings (`SettingsKey.lastClass`, `.theme`, `.modelPolicy`, `.graphReverseContrast`).
 - Shell: `ShellView` (title bar with app mark + name, class tabs (drag to reorder optional), + button, connection chip,
   Settings), `SectionBar` (Study | Question Bank | Equations | Import; Study toggles Equations / Graph / Calculator / Keyboard;
   "Question n of N").
@@ -449,8 +468,8 @@ JS → Swift: `ready`, `linkClicked {href, url}` (`href` as written, `url` resol
   (design board Modal-Custom-Scheme: two live previews, 8 slot rows with hex fields, hue/lightness/saturation for the
   selected slot, suggestions, Derive from accent, Reset, Start from); Claude account: status card, Connect (→
   `ConnectClaudeSheet` 3-step stepper: open browser, paste code, connected) / API key field / Disconnect; Agents:
-  tutor model picker, "may escalate to Opus" toggle, "tutor may edit the graph" toggle; Grapher: Desmos key field
-  (seeded from Secrets.plist); Data & storage: path, size, Export (zip of DB + files), Reveal in Finder; About).
+  tutor model picker, "may escalate to Opus" toggle, "tutor may edit the graph" toggle; Graph: tutor may edit the graph,
+  reverse-contrast graph paper, what the offline engine draws; Data & storage: path, size, Export (zip of DB + files), Reveal in Finder; About).
 - Modals: `DeleteClassAlert` (confirmation with checkbox "Also delete imported files"), `NewClassSheet`.
 - App mark: `ThubanMark` SwiftUI `Shape`/`Path` from the icon set; `AppIconRenderer` draws the squircle plate (bg) +
   mark (accent) and sets `NSApp.applicationIconImage` whenever the theme changes.

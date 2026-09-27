@@ -1,0 +1,52 @@
+[
+  {
+    "description" : "Open the graph pane beside the question in 2D or 3D mode. Use before adding expressions.",
+    "input_schema" : {
+      "properties" : {
+        "mode" : {
+          "description" : "Graph mode.",
+          "enum" : [
+            "2d",
+            "3d"
+          ],
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "mode"
+      ],
+      "type" : "object"
+    },
+    "name" : "show_graph"
+  },
+  {
+    "description" : "Close the graph pane.",
+    "input_schema" : {
+      "properties" : {
+
+      },
+      "type" : "object"
+    },
+    "name" : "hide_graph"
+  },
+  {
+    "description" : "Open the floating scientific calculator for the student.",
+    "input_schema" : {
+      "properties" : {
+
+      },
+      "type" : "object"
+    },
+    "name" : "show_calculator"
+  },
+  {
+    "description" : "Read the student's current inputs and the latest verdicts for every part of the question.",
+    "input_schema" : {
+      "properties" : {
+
+      },
+      "type" : "object"
+    },
+    "name" : "get_student_work"
+  }
+]

@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Observation
+import StudyGraph
 import ThubanCore
 import os
 
@@ -14,7 +15,10 @@ final class AppModel {
     // MARK: Services
 
     let store: Store
+    /// Grading, templates and figures (ThubanCore's Compute Engine).
     let engine: MathEngine
+    /// Every graph and calculator (the Thuban Graph engine, loaded when a graph or calculator first opens).
+    let graphEngine = StudyGraphEngine()
     let credentials: CredentialStore
     /// Shared Messages API client; auth is looked up per call through `credentials`.
     let claudeClient: ClaudeClient
@@ -86,7 +90,8 @@ final class AppModel {
     private(set) var modelPolicy: ModelPolicy = .default
     private(set) var tutorMayEditGraph = true
     private(set) var showFigureDescriptions = false
-    private(set) var desmosKey = ""
+    /// Settings › Graph: draw the graph paper in the opposite light/dark mode.
+    private(set) var graphReverseContrast = false
 
     // MARK: Shell UI state
 
@@ -139,14 +144,19 @@ final class AppModel {
         }
         await SmokeHarness.seedIfEnabled(store: store)
         do {
+            // Desmos is gone: its key row is purged once (StudyGraphMigration).
+            try await StudyGraphMigration.run(store: store)
+        } catch {
+            Self.logger.error("graph migration failed: \(error.localizedDescription, privacy: .public)")
+        }
+        do {
             if let selection = try await store.get(.theme, as: ThemeSelection.self) {
                 themeSelection = selection
             }
             modelPolicy = try await store.get(.modelPolicy, as: ModelPolicy.self) ?? .default
             tutorMayEditGraph = try await store.get(.tutorMayEditGraph, as: Bool.self) ?? true
             showFigureDescriptions = try await store.get(.showFigureDescriptions, as: Bool.self) ?? false
-            let storedKey = try await store.get(.desmosKey, as: String.self) ?? ""
-            desmosKey = storedKey.isEmpty ? (Self.bundledDesmosKey ?? "") : storedKey
+            graphReverseContrast = try await store.get(.graphReverseContrast, as: Bool.self) ?? false
             await migrateCredentialsFromKeychainOnce()
             classes = try await store.allClasses()
             let last = try await store.get(.lastClass, as: ClassID.self)
@@ -170,16 +180,6 @@ final class AppModel {
         FigureDump.startIfEnabled(app: self)
         RegenerateHarness.startIfEnabled(app: self)
         ImportHarness.startIfEnabled(app: self)
-    }
-
-    /// `DesmosAPIKey` from the bundled `Secrets.plist`, if present.
-    static var bundledDesmosKey: String? {
-        guard let url = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
-              let data = try? Data(contentsOf: url),
-              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
-              let key = plist["DesmosAPIKey"] as? String, !key.isEmpty
-        else { return nil }
-        return key
     }
 
     // MARK: Connection
@@ -299,10 +299,17 @@ final class AppModel {
         Task { try? await store.set(.tutorMayEditGraph, allowed) }
     }
 
-    func setDesmosKey(_ key: String) {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        desmosKey = trimmed
-        Task { try? await store.set(.desmosKey, trimmed) }
+    func setGraphReverseContrast(_ reversed: Bool) {
+        graphReverseContrast = reversed
+        Task { try? await store.set(.graphReverseContrast, reversed) }
+    }
+
+    /// The graph paper's tokens: the theme itself, or the opposite mode with reverse contrast.
+    var graphPaperTheme: ResolvedTheme? {
+        guard graphReverseContrast else { return nil }
+        var selection = themeSelection
+        selection.mode = theme.isDark ? .light : .dark
+        return ThemeResolver.resolve(selection, systemIsDark: !theme.isDark)
     }
 
     // MARK: Classes
@@ -359,6 +366,7 @@ final class AppModel {
         classes = try await store.allClasses()
         if !classes.contains(where: { $0.id == id }) {
             sessions[id] = nil
+            await StudyGraphHost.deleteSavedGraph(store: store, classId: id)
             if selectedClassID == id {
                 selectedClassID = classes.first?.id
             }

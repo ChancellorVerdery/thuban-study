@@ -75,7 +75,7 @@ public struct ChartCandidate: Codable, Sendable, Equatable {
     }
 }
 
-/// Standardized chart: everything needed to redraw the figure in the app's own graph style (Desmos expressions or
+/// Standardized chart: everything needed to redraw the figure in the app's own graph style (Desmos-style expressions or
 /// a table of series). This is the "one graph style across the app" representation.
 public struct StandardChart: Codable, Sendable, Equatable {
     /// `provenance` value: the equation was found in the question text.

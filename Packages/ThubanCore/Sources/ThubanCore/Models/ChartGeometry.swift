@@ -1,23 +1,24 @@
 import Foundation
 
-/// The Desmos LaTeX behind a standardized chart: smooth curves through tabulated points, bars, and slope /
-/// direction fields. Pure functions so the app's two graph panes (figure review, study) draw the same thing.
+/// The Desmos-style LaTeX behind a standardized chart (a dialect of LaTeX, not a Desmos dependency; the Thuban
+/// Graph engine reads the same syntax): smooth curves through tabulated points, bars, and slope / direction fields.
+/// Pure functions shared by the native figure pipeline (`FigureScene`, `FigureCanvasView`) and the agents.
 public enum ChartGeometry {
-    /// One Desmos expression row of a rendered chart.
+    /// One Desmos-style expression row of a rendered chart.
     public struct Row: Equatable, Sendable {
         public var id: String
         public var latex: String
         /// Rows that only hold data (lists, helper functions) are hidden from the graph.
         public var hidden: Bool
-        /// Filled polygons (bars, arrowheads) get this opacity; nil = Desmos default (outline + light fill).
+        /// Filled polygons (bars, arrowheads) get this opacity; nil = the renderer's default (outline + light fill).
         public var fillOpacity: Double?
         /// Parametric rows run t over [0, 1] unless told otherwise.
         public var parametricDomain: ClosedRange<Double>?
         /// Point lists draw as dots; curves draw as lines.
         public var showsPoints: Bool
-        /// Stroke width in px; nil = Desmos default (2.5).
+        /// Stroke width in px; nil = the renderer's default (2.5).
         public var lineWidth: Double?
-        /// Stroke opacity 0–1; nil = Desmos default.
+        /// Stroke opacity 0–1; nil = the renderer's default.
         public var lineOpacity: Double?
         /// "SOLID" | "DASHED" | "DOTTED"; nil = solid.
         public var lineStyle: String?
