@@ -26,8 +26,10 @@ extension AppModel {
 
     /// At launch, once: checks every class's templates and pins the constants found.
     func pinConstantsInBankOnce() async {
-        guard connection.isConnected,
+        guard !isPinningConstants, connection.isConnected,
               (try? await store.get(Self.constantsPinnedKey, as: Bool.self)) != true else { return }
+        isPinningConstants = true
+        defer { isPinningConstants = false }
         var allChecked = true
         for studyClass in classes {
             guard let all = try? await store.questions(in: studyClass.id, filter: nil) else { allChecked = false; continue }

@@ -58,6 +58,7 @@ final class AppModel {
     var isCategorizing = false
     var categorizingClass: ClassID?
     var categoriesChanged = 0
+    @ObservationIgnored var isPinningConstants = false
     /// Each class's state from the last run, read at launch and applied when its session is made.
     @ObservationIgnored var savedClassStates: [ClassID: SavedClassState] = [:]
     private(set) var isLoaded = false
@@ -160,10 +161,7 @@ final class AppModel {
         await questionBankSettings.load()
         await refreshConnection()
         isLoaded = true
-        Task {
-            await categorizeUnclassifiedQuestions()
-            await pinConstantsInBankOnce()
-        }
+        startBackgroundPasses()
         Task.detached(priority: .utility) { [engine] in
             try? await engine.warmUp()
         }
@@ -186,7 +184,18 @@ final class AppModel {
     // MARK: Connection
 
     func refreshConnection() async {
+        let wasConnected = connection.isConnected
         connection = await credentials.status()
+        // Signing in (after launch) starts the background passes that need the model.
+        if isLoaded, !wasConnected, connection.isConnected { startBackgroundPasses() }
+    }
+
+    /// The categorizer and the constants check, one after the other (each skips work already done).
+    func startBackgroundPasses() {
+        Task {
+            await categorizeUnclassifiedQuestions()
+            await pinConstantsInBankOnce()
+        }
     }
 
     func setAPIKey(_ key: String) async throws {
