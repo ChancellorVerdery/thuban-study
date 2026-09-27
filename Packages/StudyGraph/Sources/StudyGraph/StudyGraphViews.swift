@@ -54,6 +54,8 @@ extension View {
 /// keypad starts hidden (Control-K in the list shows it) and table drops are ignored.
 public struct StudyGraphView: View {
     let host: StudyGraphHost
+    /// This pane's zoom (`studyGraphTheme(zoom:)`); the kit multiplies `listWidth` by it.
+    @Environment(\.thubanZoom) private var zoom
 
     public init(host: StudyGraphHost) {
         self.host = host
@@ -76,8 +78,7 @@ public struct StudyGraphView: View {
     private func configuration(width: CGFloat) -> GraphEmbedConfiguration {
         var configuration = GraphEmbedConfiguration()
         configuration.showsExpressionList = host.listPreference ?? (width >= StudyGraphHost.listMinimumPaneWidth)
-        let zoom = max(0.5, GraphKitZoom.shared.scale)
-        configuration.listWidth = (StudyGraphHost.listWidth(forPane: width) / zoom).rounded()
+        configuration.listWidth = (StudyGraphHost.listWidth(forPane: width) / max(0.5, zoom)).rounded()
         configuration.showsKeypad = false
         configuration.showsModeControls = false
         configuration.onDropTables = nil
