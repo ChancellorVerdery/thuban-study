@@ -247,6 +247,8 @@ final class ImportPipeline {
             }
             // Problem types come from the categorizer (one model for every class), not the import agent.
             questions = await app.categorized(questions, in: classId)
+            // Physical constants in regenerated questions stay at the document's value.
+            questions = await app.pinningConstants(in: questions)
             // A regenerate replaces the document's earlier questions (only now that the new ones are ready).
             let earlierQuestions = (try? await store.questions(in: classId, filter: QuestionFilter(documentIds: [document.id]))) ?? []
             for earlier in earlierQuestions { try await store.delete(earlier.id) }

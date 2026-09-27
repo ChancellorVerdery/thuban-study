@@ -216,6 +216,18 @@ final class ClassSession {
         }
     }
 
+    /// Reloads the queue after templates changed in the store; the question on screen is drawn again from its new
+    /// template (same seed) so a pinned constant shows at once.
+    func reloadAfterTemplateChange() async {
+        let current = currentQuestion?.id
+        let seed = currentInstance?.seed
+        let typed = inputs
+        await loadQuestions()
+        guard let current, currentQuestion?.id == current, let question = currentQuestion, question.kind == .mathTemplate else { return }
+        await instantiate(question, seed: seed)
+        if currentQuestion?.id == current { inputs = typed }
+    }
+
     /// Refreshes `progress` only (after an attempt is recorded).
     func reloadProgress() async {
         guard let rows = try? await store.progress(in: classId) else { return }

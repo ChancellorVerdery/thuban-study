@@ -162,7 +162,10 @@ final class AppModel {
         await questionBankSettings.load()
         await refreshConnection()
         isLoaded = true
-        Task { await categorizeUnclassifiedQuestions() }
+        Task {
+            await categorizeUnclassifiedQuestions()
+            await pinConstantsInBankOnce()
+        }
         Task.detached(priority: .utility) { [engine] in
             try? await engine.warmUp()
         }

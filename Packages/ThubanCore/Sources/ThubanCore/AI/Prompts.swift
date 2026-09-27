@@ -228,6 +228,11 @@ public enum Prompts {
           after substitution, e.g. "2a" for the derivative of ax^2, or "\\\\frac{a}{b}" — it must be a closed-form \
           expression of the params, never prose.
         - `seedNote`: one line on what varies.
+        - Physical constants and reference values never vary: the acceleration of gravity (9.81 m/s², 32.2 ft/s², \
+          including a stated "local" g), g_c, gas constants, the speed of light, Avogadro's number, standard \
+          atmospheric pressure, the density or specific heat of water, conversion factors, atomic masses and any \
+          value read from a table. Write them into the stem as fixed numbers, not placeholders; only the problem's \
+          own givens (masses, lengths, forces, temperatures, times, rates) become params.
         Also fill the ordinary `parts` with the ORIGINAL numbers worked out (a concrete instance), so the question still \
         works if the template is rejected. Choose ranges that keep answers clean (integers, small fractions).
 
