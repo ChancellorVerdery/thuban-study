@@ -90,21 +90,10 @@ private struct SettingsCommandButton: View {
 /// Quitting waits (briefly) for every class's state to be saved, so the next launch opens where this one left off.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var appModel: AppModel?
-    private var savedForQuit = false
 
-    /// The first quit is held back while the states are written (at most 2 s), then the app quits for real.
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let appModel, !savedForQuit else { return .terminateNow }
-        savedForQuit = true
-        Task { @MainActor in
-            let save = Task { await appModel.saveAllClassStates() }
-            let deadline = Date().addingTimeInterval(2)
-            while !appModel.classStatesSaved, Date() < deadline {
-                try? await Task.sleep(for: .milliseconds(20))
-            }
-            _ = save
-            sender.terminate(nil)
-        }
-        return .terminateCancel
+    /// Quitting writes every class's latest state before the process exits (at most 2 s). A quit is never held
+    /// back or cancelled: the states are also saved as they change, so this only catches the last half second.
+    func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated { appModel?.saveAllClassStatesBeforeExit() }
     }
 }

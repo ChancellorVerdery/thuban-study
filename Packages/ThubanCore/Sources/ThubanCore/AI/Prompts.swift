@@ -208,7 +208,16 @@ public enum Prompts {
           degrees unless stated. Directions ("the heat transfer is out of the system") are choice parts.
         - A table with missing entries: one part per missing entry, named by its row and column ("Process b: \
           Q"), with the table itself in the stem as a Markdown table.
-        - "Sketch", "plot", "explain", "show that", "state assumptions" parts are freeResponse with a rubric of \
+        - A part that asks to sketch processes or a cycle on two axes (p–V, p–v, T–v, T–s coordinates) whose states \
+          are known is a `diagram` part: `answer.diagram` gives the axes (x horizontal: V on p–V), every numbered \
+          state `{id, x, y}` and every process `{from, to, path}` — path constantX (vertical), constantY \
+          (horizontal), line, or polytropic with `exponent` n of y·xⁿ = const (pV = const is 1; pV⁻¹ = const is \
+          −1). Numeric axes carry the unit and a range about 30 % above the largest value. When the states are \
+          given only as multiples of a reference ("p₂ = 2p₁", "V₄ = 2V₁"), the axis is symbolic: `symbol` "p_1", \
+          values in multiples of it (state 1 at 1), `max` about 1.5 × the largest multiple. Set `shadeWork` when \
+          the work must be shown as areas, and keep a rubric describing the sketch. Sketches that need a vapor dome, \
+          a curve with no stated relation, or anything else stay freeResponse.
+        - Other "sketch", "plot", "explain", "show that", "state assumptions" parts are freeResponse with a rubric of \
           what a correct answer shows or says; a "plot … and state the maximum" part gives the numbers as numeric \
           parts and the plot as a freeResponse part.
         - A question that relies on figures is never a template: its figures show the original numbers, so \
@@ -228,6 +237,13 @@ public enum Prompts {
           after substitution, e.g. "2a" for the derivative of ax^2, or "\\\\frac{a}{b}" — it must be a closed-form \
           expression of the params, never prose.
         - `seedNote`: one line on what varies.
+        - Physical constants and reference values never vary: the acceleration of gravity (9.81 m/s², 32.2 ft/s², \
+          including a stated "local" g), g_c, gas constants, the speed of light, Avogadro's number, standard \
+          atmospheric pressure, the density or specific heat of water, conversion factors, atomic masses and any \
+          value read from a table; neither do real-world facts and their stated spread (normal body temperature \
+          98.6 °F ± 1 °F, water's boiling and freezing points, the Earth's radius). Write them into the stem as fixed \
+          numbers, not placeholders; only the problem's own givens (masses, lengths, forces, temperatures, times, \
+          rates) become params.
         Also fill the ordinary `parts` with the ORIGINAL numbers worked out (a concrete instance), so the question still \
         works if the template is rejected. Choose ranges that keep answers clean (integers, small fractions).
 

@@ -216,7 +216,9 @@ extension ClassSession {
                 verdict = await judgeText(input, expected: expected, part: part, stem: instance.stem, fallback: verdict)
             }
             graded[part.id] = verdict
-            rows.append(GradeResults.Row(partId: part.id, prompt: part.prompt, answerKind: part.answerKind, input: input, verdict: verdict))
+            // A diagram's input is JSON; the sheet (and "Ask the tutor") shows it in words.
+            let shown = part.answerKind == .diagram ? DiagramAnswer.describe(input) : input
+            rows.append(GradeResults.Row(partId: part.id, prompt: part.prompt, answerKind: part.answerKind, input: shown, verdict: verdict))
         }
         // The instance may have changed while grading (regenerate / next); only apply to the same one.
         guard currentInstance?.seed == instance.seed, currentInstance?.questionId == instance.questionId else { return }
@@ -572,9 +574,17 @@ extension ClassSession {
                 "id": .string(part.id),
                 "prompt": .string(part.prompt),
                 "answerKind": .string(part.answerKind.rawValue),
-                "input": .string(inputs[part.id] ?? ""),
+                "input": .string(part.answerKind == .diagram ? DiagramAnswer.describe(inputs[part.id] ?? "") : inputs[part.id] ?? ""),
                 "requirements": .array(part.conditions.summaryItems.map { .string($0) }),
             ]
+            if let setup = part.diagram {
+                // How the drawing is measured: numbered axes by value, unnumbered ones in the student's own scale.
+                let axes = [setup.xAxis, setup.yAxis].map { axis in
+                    axis.isSymbolic ? "\(axis.label) unnumbered (in multiples of \(axis.symbol ?? ""), student's own scale)"
+                        : "\(axis.label) in \(axis.unit ?? "units") from \(axis.min) to \(axis.max)"
+                }
+                object["diagramAxes"] = .string("x: \(axes[0]); y: \(axes[1])")
+            }
             if let choices = part.choices { object["choices"] = .array(choices.map { .string($0) }) }
             if let options = part.choiceFigures, !options.isEmpty {
                 // The tutor cannot see the pictures: what each option shows, for its explanations only.

@@ -201,15 +201,20 @@ public struct QuestionCategorizer: Sendable {
 
     /// The merges array, also when a reply wraps it in a JSON string (`"{\"merges\": […]}"` or `"[…]"`).
     static func mergeItems(_ input: JSONValue) -> [JSONValue]? {
+        unwrapArray(input, key: "merges")
+    }
+
+    /// A tool call's array under `key`, also when a reply wraps it in a JSON string (`"{\"key\": […]}"` or `"[…]"`).
+    static func unwrapArray(_ input: JSONValue, key: String) -> [JSONValue]? {
         switch input {
         case .array(let items):
             return items
         case .object(let object):
-            return object["merges"].flatMap(mergeItems)
+            return object[key].flatMap { unwrapArray($0, key: key) }
         case .string(let text):
             guard let parsed = try? JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)) else { return nil }
             if case .string = parsed { return nil }
-            return mergeItems(parsed)
+            return unwrapArray(parsed, key: key)
         default:
             return nil
         }
