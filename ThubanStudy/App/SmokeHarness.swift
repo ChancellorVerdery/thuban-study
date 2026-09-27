@@ -347,6 +347,14 @@ enum SmokeHarness {
                     session.studyState.form.insert(latex: String(typed[typed.index(after: bar)...]))
                     await sleep(1.5)
                 }
+                // THUBAN_SMOKE_INPUT="a|<value>": set a part's stored answer directly (a diagram's JSON) and redraw the form.
+                if let raw = ProcessInfo.processInfo.environment["THUBAN_SMOKE_INPUT"], let bar = raw.firstIndex(of: "|"),
+                   let instance = session.currentInstance {
+                    session.inputs[String(raw[..<bar])] = String(raw[raw.index(after: bar)...])
+                    session.studyState.form.load(instance: instance, inputs: session.inputs, verdicts: session.verdicts,
+                                                 choiceImages: session.studyState.choiceImages)
+                    await sleep(1.5)
+                }
                 // THUBAN_SMOKE_CHECK=1: press Check answers so the results sheet is captured with the popovers below.
                 if ProcessInfo.processInfo.environment["THUBAN_SMOKE_CHECK"] == "1" {
                     await session.checkAnswers()
@@ -357,9 +365,17 @@ enum SmokeHarness {
                 for (index, other) in NSApp.windows.enumerated() where other !== window && other.isVisible && other.frame.width > 40 {
                     _ = try? await capture(window: other, name: String(format: "q%02d-window%d", offset + 1, index), in: directory)
                 }
-                if let scroll = window.contentView.flatMap(firstScrollView(in:)) {
-                    scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, (scroll.documentView?.frame.height ?? 0) - scroll.contentView.bounds.height)))
-                    scroll.reflectScrolledClipView(scroll.contentView)
+                // Every native scroll view to its end (the question pane is not always the first one).
+                let scrolls = window.contentView.map(allScrollViews(in:)) ?? []
+                if !scrolls.isEmpty {
+                    for scroll in scrolls {
+                        let flipped = scroll.documentView?.isFlipped ?? true
+                        // THUBAN_SMOKE_SCROLL=0.4: scroll to that fraction of the way down instead of the end.
+                        let fraction = ProcessInfo.processInfo.environment["THUBAN_SMOKE_SCROLL"].flatMap(Double.init) ?? 1
+                        let end = max(0, (scroll.documentView?.frame.height ?? 0) - scroll.contentView.bounds.height) * fraction
+                        scroll.contentView.scroll(to: NSPoint(x: 0, y: flipped ? end : 0))
+                        scroll.reflectScrolledClipView(scroll.contentView)
+                    }
                     await sleep(1.5)
                     _ = try await capture(window: window, name: String(format: "q%02d-form", offset + 1), in: directory)
                 }
@@ -369,6 +385,13 @@ enum SmokeHarness {
             fputs("smoke: \(error.localizedDescription)\n", stderr)
         }
         NSApp.terminate(nil)
+    }
+
+    private static func allScrollViews(in view: NSView) -> [NSScrollView] {
+        var found: [NSScrollView] = []
+        if let scroll = view as? NSScrollView, scroll.documentView != nil, !(String(describing: type(of: scroll)).contains("WK")) { found.append(scroll) }
+        for child in view.subviews { found += allScrollViews(in: child) }
+        return found
     }
 
     private static func firstScrollView(in view: NSView) -> NSScrollView? {

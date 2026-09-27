@@ -103,9 +103,14 @@ struct QuestionFormWebView: View {
                         "id": .string(part.id),
                         "prompt": .string(part.prompt),
                         "answerKind": .string(part.answerKind.rawValue),
-                        "conditionsText": .string(part.answerKind == .freeResponse ? "" : part.conditions.summary),
+                        "conditionsText": .string(part.answerKind == .freeResponse || part.answerKind == .diagram ? "" : part.conditions.summary),
                     ]
                     if let choices = part.choices { object["choices"] = .array(choices.map { .string($0) }) }
+                    if let setup = part.diagram, let data = try? JSONEncoder().encode(setup),
+                       let value = try? JSONDecoder().decode(JSONValue.self, from: data) {
+                        // Axes and the states to place; never where they go.
+                        object["diagram"] = value
+                    }
                     if let unit = part.conditions.units?.trimmingCharacters(in: .whitespaces), !unit.isEmpty, part.answerKind != .choice {
                         // Shown after the answer box: the student types the number, never the unit.
                         object["unit"] = .string(unit)

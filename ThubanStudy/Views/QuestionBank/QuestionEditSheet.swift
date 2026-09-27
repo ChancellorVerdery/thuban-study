@@ -129,6 +129,11 @@ struct QuestionEditSheet: View {
                 question.parts[index].answer.rubric = draftPart.answer.nilIfEmpty
             case .math, .numeric:
                 if !isTemplate { question.parts[index].answer.latex = draftPart.answer.nilIfEmpty }
+            case .diagram:
+                // Edited as JSON; text that does not decode keeps the stored diagram.
+                if let spec = try? JSONDecoder().decode(DiagramSpec.self, from: Data(draftPart.answer.utf8)) {
+                    question.parts[index].answer.diagram = spec
+                }
             }
         }
         onSave(question)
@@ -153,6 +158,13 @@ private struct PartDraft: Identifiable {
         choices.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
+    static func json(_ spec: DiagramSpec?) -> String {
+        guard let spec else { return "" }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return (try? encoder.encode(spec)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    }
+
     static func drafts(for question: Question) -> [PartDraft] {
         if question.kind == .mathTemplate, let template = question.template {
             return template.parts.map { part in
@@ -166,6 +178,7 @@ private struct PartDraft: Identifiable {
             case .text, .choice: answer = part.answer.text ?? part.answer.latex ?? ""
             case .freeResponse: answer = part.answer.rubric ?? ""
             case .math, .numeric: answer = part.answer.latex ?? ""
+            case .diagram: answer = PartDraft.json(part.answer.diagram)
             }
             return PartDraft(id: part.id, prompt: part.prompt, answerKind: part.answerKind, answer: answer,
                              choices: (part.choices ?? []).joined(separator: "\n"), conditions: ConditionsDraft(part.conditions))
@@ -264,6 +277,7 @@ private struct PartEditor: View {
         case .text: return "Text"
         case .choice: return "Choice"
         case .freeResponse: return "Free response"
+        case .diagram: return "Diagram"
         }
     }
 
@@ -273,6 +287,7 @@ private struct PartEditor: View {
         case .choice: return "Correct option"
         case .text: return "Answer text"
         case .math, .numeric: return isTemplate ? "Answer expression (LaTeX with placeholders)" : "Answer (LaTeX)"
+        case .diagram: return "Expected diagram (states and processes, JSON)"
         }
     }
 

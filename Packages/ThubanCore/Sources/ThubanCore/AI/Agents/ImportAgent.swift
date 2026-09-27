@@ -309,11 +309,57 @@ public enum ImportTools {
             "latex": ["type": "string", "description": "Canonical exact answer in LaTeX (math/numeric parts)."],
             "alternatives": ["type": "array", "items": ["type": "string"], "description": "Other accepted LaTeX forms."],
             "text": ["type": "string", "description": "Correct text / the correct option text (text/choice parts)."],
-            "rubric": ["type": "string", "description": "Grading rubric for freeResponse parts."],
+            "rubric": ["type": "string", "description": "Grading rubric for freeResponse parts (and a description of the sketch for diagram parts)."],
+            "diagram": diagramSchema,
         ],
     ]
 
-    static let answerKindSchema: JSONValue = ["type": "string", "enum": ["math", "numeric", "text", "choice", "freeResponse"]]
+    static let diagramAxisSchema: JSONValue = [
+        "type": "object",
+        "properties": [
+            "label": ["type": "string", "description": "\"p\", \"V\", \"T\", \"v\"."],
+            "unit": ["type": "string", "description": "Numeric axes: \"bar\", \"m^3\"."],
+            "symbol": ["type": "string", "description": "Symbolic axes only (states given as multiples of a reference): \"p_1\", \"V_1\"."],
+            "min": ["type": "number"],
+            "max": ["type": "number", "description": "About 20–40 % above the largest value (symbolic: in multiples of the symbol)."],
+            "step": ["type": "number", "description": "Tick spacing on a numeric axis (optional)."],
+        ],
+        "required": ["label", "max"],
+    ]
+
+    /// A process diagram ("sketch the processes on p–V coordinates").
+    public static let diagramSchema: JSONValue = [
+        "type": "object",
+        "description": "diagram parts only: the expected sketch.",
+        "properties": [
+            "xAxis": diagramAxisSchema,
+            "yAxis": diagramAxisSchema,
+            "states": [
+                "type": "array",
+                "items": [
+                    "type": "object",
+                    "properties": ["id": ["type": "string"], "x": ["type": "number"], "y": ["type": "number"]],
+                    "required": ["id", "x", "y"],
+                ],
+            ],
+            "processes": [
+                "type": "array",
+                "items": [
+                    "type": "object",
+                    "properties": [
+                        "from": ["type": "string"], "to": ["type": "string"],
+                        "path": ["type": "string", "enum": ["constantX", "constantY", "line", "polytropic", "any"]],
+                        "exponent": ["type": "number", "description": "n of y·xⁿ = const for polytropic paths (pV = const is 1)."],
+                    ],
+                    "required": ["from", "to", "path"],
+                ],
+            ],
+            "shadeWork": ["type": "boolean", "description": "True when the student must shade the work areas."],
+        ],
+        "required": ["xAxis", "yAxis", "states", "processes"],
+    ]
+
+    static let answerKindSchema: JSONValue = ["type": "string", "enum": ["math", "numeric", "text", "choice", "freeResponse", "diagram"]]
 
     static let partSchema: JSONValue = [
         "type": "object",

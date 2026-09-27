@@ -208,7 +208,16 @@ public enum Prompts {
           degrees unless stated. Directions ("the heat transfer is out of the system") are choice parts.
         - A table with missing entries: one part per missing entry, named by its row and column ("Process b: \
           Q"), with the table itself in the stem as a Markdown table.
-        - "Sketch", "plot", "explain", "show that", "state assumptions" parts are freeResponse with a rubric of \
+        - A part that asks to sketch processes or a cycle on two axes (p–V, p–v, T–v, T–s coordinates) whose states \
+          are known is a `diagram` part: `answer.diagram` gives the axes (x horizontal: V on p–V), every numbered \
+          state `{id, x, y}` and every process `{from, to, path}` — path constantX (vertical), constantY \
+          (horizontal), line, or polytropic with `exponent` n of y·xⁿ = const (pV = const is 1; pV⁻¹ = const is \
+          −1). Numeric axes carry the unit and a range about 30 % above the largest value. When the states are \
+          given only as multiples of a reference ("p₂ = 2p₁", "V₄ = 2V₁"), the axis is symbolic: `symbol` "p_1", \
+          values in multiples of it (state 1 at 1), `max` about 1.5 × the largest multiple. Set `shadeWork` when \
+          the work must be shown as areas, and keep a rubric describing the sketch. Sketches that need a vapor dome, \
+          a curve with no stated relation, or anything else stay freeResponse.
+        - Other "sketch", "plot", "explain", "show that", "state assumptions" parts are freeResponse with a rubric of \
           what a correct answer shows or says; a "plot … and state the maximum" part gives the numbers as numeric \
           parts and the plot as a freeResponse part.
         - A question that relies on figures is never a template: its figures show the original numbers, so \

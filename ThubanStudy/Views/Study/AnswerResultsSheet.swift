@@ -104,7 +104,7 @@ struct AnswerResultsSheet: View {
     private func askTutor(about row: GradeResults.Row) {
         var message = "Can you help me with part (\(row.partId))?"
         let input = row.input.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !input.isEmpty { message += " I entered $\(input)$" }
+        if !input.isEmpty { message += row.answerKind == .diagram ? " I drew: \(input)" : " I entered $\(input)$" }
         if !row.verdict.message.isEmpty { message += " and the check said: \"\(row.verdict.message)\"" }
         message += "."
         session.studyState.composerText = message

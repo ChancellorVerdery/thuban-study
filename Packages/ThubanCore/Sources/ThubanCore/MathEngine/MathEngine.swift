@@ -32,6 +32,8 @@ public actor MathEngine {
         switch kind {
         case .freeResponse:
             return GradingRules.tutorVerdict
+        case .diagram:
+            return DiagramGrader.grade(student: latex, expected: expected.diagram)
         case .text, .choice:
             return GradingRules.gradeText(student: latex, expected: expected, loose: kind == .text)
         case .math, .numeric:

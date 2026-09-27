@@ -59,6 +59,7 @@ final class AppModel {
     var categorizingClass: ClassID?
     var categoriesChanged = 0
     @ObservationIgnored var isPinningConstants = false
+    @ObservationIgnored var isConvertingDiagrams = false
     /// Each class's state from the last run, read at launch and applied when its session is made.
     @ObservationIgnored var savedClassStates: [ClassID: SavedClassState] = [:]
     private(set) var isLoaded = false
@@ -195,6 +196,7 @@ final class AppModel {
         Task {
             await categorizeUnclassifiedQuestions()
             await pinConstantsInBankOnce()
+            await convertSketchPartsOnce()
         }
     }
 

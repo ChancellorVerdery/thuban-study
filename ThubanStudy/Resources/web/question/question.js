@@ -182,6 +182,11 @@
     return input;
   }
 
+  function buildDiagram(entry, part) {
+    entry.diagram = window.ThubanDiagram.create(part.diagram || {}, () => onValueChanged(entry));
+    return entry.diagram.element;
+  }
+
   function buildFreeResponse(entry, part) {
     const ta = el('textarea', 'field');
     ta.rows = 4;
@@ -257,10 +262,11 @@
     if (isMathKind(kind)) control = buildMathInput(entry, part);
     else if (kind === 'choice') control = buildChoice(entry, part);
     else if (kind === 'freeResponse') control = buildFreeResponse(entry, part);
+    else if (kind === 'diagram') control = buildDiagram(entry, part);
     else control = buildTextInput(entry, part);
     inputWrap.appendChild(control);
     // The unit follows the box: the student types only the number.
-    if (part.unit && kind !== 'choice' && kind !== 'freeResponse') {
+    if (part.unit && kind !== 'choice' && kind !== 'freeResponse' && kind !== 'diagram') {
       const unit = el('span', 'part-unit');
       unit.innerHTML = formatUnit(String(part.unit));
       unit.setAttribute('aria-label', 'in ' + String(part.unit));
@@ -299,6 +305,8 @@
       refreshEcho(entry);
     } else if (entry.kind === 'choice') {
       for (const r of entry.radios) r.checked = (r.value === v);
+    } else if (entry.kind === 'diagram') {
+      entry.diagram.setValue(v);
     } else {
       entry.field.value = v;
     }
@@ -314,6 +322,8 @@
       mf.addEventListener('change', () => { if (mf.hasFocus()) onEnter(entry); });
     } else if (entry.kind === 'choice') {
       for (const r of entry.radios) r.addEventListener('change', () => onValueChanged(entry));
+    } else if (entry.kind === 'diagram') {
+      // The diagram reports its own changes.
     } else {
       entry.field.addEventListener('input', () => onValueChanged(entry));
     }
@@ -342,6 +352,10 @@
       let latex = '', ascii = '';
       try { latex = entry.field.getValue('latex'); ascii = entry.field.getValue('ascii-math'); } catch (_) { /* ignore */ }
       return { latex, ascii };
+    }
+    if (entry.kind === 'diagram') {
+      const json = entry.diagram.getValue();
+      return { latex: json, ascii: json };
     }
     if (entry.kind === 'choice') {
       const checked = entry.radios.find((r) => r.checked);
@@ -381,6 +395,7 @@
     let target = null;
     if (isMathKind(entry.kind)) target = entry.field;
     else if (entry.kind === 'choice') target = entry.radios.find((r) => r.checked) || entry.radios[0] || null;
+    else if (entry.kind === 'diagram') { entry.diagram.focus(); return; }
     else target = entry.field;
     if (!target) return;
     try { target.focus(); } catch (_) { /* ignore */ }

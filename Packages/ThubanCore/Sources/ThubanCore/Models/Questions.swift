@@ -13,6 +13,8 @@ public enum ProgressStatus: String, Codable, Sendable, CaseIterable {
 /// How a part is answered. Choices for `.choice` live on the owning `QuestionPart` / `InstancePart`.
 public enum AnswerKind: String, Codable, Sendable, CaseIterable {
     case math, numeric, text, choice, freeResponse
+    /// States and processes placed on a two-axis grid (a p–V sketch), graded by `DiagramGrader`.
+    case diagram
 
     /// Parts the MathEngine can grade on its own; `.freeResponse` is always tutor-graded.
     public var isAutoGradable: Bool { self != .freeResponse }
@@ -28,15 +30,18 @@ public struct AnswerSpec: Codable, Sendable, Equatable {
     public var text: String?
     /// For `.freeResponse` (tutor/agent-graded, never auto-graded).
     public var rubric: String?
+    /// For `.diagram`: the states and processes expected.
+    public var diagram: DiagramSpec?
 
-    public init(latex: String? = nil, alternatives: [String] = [], text: String? = nil, rubric: String? = nil) {
+    public init(latex: String? = nil, alternatives: [String] = [], text: String? = nil, rubric: String? = nil, diagram: DiagramSpec? = nil) {
         self.latex = latex
         self.alternatives = alternatives
         self.text = text
         self.rubric = rubric
+        self.diagram = diagram
     }
 
-    private enum CodingKeys: String, CodingKey { case latex, alternatives, text, rubric }
+    private enum CodingKeys: String, CodingKey { case latex, alternatives, text, rubric, diagram }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -44,6 +49,7 @@ public struct AnswerSpec: Codable, Sendable, Equatable {
         alternatives = try c.decodeIfPresent([String].self, forKey: .alternatives) ?? []
         text = try c.decodeIfPresent(String.self, forKey: .text)
         rubric = try c.decodeIfPresent(String.self, forKey: .rubric)
+        diagram = try? c.decodeIfPresent(DiagramSpec.self, forKey: .diagram)
     }
 }
 
@@ -520,6 +526,8 @@ public struct InstancePart: Codable, Identifiable, Sendable, Equatable {
     public var conditions: AnswerConditions
     /// The figure shown for each option (`QuestionPart.choiceFigures`).
     public var choiceFigures: [FigureID]?
+    /// For `.diagram`: the axes and the states to place (not where they go).
+    public var diagram: DiagramSetup?
 
     public init(
         id: String,
@@ -528,7 +536,8 @@ public struct InstancePart: Codable, Identifiable, Sendable, Equatable {
         answerKind: AnswerKind = .math,
         choices: [String]? = nil,
         conditions: AnswerConditions = .none,
-        choiceFigures: [FigureID]? = nil
+        choiceFigures: [FigureID]? = nil,
+        diagram: DiagramSetup? = nil
     ) {
         self.id = id
         self.prompt = prompt
@@ -537,6 +546,7 @@ public struct InstancePart: Codable, Identifiable, Sendable, Equatable {
         self.choices = choices
         self.conditions = conditions
         self.choiceFigures = choiceFigures
+        self.diagram = diagram
     }
 }
 
@@ -577,7 +587,8 @@ public struct QuestionInstance: Codable, Sendable, Equatable {
                 answerKind: part.answerKind,
                 choices: part.choices,
                 conditions: part.conditions,
-                choiceFigures: part.choiceFigures
+                choiceFigures: part.choiceFigures,
+                diagram: part.answer.diagram?.setup
             )
         }
         self.params = [:]
