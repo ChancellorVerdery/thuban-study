@@ -52,6 +52,8 @@ final class EquationsState {
 
     let sheetPage = EquationSheetWebView.Controller(mode: .sheet)
     let panelPage = EquationSheetWebView.Controller(mode: .panel)
+    /// The export workbench's page.
+    let exportPage = EquationExportWebView.Controller()
 
     // Section UI
     var editing: EquationEntryDraft?
@@ -59,6 +61,8 @@ final class EquationsState {
     var groupNaming: GroupNaming?
     var pendingDeleteEntry: EquationEntry?
     var pendingDeleteGroup: EquationSheet.Section?
+    /// The export workbench is open.
+    var isExporting = false
     var error: String?
     /// The last queued sheet change; the next one waits for it (see `ClassSession.enqueueSheetChange`).
     @ObservationIgnored var changeQueue: Task<Void, Never>?
@@ -146,6 +150,19 @@ extension ClassSession {
     }
 
     // MARK: Loading
+
+    /// The export workbench's settings and selection for this class (`{settings, sel}`), nil before the first export.
+    func equationExportChoices() async -> JSONValue? {
+        try? await store.get(SettingsKey("equationExport.\(classId.raw)"), as: JSONValue.self)
+    }
+
+    func saveEquationExportChoices(_ value: JSONValue) async {
+        do {
+            try await store.set(SettingsKey("equationExport.\(classId.raw)"), value)
+        } catch {
+            Self.logger.error("save export choices failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
 
     func loadEquationSheet() async {
         do {

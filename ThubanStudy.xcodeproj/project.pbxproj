@@ -84,6 +84,7 @@
 		E87E99E9DCA289CD7BE24475 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF47D19073731C2724D19052 /* SettingsView.swift */; };
 		EA3622FC5EC48AF3ED58F529 /* ThubanStudyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 600754474895BA108F79E955 /* ThubanStudyApp.swift */; };
 		EAD15F7EFB6E8147FD3C2C58 /* ClaudeAccountSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89F27B8A832C0FC7E38E208F /* ClaudeAccountSettings.swift */; };
+		EF144263AB1C9BF5C709BAAF /* EquationExportWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BAC279650A9CD4669AFC204 /* EquationExportWebView.swift */; };
 		F75F107537F9CCA0CBB5226F /* ChoiceFigureImages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1D19F12B0561B08ED2F0C2 /* ChoiceFigureImages.swift */; };
 		F9A14A3C468A9727689D425A /* ComposerWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C86B038854C562FFF2118E74 /* ComposerWebView.swift */; };
 		FDE734AB1F0C9DFC4F503B88 /* ShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDC77D0C277A82BB684D9ADE /* ShellView.swift */; };
@@ -112,6 +113,7 @@
 		3D1D19F12B0561B08ED2F0C2 /* ChoiceFigureImages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChoiceFigureImages.swift; sourceTree = "<group>"; };
 		3F600DBB9A79C49F036836DC /* AgentsSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsSettings.swift; sourceTree = "<group>"; };
 		4A0A38543D1D943A77A1F22E /* AppModel+QuestionBankandImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+QuestionBankandImport.swift"; sourceTree = "<group>"; };
+		4BAC279650A9CD4669AFC204 /* EquationExportWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquationExportWebView.swift; sourceTree = "<group>"; };
 		52568624302C0DE33599DE0C /* EquationsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquationsPane.swift; sourceTree = "<group>"; };
 		584E744841F901041301BD7D /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		600754474895BA108F79E955 /* ThubanStudyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThubanStudyApp.swift; sourceTree = "<group>"; };
@@ -256,6 +258,7 @@
 				FF742A5BBBD3EE9A6AA601FC /* BridgeWebView.swift */,
 				778E2B04690D737EF33E3A47 /* ChatWebView.swift */,
 				C86B038854C562FFF2118E74 /* ComposerWebView.swift */,
+				4BAC279650A9CD4669AFC204 /* EquationExportWebView.swift */,
 				B7B07A87552BA88E1636E6BD /* EquationSheetWebView.swift */,
 				2BC5BBCEB0C00BC5DD7BF2A4 /* QuestionFormWebView.swift */,
 				C57D930C066D04D1B08182F2 /* ThubanSchemeHandler.swift */,
@@ -520,6 +523,7 @@
 				7C1231DD149B6AEEDC68C602 /* DeleteClassAlert.swift in Sources */,
 				8A579E26738F001B6B42A37D /* EmptyState.swift in Sources */,
 				D63E35EC1C6DCD6F9BEA12D1 /* EquationEntryEditor.swift in Sources */,
+				EF144263AB1C9BF5C709BAAF /* EquationExportWebView.swift in Sources */,
 				1EAC7C08DF9EF74717D2D495 /* EquationSheetView.swift in Sources */,
 				A0ABCD32CA03BDD48A92404C /* EquationSheetWebView.swift in Sources */,
 				0A69EBAE434B97C24071BF48 /* EquationsPane.swift in Sources */,

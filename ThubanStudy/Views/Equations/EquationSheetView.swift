@@ -54,6 +54,10 @@ struct EquationSheetView: View {
             EquationEntryEditor(session: session, draft: draft)
                 .environment(\.thubanTheme, theme)
         }
+        .sheet(isPresented: $state.isExporting) {
+            EquationExportSheet(session: session)
+                .environment(\.thubanTheme, theme)
+        }
         .sheet(item: $state.groupNaming) { naming in
             EquationGroupNameSheet(session: session, group: naming.group)
                 .environment(\.thubanTheme, theme)
@@ -108,6 +112,12 @@ struct EquationSheetView: View {
                     .frame(width: 260.z)
             }
             // An empty sheet has one action, the empty state's primary "Add a group".
+            if state.sheet.entryCount > 0 {
+                Button("Export…") { state.isExporting = true }
+                    .buttonStyle(.thubanSecondary)
+                    .keyboardShortcut("p", modifiers: .command)
+                    .help("Lay the sheet out on paper or index cards and export a PDF or print (⌘P)")
+            }
             if !state.sheet.isEmpty {
                 Button("Add group") { state.groupNaming = EquationsState.GroupNaming(group: nil) }
                     .buttonStyle(.thubanSecondary)

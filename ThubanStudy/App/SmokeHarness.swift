@@ -388,6 +388,37 @@ enum SmokeHarness {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             NSApp.activate(ignoringOtherApps: true)
             guard let session = app.selectedSession else { throw ThubanError.store("smoke: no selected class") }
+            // THUBAN_SMOKE_EQUATION_EXPORT=1: open the Equations section's export workbench, capture it, and (with
+            // THUBAN_SMOKE_EXPORT_PDF=<path>) export a PDF there.
+            if ProcessInfo.processInfo.environment["THUBAN_SMOKE_EQUATION_EXPORT"] == "1" {
+                session.section = .equations
+                let window = try await waitForMainWindow()
+                window.makeKeyAndOrderFront(nil)
+                await sleep(3)
+                session.equations.isExporting = true
+                await waitUntil(timeout: 8) { session.equations.exportPage.bridge.isPageReady }
+                await sleep(4)
+                for (index, other) in NSApp.windows.enumerated() where other !== window && other.isVisible && other.frame.width > 40 {
+                    _ = try? await capture(window: other, name: "export-window\(index)", in: directory)
+                }
+                // THUBAN_SMOKE_EXPORT_JS=<expression>: evaluate in the export page and print the result (layout checks).
+                if let script = ProcessInfo.processInfo.environment["THUBAN_SMOKE_EXPORT_JS"], !script.isEmpty,
+                   let webView = session.equations.exportPage.bridge.webView {
+                    let result = try? await webView.evaluateJavaScript(script)
+                    fputs("smoke: js \(result.map { "\($0)" } ?? "nil")\n", stderr)
+                }
+                if let path = ProcessInfo.processInfo.environment["THUBAN_SMOKE_EXPORT_PDF"], !path.isEmpty {
+                    session.equations.exportPage.requestPDF()
+                    await waitUntil(timeout: 20) { session.equations.exportPage.lastPDF != nil }
+                    fputs("smoke: pdf \(session.equations.exportPage.lastPDF?.path ?? "none")\n", stderr)
+                }
+                fputs("smoke: done\n", stderr)
+                // AppKit ignores a quit while a sheet is up: close the workbench first.
+                session.equations.isExporting = false
+                await sleep(1)
+                NSApp.terminate(nil)
+                return
+            }
             session.section = .study
             let window = try await waitForMainWindow()
             window.makeKeyAndOrderFront(nil)
