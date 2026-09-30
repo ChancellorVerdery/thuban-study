@@ -109,7 +109,8 @@ final class AppModel {
         var openedStore: Store
         var error: String?
         do {
-            openedStore = try Store.open()
+            // A `--refresh-icon` launch draws the icon and exits; it must never open (or migrate) the database.
+            openedStore = SharedTheme.isRefreshLaunch ? try Store.inMemory() : try Store.open()
         } catch let storeError {
             error = storeError.localizedDescription
             Self.logger.error("Store failed to open: \(storeError.localizedDescription, privacy: .public)")
@@ -122,6 +123,7 @@ final class AppModel {
         self.credentials = credentials
         claudeClient = ClaudeClient(authProvider: { try await credentials.currentAuth() })
 
+        if let shared = SharedTheme.load() { themeSelection = shared }
         systemIsDark = Self.currentSystemIsDark()
         theme = ThemeResolver.resolve(themeSelection, systemIsDark: systemIsDark)
         // `NSApp` does not exist yet while the App's @State is constructed; appearance observation starts in `load()`.
@@ -137,6 +139,7 @@ final class AppModel {
     /// Loads settings and classes and restores the last selected class. Safe to call once at launch.
     func load() async {
         if appearanceObservation == nil { observeAppearance() }
+        observeSharedTheme()
         do {
             try AppPaths.ensureDirectories()
         } catch {
@@ -153,6 +156,11 @@ final class AppModel {
             if let selection = try await store.get(.theme, as: ThemeSelection.self) {
                 themeSelection = selection
             }
+            // The scheme shared by every Thuban app wins over this app's own saved one.
+            if let shared = SharedTheme.load(), shared != themeSelection {
+                themeSelection = shared
+                try? await store.set(.theme, shared)
+            }
             modelPolicy = try await store.get(.modelPolicy, as: ModelPolicy.self) ?? .default
             tutorMayEditGraph = try await store.get(.tutorMayEditGraph, as: Bool.self) ?? true
             showFigureDescriptions = try await store.get(.showFigureDescriptions, as: Bool.self) ?? false
@@ -166,6 +174,8 @@ final class AppModel {
             Self.logger.error("Load failed: \(error.localizedDescription, privacy: .public)")
             startupError = startupError ?? error.localizedDescription
         }
+        // First Thuban app to run with sharing seeds the file with its own scheme.
+        if SharedTheme.load() == nil { SharedTheme.publish(themeSelection) }
         recomputeTheme()
         // Question-bank defaults (mastery threshold, auto-regenerate, questions per chunk) are read by grading
         // and the import pipeline, so they must be loaded before the first attempt, not only when Settings opens.
@@ -236,6 +246,7 @@ final class AppModel {
         themeSelection = selection
         recomputeTheme()
         Task { try? await store.set(.theme, selection) }
+        SharedTheme.publish(selection)
     }
 
     func setAppearanceMode(_ mode: AppearanceMode) {
@@ -258,6 +269,17 @@ final class AppModel {
         selection.custom = scheme.asCustom(label: scheme.label)
         selection.schemeId = ColorScheme.customId
         setThemeSelection(selection)
+    }
+
+    @ObservationIgnored private var sharedThemeObserver: NSObjectProtocol?
+
+    /// Another Thuban app changed the scheme: adopt it (publishing again is a no-op once the file matches).
+    private func observeSharedTheme() {
+        guard sharedThemeObserver == nil else { return }
+        sharedThemeObserver = SharedTheme.observe { [weak self] selection in
+            guard let self, self.themeSelection != selection else { return }
+            self.setThemeSelection(selection)
+        }
     }
 
     private func observeAppearance() {

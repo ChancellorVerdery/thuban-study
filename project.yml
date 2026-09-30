@@ -48,6 +48,8 @@ targets:
         # The Thuban Graph checkout this build used (`git rev-parse --short HEAD`, "-dirty" when modified); the
         # scripts pass it, About › Acknowledgements shows it.
         ThubanGraphKitRevision: $(THUBAN_GRAPH_KIT_REVISION)
+        # Opts in to the shared Thuban scheme: other Thuban apps may launch this one with `--refresh-icon`.
+        ThubanSharedTheme: true
     entitlements:
       path: ThubanStudy/Resources/ThubanStudy.entitlements
       properties:

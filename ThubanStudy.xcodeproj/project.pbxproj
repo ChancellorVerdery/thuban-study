@@ -56,6 +56,7 @@
 		7F5B98D2F7E8519964BE5AF9 /* ProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20DF246D546C4759E93C243 /* ProgressBar.swift */; };
 		8A579E26738F001B6B42A37D /* EmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1CEB9ACB1D91668E88A25DC /* EmptyState.swift */; };
 		902E8D097DF6225B8BDB3117 /* AppModel+Diagrams.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30EF164FFAFF756B0D334491 /* AppModel+Diagrams.swift */; };
+		97E96A34EEE27B2A3445CBC0 /* SharedTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26E99F7FC62FF47B635E7719 /* SharedTheme.swift */; };
 		99AE6C67197FF627673FA9E0 /* AppModel+Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4CA91093E31FCDF260BB9C5 /* AppModel+Constants.swift */; };
 		9ACF11AEFE1A4D0A1D72EB1B /* CommandBus.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECB3AFA5D45551F433544E15 /* CommandBus.swift */; };
 		9DD8415A338B960ACD151ECA /* BatchEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EBC0D7EFE8A5CF32B4168F4 /* BatchEditSheet.swift */; };
@@ -108,6 +109,7 @@
 		18F8238DE2B3A5DD7E6347D9 /* ToggleChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToggleChip.swift; sourceTree = "<group>"; };
 		1D0846196F21D1A6D3843390 /* CustomSchemeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomSchemeSheet.swift; sourceTree = "<group>"; };
 		240822C8E06814D5515BE58B /* FigureReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FigureReviewView.swift; sourceTree = "<group>"; };
+		26E99F7FC62FF47B635E7719 /* SharedTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedTheme.swift; sourceTree = "<group>"; };
 		2886ED56B0FBA5FDB2A38A0A /* ClassSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassSession.swift; sourceTree = "<group>"; };
 		2BC5BBCEB0C00BC5DD7BF2A4 /* QuestionFormWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionFormWebView.swift; sourceTree = "<group>"; };
 		2CF60844F1692EE86270D866 /* ThubanStudy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ThubanStudy.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -310,6 +312,7 @@
 				D6130E36035D70355B9D2F14 /* FigureDump.swift */,
 				04557EC482ADCDDE7624D15A /* ImportHarness.swift */,
 				F917FE53C90B0E81BA94FB95 /* RegenerateHarness.swift */,
+				26E99F7FC62FF47B635E7719 /* SharedTheme.swift */,
 				6E03B635E9538573BCC73AD9 /* SmokeHarness.swift */,
 				600754474895BA108F79E955 /* ThubanStudyApp.swift */,
 			);
@@ -580,6 +583,7 @@
 				75DAF3226F71D9152F6DECFD /* SearchField.swift in Sources */,
 				0D16D7D6B5771F4D08B56A25 /* SegmentedPicker.swift in Sources */,
 				E87E99E9DCA289CD7BE24475 /* SettingsView.swift in Sources */,
+				97E96A34EEE27B2A3445CBC0 /* SharedTheme.swift in Sources */,
 				FDE734AB1F0C9DFC4F503B88 /* ShellView.swift in Sources */,
 				5FFC677A7BC3CAE782194A3C /* SmokeHarness.swift in Sources */,
 				FE73EDBDCC5EB80ACA628607 /* StudyFilterMenu.swift in Sources */,

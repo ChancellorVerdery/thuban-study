@@ -5,12 +5,14 @@ import ThubanCore
 struct ThubanStudyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var appModel: AppModel = {
+        // A `--refresh-icon` launch gets an in-memory store; `AppDelegate` exits before any window or load().
         SmokeHarness.exitIfPointedAtLiveData()   // before the model opens the store or the credentials
         SmokeHarness.installProxyTrapIfRequested()   // before any web view exists
         return AppModel()
     }()
 
     init() {
+        guard !SharedTheme.isRefreshLaunch else { return }   // icon-only launch: no shortcuts, no UI
         AppZoom.shared.installShortcuts()
     }
 
@@ -91,9 +93,21 @@ private struct SettingsCommandButton: View {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var appModel: AppModel?
 
+    /// A `--refresh-icon` launch stamps the themed icon on the bundle and exits before any window appears.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            SharedTheme.handleRefreshLaunch { AppIconRenderer.render(theme: $0) }
+        }
+    }
+
     /// Quitting writes every class's latest state before the process exits (at most 2 s). A quit is never held
     /// back or cancelled: the states are also saved as they change, so this only catches the last half second.
     func applicationWillTerminate(_ notification: Notification) {
         MainActor.assumeIsolated { appModel?.saveAllClassStatesBeforeExit() }
     }
+}
+
+extension SharedTheme {
+    /// This process was launched with `--refresh-icon` (by another Thuban app): it only draws the icon and exits.
+    nonisolated static var isRefreshLaunch: Bool { CommandLine.arguments.contains("--refresh-icon") }
 }

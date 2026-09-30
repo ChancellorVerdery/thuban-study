@@ -18,7 +18,10 @@ enum AppIconRenderer {
         let key = theme.bg + theme.accent + theme.signal + theme.panel + theme.line2
         guard key != lastKey else { return }
         lastKey = key
-        NSApplication.shared.applicationIconImage = render(theme: theme)
+        let image = render(theme: theme)
+        NSApplication.shared.applicationIconImage = image
+        // Finder / Dock / Launchpad show the themed icon even while the app is closed.
+        SharedTheme.setBundleIcon(image, key: key)
         if let path = ProcessInfo.processInfo.environment["THUBAN_DUMP_ICON"] {
             dump(theme: theme, to: URL(fileURLWithPath: path))
         }

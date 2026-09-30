@@ -34,5 +34,7 @@
 	<false/>
 	<key>ThubanGraphKitRevision</key>
 	<string>$(THUBAN_GRAPH_KIT_REVISION)</string>
+	<key>ThubanSharedTheme</key>
+	<true/>
 </dict>
 </plist>
