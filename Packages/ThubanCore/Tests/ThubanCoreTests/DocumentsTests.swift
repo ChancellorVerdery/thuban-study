@@ -93,7 +93,8 @@ final class DocumentsTests: XCTestCase {
         XCTAssertLessThan(imagePosition, secondPage)
     }
 
-    func testPDFScannedPageBecomesFullPageFigureAndIsOCRed() async throws {
+    /// A scanned page of text is read by OCR and is not a figure (only drawings on a scan become figures).
+    func testPDFScannedTextPageIsOCRedAndIsNotAFigure() async throws {
         let url = file("scan.pdf")
         // A page with no text objects at all, only a big drawn "image" of text.
         let canvas = ImageCodec.rgbaContext(width: 1200, height: 400)!
@@ -102,8 +103,8 @@ final class DocumentsTests: XCTestCase {
         try DocumentsFixtures.writePDF(to: url, pages: [.init(lines: [], image: scan)])
 
         let content = try await PDFParser(ocrEnabled: true).parse(url: url)
-        XCTAssertEqual(content.figures.count, 1)
-        XCTAssertEqual(content.figures.first?.page, 1)
+        XCTAssertEqual(content.figures.count, 0, "a page of text is not a figure")
+        XCTAssertNotNil(content.pageImages[1], "the model still sees the page")
         XCTAssertTrue(content.fullText.uppercased().contains("PHOTOSYNTHESIS"), "OCR text: \(content.fullText)")
     }
 

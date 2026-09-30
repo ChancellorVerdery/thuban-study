@@ -31,18 +31,43 @@ public struct PDFParser: DocumentParser {
             throw ThubanError.unsupportedDocument("\"\(url.lastPathComponent)\" is password protected.")
         }
         var content = DocumentContent(pageCount: document.pageCount)
+        var cut: CutFigure?
         for pageIndex in 0..<document.pageCount {
             try ParserSupport.checkCancellation()
-            guard let page = document.page(at: pageIndex) else { continue }
-            try await parsePage(page, number: pageIndex + 1, into: &content)
+            guard let page = document.page(at: pageIndex) else { cut = nil; continue }
+            try await parsePage(page, number: pageIndex + 1, into: &content, cut: &cut)
         }
+        if let cut { flush(cut, into: &content) }
         return content
     }
 
-    private func parsePage(_ page: PDFPage, number: Int, into content: inout DocumentContent) async throws {
+    /// A figure at the bottom of a page picture that the page break cut, held until the next page shows whether it
+    /// continues there. `blockIndex` is where it goes among the content blocks (its own page).
+    struct CutFigure {
+        var picture: CGImage
+        var rect: CGRect
+        var page: Int
+        var nearbyText: String
+        var blockIndex: Int
+    }
+
+    /// Adds a held piece on its own when nothing continued it — if it is figure-sized (a sliver of a cut text line is
+    /// not).
+    private func flush(_ cut: CutFigure, into content: inout DocumentContent) {
+        guard PageFigureFinder.isFigureSized(cut.rect), let crop = cut.picture.cropping(to: cut.rect), let png = ImageCodec.png(from: crop) else { return }
+        insert(png: png, page: cut.page, nearbyText: cut.nearbyText, at: cut.blockIndex, into: &content)
+    }
+
+    private func insert(png: Data, page: Int, nearbyText: String, at blockIndex: Int, into content: inout DocumentContent) {
+        guard content.figures.count < Self.maxFigures,
+              let index = content.appendFigure(page: page, pngData: png, nearbyText: String(nearbyText.prefix(600)), force: true) else { return }
+        content.blocks.insert(.image(index: index), at: min(blockIndex, content.blocks.count))
+    }
+
+    private func parsePage(_ page: PDFPage, number: Int, into content: inout DocumentContent, cut: inout CutFigure?) async throws {
         content.blocks.append(.pageBreak(number))
         let pageText = (page.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let isScanned = pageText.count < VisionOCR.scannedPageThreshold
+        var isScanned = pageText.count < VisionOCR.scannedPageThreshold
         var nearbyText = String(pageText.prefix(600))
 
         var render: PDFPageRender?
@@ -56,13 +81,22 @@ public struct PDFParser: DocumentParser {
             }
         }
 
-        if isScanned, ocrEnabled, let image = render?.pageImage {
-            let recognized = try await VisionOCR.recognizeText(in: image)
-            if !recognized.isEmpty { nearbyText = String(recognized.prefix(600)) }
-            appendParagraphs(recognized, to: &content)
-        } else {
-            appendParagraphs(pageText, to: &content)
+        // A page printed as one picture (a reader's "print", a scan saved as PDF): its text layer is at most a print
+        // footer, so it is read like a scan — watermarks removed, text recognized, figures found on the picture.
+        if let render, let picture = render.onePicture {
+            // The embedded picture itself: its edges are where the book was cut into pages (and the print header
+            // outside it stays out).
+            try await parsePicturePage(picture, number: number, cutEdges: true, into: &content, cut: &cut)
+            return
         }
+        if let held = cut { flush(held, into: &content) }
+        cut = nil
+        if isScanned, let render {
+            var none: CutFigure?
+            try await parsePicturePage(render.pageImage, number: number, cutEdges: false, into: &content, cut: &none)
+            return
+        }
+        appendParagraphs(pageText, to: &content)
 
         guard let render else { return }
         if number <= Self.maxPageImages, let png = ImageCodec.png(from: render.pageImage, maxDimension: Self.pageImageDimension) {
@@ -81,6 +115,58 @@ public struct PDFParser: DocumentParser {
         }
     }
 
+    /// A scanned or pictured page: watermarks off, OCR on the clean picture, each figure cropped on its own (never
+    /// the whole page as one figure).
+    private func parsePicturePage(
+        _ pageImage: CGImage, number: Int, cutEdges: Bool, into content: inout DocumentContent, cut: inout CutFigure?
+    ) async throws {
+        let cleaned = (try? await ParserSupport.offloaded { WatermarkRemover.clean(pageImage) }) ?? nil
+        let page = cleaned ?? pageImage
+        let lines = ocrEnabled ? try await VisionOCR.recognizeLines(in: page) : []
+        appendParagraphs(lines.map(\.text).joined(separator: "\n"), to: &content)
+        if number <= Self.maxPageImages, let png = ImageCodec.png(from: page, maxDimension: Self.pageImageDimension) {
+            content.pageImages[number] = png
+        }
+        guard let bitmap = PageBitmap(page) else { return }
+        let found = try await ParserSupport.offloaded { PageFigureFinder.figures(in: bitmap, lines: lines, cutEdges: cutEdges) }
+        var previousCut = cut
+        cut = nil
+        for (position, figure) in found.enumerated() {
+            // The lower half of a figure the page break cut: joined to its upper half on the previous page, where the
+            // figure goes (its problem is there).
+            if position == 0, figure.touchesTop, let previous = previousCut {
+                previousCut = nil
+                let joinedHeight = (CGFloat(previous.picture.height) - previous.rect.minY) + figure.rect.maxY
+                let joinedRect = CGRect(x: 0, y: 0, width: max(previous.rect.width, figure.rect.width), height: joinedHeight)
+                if PageFigureFinder.isFigureSized(joinedRect),
+                   let joined = FigureStitcher.stitch(upper: previous.picture, upperRect: previous.rect, lower: page, lowerRect: figure.rect),
+                   let png = ImageCodec.png(from: joined) {
+                    let nearby = ([figure.caption].compactMap { $0 } + [previous.nearbyText]).joined(separator: "\n")
+                    insert(png: png, page: previous.page, nearbyText: nearby, at: previous.blockIndex, into: &content)
+                    continue
+                }
+                flush(previous, into: &content)
+            }
+            // A piece cut at the top that continues nothing is kept only if it is a figure on its own.
+            if figure.touchesTop, !PageFigureFinder.isFigureSized(figure.rect) { continue }
+            guard content.figures.count < Self.maxFigures else {
+                content.warnings.append("Figure limit reached; later figures were skipped.")
+                return
+            }
+            guard let crop = page.cropping(to: figure.rect), let png = ImageCodec.png(from: crop) else { continue }
+            // The caption, then the text just above the figure (the problem it belongs to).
+            let above = lines.filter { $0.rect.maxY <= figure.rect.minY + 4 && $0.rect.maxY >= figure.rect.minY - 260 }.map(\.text)
+            let nearby = ([figure.caption].compactMap { $0 } + above).joined(separator: "\n")
+            if figure.touchesBottom, position == found.count - 1 {
+                // Held: the next page may continue it.
+                cut = CutFigure(picture: page, rect: figure.rect, page: number, nearbyText: nearby, blockIndex: content.blocks.count)
+                continue
+            }
+            insert(png: png, page: number, nearbyText: nearby, at: content.blocks.count, into: &content)
+        }
+        if let previousCut { flush(previousCut, into: &content) }
+    }
+
     private func appendParagraphs(_ text: String, to content: inout DocumentContent) {
         content.blocks.append(contentsOf: ParserSupport.paragraphs(from: text).map { ContentBlock.paragraph($0) })
     }
@@ -90,6 +176,12 @@ public struct PDFParser: DocumentParser {
 struct PDFPageRender {
     let pageImage: CGImage
     let figures: [CGImage]
+
+    /// The picture that covers nearly all of the page, when the page is one picture (a reader's print, a scan).
+    var onePicture: CGImage? {
+        let pageArea = Double(pageImage.width * pageImage.height)
+        return figures.first { Double($0.width * $0.height) >= 0.7 * pageArea }
+    }
 }
 
 /// Renders a `CGPDFPage` and crops its image XObjects.
