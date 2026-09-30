@@ -59,17 +59,21 @@ extension Store {
             // Each class's hand-curated equation sheet: ordered groups, each holding ordered entries.
             try createEquationSheets(db)
         }
+        migrator.registerMigration("v7-flashcards") { db in
+            // Each class's flashcard deck, scheduled on the 1-3-7-14-21-day ladder.
+            try createFlashcards(db)
+        }
         return migrator
     }
 
     /// Every migration identifier, in order.
     public static let migrationIdentifiers = ["v1", "v2-document-warnings", "v3-question-type", "v4-figures-outlive-documents", "v5-message-seed",
-                                                 "v6-equation-sheets"]
+                                                 "v6-equation-sheets", "v7-flashcards"]
 
     /// Every table the migrations create, in dependency order.
     public static let tableNames = [
         "classes", "documents", "questions", "figures", "attempts", "progress", "messages", "settings",
-        "equation_groups", "equation_entries",
+        "equation_groups", "equation_entries", "flashcards",
     ]
 
     private static func createClasses(_ db: Database) throws {
@@ -192,6 +196,21 @@ extension Store {
             t.column("createdAt", .datetime).notNull()
         }
         try db.create(index: "equation_entries_on_group_position", on: "equation_entries", columns: ["groupId", "position"])
+    }
+
+    /// Cards belong to a class and go with it. `due` is a calendar day ("yyyy-MM-dd", NULL = new).
+    static func createFlashcards(_ db: Database) throws {
+        try db.create(table: "flashcards") { t in
+            t.primaryKey("id", .text)
+            t.column("classId", .text).notNull().references("classes", onDelete: .cascade)
+            t.column("front", .text).notNull()
+            t.column("back", .text).notNull()
+            t.column("box", .integer).notNull().defaults(to: 0)
+            t.column("due", .text)
+            t.column("position", .integer).notNull().defaults(to: 0)
+            t.column("createdAt", .datetime).notNull()
+        }
+        try db.create(index: "flashcards_on_class_position", on: "flashcards", columns: ["classId", "position"])
     }
 
     private static func createSettings(_ db: Database) throws {

@@ -13,7 +13,7 @@ final class ClassSession {
     static let logger = Logger(subsystem: "com.thuban.study", category: "session")
 
     enum Section: String, CaseIterable, Identifiable, Sendable {
-        case study, questionBank, equations, importDocs
+        case study, questionBank, equations, flashcards, importDocs
 
         var id: String { rawValue }
         var label: String {
@@ -21,6 +21,7 @@ final class ClassSession {
             case .study: return "Study"
             case .questionBank: return "Question Bank"
             case .equations: return "Equations"
+            case .flashcards: return "Flashcards"
             case .importDocs: return "Import"
             }
         }

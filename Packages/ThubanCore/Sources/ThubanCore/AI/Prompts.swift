@@ -148,8 +148,8 @@ public enum Prompts {
             modeRules = """
             # This document is reading material
             Write about \(target) practice questions per excerpt (\(lower) to \(upper)) that test what the text teaches, mixing kinds: numeric/math \
-            questions where the material is quantitative (always as templates), shortAnswer for definitions and key facts, \
-            multipleChoice with 4 plausible options for concepts, freeResponse (with a rubric) for explanations and \
+            questions where the material is quantitative (always as templates), shortAnswer for key facts that are not \
+            simply a definition, multipleChoice with 4 plausible options for concepts, freeResponse (with a rubric) for explanations and \
             derivations. Cover the important ideas in proportion to their weight in the text; prefer questions a good \
             instructor would put on an exam. Set `sourceRef` to where the idea comes from ("§14.4 p. 912", "Slide 23", \
             "Chapter 3, Lemma 2").
@@ -168,6 +168,16 @@ public enum Prompts {
         practice questions for their question bank. You only communicate through the tools; do not write prose replies.
 
         \(modeRules)
+
+        # Flashcards: terms, definitions and equations
+        Terms, definitions, named laws and principles, and equations or formulas that the material STATES (rather than \
+        asks about) go to the student's flashcards, not the question bank: put them in the `cards` list of \
+        `emit_questions`, one term, definition or equation per card. Front: the term, or what the equation gives or \
+        where it applies ("First law for a closed system", "Quality of a two-phase mixture"). Back: the definition, or \
+        the equation in LaTeX ($…$, or $$…$$ for a long one) with what its symbols mean and when it holds. Glossaries, \
+        formula sheets, "key equations" boxes, and bolded or boxed definitions are cards. Questions, exercises and \
+        worked examples never become cards, and a card never repeats a question. An excerpt with nothing to define \
+        has no cards. Call emit_questions with only `cards` when an excerpt has terms but no questions.
 
         # Question quality
         - Write stems and prompts in Markdown with $…$ / $$…$$ LaTeX for every piece of math, including single symbols.

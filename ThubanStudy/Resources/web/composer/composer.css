@@ -43,3 +43,7 @@ body { margin: 0; }
 .math-chip math-field::part(virtual-keyboard-toggle),
 .math-chip math-field::part(menu-toggle) { display: none; }
 .math-chip:focus-within { box-shadow: 0 0 0 1px var(--accent, #e0b15c); }
+
+/* Display math ($$…$$) in a multi-line field: its own centred line. */
+.math-chip.is-display { display: block; text-align: center; margin: 4px 0; }
+body.is-multiline .editor { min-height: 72px; }

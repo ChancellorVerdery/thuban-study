@@ -16,6 +16,8 @@ enum IconName: String, CaseIterable {
     case themePalette = "theme-palette"
     /// A sheet with a radical: the class's equation sheet (added with the Equations section).
     case equations
+    /// Two cards, the front one turning: the class's flashcard deck (added with the Flashcards section).
+    case flashcards
 }
 
 /// A template icon at 16/18/20 pt, tinted with the current foreground style.

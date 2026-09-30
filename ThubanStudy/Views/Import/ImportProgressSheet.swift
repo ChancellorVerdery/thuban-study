@@ -101,6 +101,9 @@ private struct ActivityRow: View {
             WarningsChip(warnings: activity.warnings, filename: activity.filename)
             if activity.phase == .done {
                 Chip("\(activity.questionCount) question\(activity.questionCount == 1 ? "" : "s")", kind: .pos)
+                if activity.cardCount > 0 {
+                    Chip("\(activity.cardCount) flashcard\(activity.cardCount == 1 ? "" : "s")", kind: .signal)
+                }
             }
         }
         .padding(.horizontal, 14.z)

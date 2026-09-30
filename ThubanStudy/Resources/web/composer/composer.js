@@ -5,6 +5,9 @@
  *                setText {text}               restore a draft ("… $x^2$ …" becomes text with math fields)
  *                focus {}                     put the caret in the editor
  *                insertMath {latex?}          insert a math field at the caret (the native √x button)
+ *                configure {placeholder?, label?, multiline?}
+ *                                             multiline: Enter starts a new line and ⌘Enter submits (flashcard
+ *                                             fields); otherwise Enter submits and Shift+Enter starts a new line
  *                theme {css, isDark}          handled by shared/bridge.js
  *   JS → Swift   ready, input {text}, submit {text}, height {px}
  *
@@ -21,6 +24,7 @@
   const editor = document.getElementById('editor');
   let MathfieldElement = null;
   let inputTimer = 0;
+  let multiline = false;
 
   /* ================================================================ serialising */
 
@@ -34,7 +38,8 @@
       } else if (child.classList && child.classList.contains('math-chip')) {
         const mf = child.querySelector('math-field');
         const latex = mf ? mf.getValue('latex').trim() : '';
-        if (latex) out += '$' + latex + '$';
+        const fence = child.dataset.display === 'true' ? '$$' : '$';
+        if (latex) out += fence + latex + fence;
       } else if (child.nodeName === 'DIV' || child.nodeName === 'P') {
         if (index > 0 || out.length) out += '\n';
         out += serialize(child);
@@ -55,9 +60,10 @@
 
   /* ================================================================ math fields */
 
-  function makeChip(latex) {
+  function makeChip(latex, display) {
     const chip = document.createElement('span');
-    chip.className = 'math-chip';
+    chip.className = 'math-chip' + (display ? ' is-display' : '');
+    if (display) chip.dataset.display = 'true';
     chip.contentEditable = 'false';
     const mf = new MathfieldElement();
     mf.mathVirtualKeyboardPolicy = 'manual';
@@ -132,6 +138,15 @@
         editor.focus();
       }
       notifyInput();
+    } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault(); e.stopPropagation();
+      submit();
+    } else if (e.key === 'Enter' && multiline) {
+      // A new line after the formula.
+      e.preventDefault(); e.stopPropagation();
+      caretBeside(chip, true);
+      document.execCommand('insertLineBreak');
+      notifyInput();
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault(); e.stopPropagation();
       submit();
@@ -145,10 +160,13 @@
     if (e.key === '$') {
       e.preventDefault();
       insertMath('');
-    } else if (e.key === 'Enter' && !e.shiftKey) {
+    } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       submit();
-    } else if (e.key === 'Enter' && e.shiftKey) {
+    } else if (e.key === 'Enter' && !e.shiftKey && !multiline) {
+      e.preventDefault();
+      submit();
+    } else if (e.key === 'Enter') {
       e.preventDefault();
       document.execCommand('insertLineBreak');
       notifyInput();
@@ -179,14 +197,21 @@
   function setText(payload) {
     editor.innerHTML = '';
     const text = String((payload && payload.text) || '');
-    const pattern = /\$([^$]+)\$/g;
+    // $$…$$ (display) before $…$ (inline); line breaks come back as <br>.
+    const pattern = /\$\$([^$]+)\$\$|\$([^$]+)\$/g;
+    const appendText = (chunk) => {
+      chunk.split('\n').forEach((line, i) => {
+        if (i > 0) editor.appendChild(document.createElement('br'));
+        if (line) editor.appendChild(document.createTextNode(line));
+      });
+    };
     let last = 0, m;
     while ((m = pattern.exec(text))) {
-      if (m.index > last) editor.appendChild(document.createTextNode(text.slice(last, m.index)));
-      editor.appendChild(makeChip(m[1]));
+      if (m.index > last) appendText(text.slice(last, m.index));
+      editor.appendChild(m[1] !== undefined ? makeChip(m[1], true) : makeChip(m[2], false));
       last = m.index + m[0].length;
     }
-    if (last < text.length) editor.appendChild(document.createTextNode(text.slice(last)));
+    if (last < text.length) appendText(text.slice(last));
     scheduleHeight();
   }
 
@@ -211,7 +236,18 @@
 
   /* ================================================================ wiring */
 
-  const HANDLERS = { clear, setText, focus, insertMath: (p) => insertMath(p && p.latex) };
+  function configure(payload) {
+    const p = payload || {};
+    if (typeof p.placeholder === 'string') editor.dataset.placeholder = p.placeholder;
+    if (typeof p.label === 'string') editor.setAttribute('aria-label', p.label);
+    if (typeof p.multiline === 'boolean') {
+      multiline = p.multiline;
+      document.body.classList.toggle('is-multiline', multiline);
+    }
+    scheduleHeight();
+  }
+
+  const HANDLERS = { clear, setText, focus, configure, insertMath: (p) => insertMath(p && p.latex) };
   const queued = [];
   let ready = false;
   for (const type of Object.keys(HANDLERS)) {

@@ -313,6 +313,36 @@ final class AIAgentTests: XCTestCase {
         XCTAssertEqual(try transport.body(3)["messages"]?[2]?["content"]?[0]?["content"], "Recorded 1 question.")
     }
 
+    /// Terms, definitions and equations the material states come back as flashcards; questions stay questions.
+    func testImportAgentRoutesStatedTermsToFlashcards() async throws {
+        let cards: JSONValue = [
+            ["front": "First law for a closed system", "back": "$\\Delta E = Q - W$"],
+            ["front": "Quality", "back": "$x = \\frac{m_g}{m}$"],
+        ]
+        let transport = MockTransport([
+            .sse(SSE.toolUse(id: "c1", name: "classify_document", input: ["classification": "mixed", "reasoning": "Notes and exercises."])),
+            .sse(SSE.toolUse(id: "q1", name: "emit_questions", input: [
+                "questions": [draftJSON(sourceRef: "Exercise 1", seedNote: "ok", withTemplate: false)],
+                "cards": cards,
+            ])),
+            // A later call with only cards (one repeats a term): accepted, and the repeat is merged.
+            .sse(SSE.toolUse(id: "q2", name: "emit_questions", input: [
+                "cards": [["front": "first law for a closed system", "back": "dup"], ["front": "Ideal gas law", "back": "$pV = mRT$"]],
+            ])),
+            .sse(SSE.text("Done.")),
+        ])
+        let agent = ImportAgent(client: .mock(transport), validator: { _ in [] }, checksCompleteness: false)
+        let result = try await agent.run(
+            document: sampleDocument, content: sampleContent, classContext: "Thermodynamics",
+            policy: ModelPolicy(defaultModel: .sonnet, allowEscalation: false), progress: { _ in }
+        )
+        XCTAssertEqual(result.questions.map(\.sourceRef), ["Exercise 1"])
+        XCTAssertEqual(result.cards.map(\.front), ["First law for a closed system", "Quality", "Ideal gas law"])
+        XCTAssertEqual(result.cards[0].back, "$\\Delta E = Q - W$")
+        XCTAssertEqual(try transport.body(2)["messages"]?[2]?["content"]?[0]?["content"], "Recorded 1 question and 2 cards.")
+        XCTAssertTrue(try transport.body(1)["system"]?.stringValue?.contains("go to the student's flashcards") ?? false)
+    }
+
     func testImportAgentDoesNotEscalateWhenPolicyForbidsIt() async throws {
         let transport = MockTransport([
             .sse(SSE.toolUse(id: "c1", name: "classify_document", input: ["classification": "reading_material", "reasoning": "Prose."])),

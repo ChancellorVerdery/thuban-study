@@ -1,0 +1,80 @@
+/*
+ * Thuban Study — flashcards page: one card under review, the card bank list, or the editor's preview.
+ * Every colour comes from the theme variables (Brass-light fallbacks).
+ */
+
+html, body { height: 100%; }
+body { background: var(--bg, #f6f2e8); overflow-x: hidden; }
+body.is-preview { background: var(--panel, #fffdf7); }
+
+/* Rendered Markdown + math inside cards. */
+.flash__content, .row__front, .row__back, .preview__content { overflow-wrap: anywhere; }
+.flash__content p, .row__front p, .row__back p, .preview__content p { margin: 0 0 0.5em; }
+.flash__content p:last-child, .row__front p:last-child, .row__back p:last-child, .preview__content p:last-child { margin-bottom: 0; }
+.math-display { margin: 0.4em 0; overflow-x: auto; overflow-y: hidden; }
+.ML__latex { max-width: 100%; }
+
+/* ---------------------------------------------------------------- review */
+
+body.is-card #root { min-height: 100%; display: flex; align-items: stretch; padding: 4px; }
+.flash {
+  flex: 1 1 auto; display: flex; flex-direction: column; min-height: 260px; width: 100%;
+  border: 1px solid var(--line, #E3E0D9); border-radius: 14px; background: var(--panel, #fffdf7);
+  padding: 22px 28px 16px; text-align: left; cursor: pointer; color: var(--ink, #161a21);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 8px 24px rgba(0, 0, 0, 0.06);
+  transition: border-color 0.15s;
+}
+.flash:hover { border-color: var(--line-2, #cfc9bd); }
+.flash:focus-visible { outline: 2px solid var(--accent, #e0b15c); outline-offset: 2px; }
+.flash.is-back { border-color: var(--accent, #e0b15c); }
+.flash__face {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim, #535a68);
+}
+.flash.is-back .flash__face { color: var(--accent-text, #A5772A); }
+.flash__content {
+  flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; padding: 18px 0;
+  font-size: 22px; line-height: 1.45;
+}
+.flash__hint { font-size: 12px; color: var(--ink-faint, #858c9b); text-align: center; }
+
+/* ------------------------------------------------------------------ bank */
+
+.empty { margin: 0; padding: 36px 24px; text-align: center; font-size: 14px; color: var(--ink-dim, #535a68); }
+.rows { padding: 14px 24px 32px; display: flex; flex-direction: column; gap: 8px; }
+.row {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto; gap: 16px; align-items: center;
+  padding: 12px 14px; border: 1px solid var(--line, #E3E0D9); border-radius: 10px; background: var(--panel, #fffdf7);
+  font-size: 14.5px; line-height: 1.4;
+}
+.row:hover { border-color: var(--line-2, #cfc9bd); }
+.row__back { color: var(--ink-dim, #535a68); }
+.chip {
+  font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 6px; white-space: nowrap;
+  background: var(--panel-2, #F1ECE0); color: var(--ink-dim, #535a68);
+}
+.chip--due { background: var(--accent-tint, #F8EBD4); color: var(--accent-text, #A5772A); }
+.chip--new { background: var(--signal-soft, #e3ecf6); color: var(--signal-text, #34598a); }
+.row__acts { display: flex; gap: 2px; opacity: 0.55; }
+.row:hover .row__acts, .row__acts:focus-within { opacity: 1; }
+.icon-btn {
+  width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-dim, #535a68);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.icon-btn:hover { background: var(--panel-2, #F1ECE0); color: var(--ink, #161a21); }
+.icon-btn svg { width: 15px; height: 15px; }
+
+/* --------------------------------------------------------------- preview */
+
+body.is-preview #root { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 2px; }
+.preview { border: 1px solid var(--line, #E3E0D9); border-radius: 10px; padding: 10px 12px; min-height: 64px; background: var(--bg, #f6f2e8); }
+.preview__label { font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim, #535a68); margin-bottom: 6px; }
+.preview__content { font-size: 15px; line-height: 1.45; }
+.preview__empty { color: var(--ink-faint, #858c9b); font-size: 13px; }
+
+/* ------------------------------------------------------------------ pick */
+
+body.is-pick { background: var(--panel, #fffdf7); }
+body.is-pick .rows { padding: 4px 2px 12px; }
+.row--pick { grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); cursor: pointer; }
+.row--pick.is-off { opacity: 0.5; }
+.pick { width: 16px; height: 16px; accent-color: var(--accent, #e0b15c); }

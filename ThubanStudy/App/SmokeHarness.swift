@@ -388,6 +388,45 @@ enum SmokeHarness {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             NSApp.activate(ignoringOtherApps: true)
             guard let session = app.selectedSession else { throw ThubanError.store("smoke: no selected class") }
+            // THUBAN_SMOKE_FLASHCARDS=1: the Flashcards section — overview, a card's front and back in a practice run,
+            // the card bank, and the editor on the first card.
+            if ProcessInfo.processInfo.environment["THUBAN_SMOKE_FLASHCARDS"] == "1" {
+                session.section = .flashcards
+                let window = try await waitForMainWindow()
+                window.makeKeyAndOrderFront(nil)
+                await waitUntil(timeout: 8) { session.flashcards.isLoaded }
+                await sleep(2)
+                _ = try await capture(window: window, name: "fc-1-overview", in: directory)
+                session.startFlashcardReview(practice: true)
+                await sleep(3)
+                _ = try await capture(window: window, name: "fc-2-front", in: directory)
+                session.flipFlashcard()
+                await sleep(2)
+                _ = try await capture(window: window, name: "fc-3-back", in: directory)
+                session.endFlashcardReview()
+                session.flashcards.mode = .bank
+                await sleep(3)
+                _ = try await capture(window: window, name: "fc-4-bank", in: directory)
+                if let card = session.flashcards.cards.first(where: { $0.front.contains("$") || $0.back.contains("$") }) {
+                    session.flashcards.editing = FlashcardDraft(card: card)
+                    await sleep(4)
+                    for (index, other) in NSApp.windows.enumerated() where other !== window && other.isVisible && other.frame.width > 40 {
+                        _ = try? await capture(window: other, name: "fc-5-editor\(index)", in: directory)
+                    }
+                    session.flashcards.editing = nil
+                    await sleep(1)
+                }
+                session.flashcards.isGenerating = true
+                await sleep(3)
+                for (index, other) in NSApp.windows.enumerated() where other !== window && other.isVisible && other.frame.width > 40 {
+                    _ = try? await capture(window: other, name: "fc-6-generate\(index)", in: directory)
+                }
+                session.flashcards.isGenerating = false
+                await sleep(1)
+                fputs("smoke: done\n", stderr)
+                NSApp.terminate(nil)
+                return
+            }
             // THUBAN_SMOKE_EQUATION_EXPORT=1: open the Equations section's export workbench, capture it, and (with
             // THUBAN_SMOKE_EXPORT_PDF=<path>) export a PDF there.
             if ProcessInfo.processInfo.environment["THUBAN_SMOKE_EQUATION_EXPORT"] == "1" {

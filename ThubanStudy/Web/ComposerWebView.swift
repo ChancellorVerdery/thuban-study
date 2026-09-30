@@ -23,8 +23,8 @@ struct ComposerWebView: View {
         var onSubmit: ((String) -> Void)?
         var onReady: (() -> Void)?
 
-        init() {
-            bridge = WebBridge(name: "composer")
+        init(name: String = "composer") {
+            bridge = WebBridge(name: name)
             bridge.on("ready") { [weak self] _ in self?.onReady?() }
             bridge.on("input") { [weak self] payload in self?.onInput?(payload["text"]?.stringValue ?? "") }
             bridge.on("submit") { [weak self] payload in self?.onSubmit?(payload["text"]?.stringValue ?? "") }
@@ -36,6 +36,12 @@ struct ComposerWebView: View {
 
         func clear() { bridge.send("clear", [:]) }
         func setText(_ text: String) { bridge.send("setText", ["text": .string(text)]) }
+        /// The field's text for a page that may still be loading (replayed once it is ready).
+        func setInitialText(_ text: String) { bridge.sendSticky("setText", ["text": .string(text)]) }
+        /// Placeholder, accessibility label, and multi-line mode (Enter = new line, ⌘Enter = submit).
+        func configure(placeholder: String, label: String, multiline: Bool) {
+            bridge.sendSticky("configure", ["placeholder": .string(placeholder), "label": .string(label), "multiline": .bool(multiline)])
+        }
         func focus() { bridge.send("focus", [:]) }
         func insertMath(_ latex: String = "") { bridge.send("insertMath", ["latex": .string(latex)]) }
     }

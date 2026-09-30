@@ -189,9 +189,12 @@ public struct ImportResult: Sendable {
     public var escalationReason: String?
     public var warnings: [String]
     public var usage: Usage
+    /// Terms, definitions and equations the material states, for the class's flashcards (not the question bank).
+    public var cards: [FlashcardGenerator.Card]
 
     public init(
         questions: [Question],
+        cards: [FlashcardGenerator.Card] = [],
         figures: [ExtractedFigure],
         figureIndicesByQuestion: [QuestionID: [Int]] = [:],
         classification: DocumentClassification,
@@ -201,6 +204,7 @@ public struct ImportResult: Sendable {
         usage: Usage = .zero
     ) {
         self.questions = questions
+        self.cards = cards
         self.figures = figures
         self.figureIndicesByQuestion = figureIndicesByQuestion
         self.classification = classification
@@ -275,7 +279,21 @@ public enum ImportTools {
         """,
         inputSchema: [
             "type": "object",
-            "properties": ["questions": ["type": "array", "items": questionSchema]],
+            "properties": [
+                "questions": ["type": "array", "items": questionSchema],
+                "cards": [
+                    "type": "array",
+                    "description": "Terms, definitions and equations the excerpt states, for the student's flashcards (never questions).",
+                    "items": [
+                        "type": "object",
+                        "properties": [
+                            "front": ["type": "string", "description": "The term, or what the equation gives. Markdown with $…$ LaTeX."],
+                            "back": ["type": "string", "description": "The definition, or the equation in LaTeX with its symbols explained."],
+                        ],
+                        "required": ["front", "back"],
+                    ],
+                ],
+            ],
             "required": ["questions"],
         ]
     )
@@ -631,6 +649,8 @@ public actor ImportAgent {
         var usage = Usage()
         var warnings: [String]
         var drafts: [QuestionDraft] = []
+        /// Flashcards the excerpts stated (terms, definitions, equations).
+        var cards: [FlashcardGenerator.Card] = []
         /// Types the class already has, in prompt order, plus the ones this run has created so far.
         var knownTypes: [String]
         /// Each figure's image by extraction index, sent with the excerpt that shows it.
@@ -823,7 +843,10 @@ public actor ImportAgent {
             for call in calls {
                 switch call.name {
                 case ImportTools.emitName:
-                    let decoded = Self.decodeDrafts(call.input)
+                    var decoded = Self.decodeDrafts(call.input)
+                    let cards = FlashcardGenerator.cards(from: call.input["cards"] ?? .array([]))
+                    decoded.cardCount = cards.count
+                    state.cards.append(contentsOf: cards)
                     for draft in decoded.drafts {
                         if replacing, let ref = draft.sourceRef, let index = drafts.firstIndex(where: { $0.sourceRef == ref }) {
                             drafts[index] = draft
@@ -988,8 +1011,12 @@ public actor ImportAgent {
             let indices = draft.figureIndices.filter { known.contains($0) }
             if !indices.isEmpty { figureMap[question.id] = indices }
         }
+        // The same term stated in two excerpts (or re-read after an escalation) becomes one card.
+        var seen = Set<String>()
+        let cards = state.cards.filter { seen.insert($0.front.lowercased()).inserted }
         return ImportResult(
             questions: questions,
+            cards: cards,
             figures: content.figures,
             figureIndicesByQuestion: figureMap,
             classification: classification,
@@ -1106,12 +1133,15 @@ public actor ImportAgent {
     struct DecodedDrafts {
         var drafts: [QuestionDraft] = []
         var errors: [String] = []
+        var cardCount = 0
     }
 
     /// Decodes `emit_questions` input item by item so one bad question does not lose the batch.
     static func decodeDrafts(_ input: JSONValue) -> DecodedDrafts {
         var out = DecodedDrafts()
         guard let items = input["questions"]?.arrayValue else {
+            // A call with only cards (terms but no questions) is fine.
+            if input["cards"]?.arrayValue?.isEmpty == false { return out }
             out.errors.append("emit_questions needs a `questions` array.")
             return out
         }
@@ -1132,12 +1162,13 @@ public actor ImportAgent {
     }
 
     private static func emitResult(_ id: String, _ decoded: DecodedDrafts) -> ContentPart {
-        var text = "Recorded \(decoded.drafts.count) question\(decoded.drafts.count == 1 ? "" : "s")."
+        var text = "Recorded \(decoded.drafts.count) question\(decoded.drafts.count == 1 ? "" : "s")"
+            + (decoded.cardCount > 0 ? " and \(decoded.cardCount) card\(decoded.cardCount == 1 ? "" : "s")." : ".")
         if !decoded.errors.isEmpty {
             text += " Problems: " + decoded.errors.joined(separator: " ")
             text += " Re-emit only the problem questions if they matter."
         }
-        return .toolResult(toolUseId: id, content: text, isError: decoded.drafts.isEmpty && !decoded.errors.isEmpty)
+        return .toolResult(toolUseId: id, content: text, isError: decoded.drafts.isEmpty && decoded.cardCount == 0 && !decoded.errors.isEmpty)
     }
 
     private static func describe(_ error: Error) -> String {

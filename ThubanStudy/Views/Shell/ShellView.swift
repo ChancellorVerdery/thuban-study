@@ -49,6 +49,8 @@ struct ShellView: View {
             QuestionBankView(session: session)
         case .equations:
             EquationSheetView(session: session)
+        case .flashcards:
+            FlashcardsView(session: session)
         case .importDocs:
             ImportView(session: session)
         }
@@ -202,7 +204,7 @@ struct ClassTab: View {
 
 // MARK: - Section bar
 
-/// 44 pt: [Study | Question Bank | Equations | Import] … on Study: Equations / Graph / Calculator / Keyboard toggles
+/// 44 pt: [Study | Question Bank | Equations | Flashcards | Import] … on Study: Equations / Graph / Calculator / Keyboard toggles
 /// + "Question n of N".
 struct SectionBar: View {
     @Environment(\.thubanTheme) private var theme
@@ -214,6 +216,7 @@ struct SectionBar: View {
                 SegmentOption(.study, "Study"),
                 SegmentOption(.questionBank, "Question Bank", icon: .questionBank),
                 SegmentOption(.equations, "Equations", icon: .equations),
+                SegmentOption(.flashcards, "Flashcards", icon: .flashcards),
                 SegmentOption(.importDocs, "Import", icon: .importDocs),
             ])
             Spacer()

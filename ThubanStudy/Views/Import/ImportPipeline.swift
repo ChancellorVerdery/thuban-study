@@ -27,6 +27,8 @@ final class ImportPipeline {
         var chunkIndex: Int?
         var chunkCount: Int?
         var questionCount = 0
+        /// Terms, definitions and equations this file added to the flashcards.
+        var cardCount = 0
         var figureCount = 0
         var chartCount = 0
         var warnings: [String] = []
@@ -255,8 +257,10 @@ final class ImportPipeline {
             let earlierQuestions = (try? await store.questions(in: classId, filter: QuestionFilter(documentIds: [document.id]))) ?? []
             for earlier in earlierQuestions { try await store.delete(earlier.id) }
             try await store.insert(questions)
+            // Terms, definitions and equations go to the class's flashcards (fronts already in the deck are skipped).
+            let cardCount = await addImportedCards(result.cards)
             for question in questions { typeCounts[question.type, default: 0] += 1 }
-            update(document.id) { $0.questionCount = questions.count; $0.model = result.modelUsed }
+            update(document.id) { $0.questionCount = questions.count; $0.cardCount = cardCount; $0.model = result.modelUsed }
             document.modelUsed = result.modelUsed.rawValue
             document.classification = result.classification
             document.questionCount = questions.count
@@ -362,6 +366,23 @@ final class ImportPipeline {
     // MARK: Figures
 
     /// Saves the PNGs under `figures/<docId>/<index>.png` and inserts pending `Figure` rows. Returns index → id.
+    /// Adds an import's cards to the class's flashcards, skipping fronts already in the deck; returns how many were added.
+    private func addImportedCards(_ cards: [FlashcardGenerator.Card]) async -> Int {
+        guard !cards.isEmpty else { return 0 }
+        let classId = session.classId
+        let existing = Set(((try? await session.store.flashcards(in: classId)) ?? []).map { $0.front.lowercased() })
+        let new = cards.filter { !existing.contains($0.front.lowercased()) }
+            .map { Flashcard(classId: classId, front: $0.front, back: $0.back) }
+        do {
+            try await session.store.addFlashcards(new)
+        } catch {
+            Self.logger.error("adding imported cards failed: \(error.localizedDescription, privacy: .public)")
+            return 0
+        }
+        if session.flashcards.isLoaded { await session.loadFlashcards() }
+        return new.count
+    }
+
     private func storeFigures(_ figures: [ExtractedFigure], documentId: DocumentID) async throws -> [Int: FigureID] {
         // A rerun (a regenerate, or after a cancel, a failure or an interrupted run) replaces the figures of the
         // earlier attempt. What was already read from an image (and checked against it) carries over to the same
