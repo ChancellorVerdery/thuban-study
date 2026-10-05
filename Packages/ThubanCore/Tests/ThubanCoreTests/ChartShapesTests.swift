@@ -45,6 +45,59 @@ final class ChartShapesTests: XCTestCase {
         for p in boundary where p[0] > 0.2 { XCTAssertEqual(hypot(p[0], p[1]), 7, accuracy: 0.1) }
     }
 
+    func testPolarConditionsParse() throws {
+        XCTAssertEqual(ChartShapes.conditions("1 \\le r < 4")?.count, 2, "a ring is two radius conditions")
+        XCTAssertEqual(ChartShapes.conditions("\\frac{3\\pi}{4} \\le \\theta \\le \\frac{7\\pi}{4}")?.count, 1,
+                       "an angle chain is one condition, whatever its width")
+        XCTAssertEqual(ChartShapes.conditions("0 \\le θ \\le 2\\pi"), [], "a full turn restricts nothing")
+        XCTAssertNotNil(ChartShapes.conditions("-\\frac{\\pi}{4} < \\vartheta < 0.5"))
+        XCTAssertEqual(try XCTUnwrap(ChartShapes.radians("-\\frac{\\pi}{4}")), -Double.pi / 4, accuracy: 1e-12)
+        XCTAssertEqual(try XCTUnwrap(ChartShapes.radians("3\\pi/2")), 3 * Double.pi / 2, accuracy: 1e-12)
+        XCTAssertEqual(try XCTUnwrap(ChartShapes.radians("\\dfrac{7 \\pi}{4}")), 7 * Double.pi / 4, accuracy: 1e-12)
+        XCTAssertEqual(try XCTUnwrap(ChartShapes.radians("π")), Double.pi, accuracy: 1e-12)
+        XCTAssertNil(ChartShapes.radians("x"))
+        let ring = try XCTUnwrap(ChartShapes.strictConditions("1 \\le r < 4"))
+        XCTAssertEqual(ring.map(\.strict), [false, true], "the outer edge is strict")
+        XCTAssertFalse(ring.contains { $0.condition.contains("r") && !$0.condition.contains("\\right") && !$0.condition.contains("\\sqrt") })
+        XCTAssertEqual(ChartShapes.polarRadius("\\frac{r}{2}"), "\\frac{\\left(\\sqrt{x^2+y^2}\\right)}{2}", "\\frac keeps its r")
+        XCTAssertEqual(ChartShapes.conditions("x \\le 2"), ["\\left(2\\right)-\\left(x\\right)"], "x and y are unchanged")
+    }
+
+    func testAPolarSectorOfARingIsShadedWithDashedOuterArc() async throws {
+        let latex = "1 \\le r < 4, \\frac{3\\pi}{4} \\le \\theta \\le \\frac{7\\pi}{4}"
+        let built = await ChartShapes.region(latex, window: FigureScene.Window(x: -5...5, y: -5...5), engine: Self.engine)
+        let region = try XCTUnwrap(built)
+        let area = region.fill.reduce(0.0) { $0 + ($1[1][0] - $1[0][0]) * ($1[1][1] - $1[0][1]) }
+        XCTAssertEqual(area, 15 * Double.pi / 2, accuracy: 0.03 * 15 * Double.pi / 2, "half of the ring between r = 1 and 4")
+        let conditions = try XCTUnwrap(ChartShapes.conditions(latex))
+        let rows = try await Self.engine.values(of: conditions, variables: ["x", "y"], at: [[-2, -1], [2, -2.5], [2, 1]])
+        func inside(_ k: Int) -> Bool { rows.allSatisfy { ($0?[k]).flatMap { $0 }.map { $0 >= 0 } ?? false } }
+        XCTAssertTrue(inside(0))
+        XCTAssertTrue(inside(1), "the θ = 7π/4 side")
+        XCTAssertFalse(inside(2))
+        let dashed = region.dashed.flatMap { $0 }
+        XCTAssertGreaterThan(dashed.count, 20)
+        for p in dashed { XCTAssertEqual(hypot(p[0], p[1]), 4, accuracy: 0.1, "only the outer arc is dashed") }
+        let solid = region.boundary.flatMap { $0 }
+        XCTAssertTrue(solid.contains { abs(hypot($0[0], $0[1]) - 1) < 0.05 }, "the inner arc is solid")
+        XCTAssertTrue(solid.contains { hypot($0[0], $0[1]) > 2 && abs($0[0] + $0[1]) < 0.05 }, "the rays are solid")
+        for p in solid {
+            let onArc = abs(hypot(p[0], p[1]) - 1) < 0.1, onRay = abs(p[0] + p[1]) < 0.1
+            XCTAssertTrue(onArc || onRay, "solid edge off the inner arc and rays at \(p)")
+        }
+    }
+
+    func testAngleChainsCoverHalfAndThreeQuarterTurns() async throws {
+        func area(_ fill: [[[Double]]]) -> Double { fill.reduce(0.0) { $0 + ($1[1][0] - $1[0][0]) * ($1[1][1] - $1[0][1]) } }
+        let builtUpper = await ChartShapes.region("0 \\le \\theta \\le \\pi", window: window, engine: Self.engine)
+        let upper = try XCTUnwrap(builtUpper)
+        for rect in upper.fill { XCTAssertGreaterThanOrEqual(rect[0][1], -0.1, "nothing below the x-axis") }
+        XCTAssertEqual(area(upper.fill), 128, accuracy: 0.03 * 128, "the upper half plane")
+        let builtThree = await ChartShapes.region("\\pi/2 \\le \\theta \\le 2\\pi", window: window, engine: Self.engine)
+        let threeQuadrants = try XCTUnwrap(builtThree)
+        XCTAssertEqual(area(threeQuadrants.fill), 192, accuracy: 0.03 * 192, "three quadrants")
+    }
+
     func testLevelCurvesAreOneLoopPerLevel() async throws {
         let built = await ChartShapes.levelCurves("f(x,y)=x^2+y^2", levels: [1, 4, 9], window: FigureScene.Window(x: -4...4, y: -4...4), engine: Self.engine)
         let curves = try XCTUnwrap(built)
