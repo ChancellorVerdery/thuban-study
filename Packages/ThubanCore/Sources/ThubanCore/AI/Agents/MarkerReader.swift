@@ -20,7 +20,8 @@ public enum MarkerReader {
     public static func apply(_ chart: StandardChart, png: Data, engine: MathEngine) async -> StandardChart {
         let hasCurves = chart.series.contains { [.curve, .parametric].contains($0.seriesKind) && (($0.latex ?? "").isEmpty == false || $0.xt != nil || ($0.points?.count ?? 0) >= 2) }
         let hasMarks = chart.series.contains { $0.seriesKind == .vector || $0.seriesKind == .point }
-        guard !chart.isSlopeField, !chart.isPhaseLine, !chart.hasPanels, hasCurves || hasMarks,
+        let hasRegions = chart.series.contains { FigureScene.shape(of: $0).isRegion }
+        guard !chart.isSlopeField, !chart.isPhaseLine, !chart.hasPanels, hasCurves || hasMarks || hasRegions,
               let picture = await ShapeVerifier.Picture(png: png, hints: chart) else { return chart }
         var result = chart
         // Vectors and plotted points where the picture draws them.
@@ -71,12 +72,26 @@ public enum MarkerReader {
             result.series[index].arrowMarks = arrows
             result.series[index].directionArrows = true
         }
-        let hasPoints = result.series.contains { $0.seriesKind == .point }
-        if !markers.dots.isEmpty, !hasPoints {
-            var dots = ChartSeries(name: "Marked points", points: markers.dots)
-            dots.kind = "point"
-            result.series.append(dots)
+        return addingDots(markers.dots, to: result, picture: picture)
+    }
+
+    /// The chart with the dots the picture draws that no point series has yet, as one more point series.
+    static func addingDots(_ found: [[Double]], to chart: StandardChart, picture: ShapeVerifier.Picture) -> StandardChart {
+        let reading = picture.reading
+        func pixel(_ p: [Double]) -> (Double, Double) { (reading.x.pixel(p[0]), reading.y.pixel(p[1])) }
+        var known = chart.series.filter { $0.seriesKind == .point }.flatMap { $0.points ?? [] }.map(pixel)
+        var fresh: [[Double]] = []
+        for dot in found {
+            let at = pixel(dot)
+            guard !known.contains(where: { hypot($0.0 - at.0, $0.1 - at.1) < 10 }) else { continue }
+            known.append(at)
+            fresh.append(dot)
         }
+        guard !fresh.isEmpty else { return chart }
+        var result = chart
+        var dots = ChartSeries(name: "Marked points", points: fresh)
+        dots.kind = "point"
+        result.series.append(dots)
         return result
     }
 

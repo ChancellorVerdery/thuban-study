@@ -100,7 +100,6 @@ public enum GraphReader {
         guard let image = ImageCodec.image(from: png), let bitmap = Bitmap(image: image) else { return nil }
         let horizontals = longRuns(bitmap, horizontal: true)
         let verticals = longRuns(bitmap, horizontal: false)
-        guard !horizontals.isEmpty, !verticals.isEmpty else { ReadingCache.shared.store(key, nil); return nil }
         let labelKey = ReadingCache.key(png: png, hints: nil) + "|labels"
         let labels: [Label]
         if let cached = ReadingCache.shared.labels(labelKey) { labels = cached }
@@ -108,11 +107,41 @@ public enum GraphReader {
             labels = (try? await recognizeLabels(in: image, horizontals: horizontals, verticals: verticals)) ?? []
             ReadingCache.shared.storeLabels(labelKey, labels)
         }
-        let reading = try? await ParserSupport.offloaded {
-            read(bitmap: bitmap, horizontals: horizontals, verticals: verticals, labels: labels, hints: hints)
+        var reading: GraphReading?
+        if !horizontals.isEmpty, !verticals.isEmpty {
+            reading = try? await ParserSupport.offloaded {
+                read(bitmap: bitmap, horizontals: horizontals, verticals: verticals, labels: labels, hints: hints)
+            }
         }
+        // Axes too faint to find as lines (grey axes on a shaded grid): the printed numbers alone place them.
+        if reading == nil { reading = readFromLabels(bitmap: bitmap, labels: labels) }
         ReadingCache.shared.store(key, reading)
         return reading
+    }
+
+    /// A reading from the tick labels alone: a row of numbers is the x-axis's scale (and the axis just above it), a
+    /// column of numbers the y-axis's (and the axis just beside it). Nil without three numbers on each.
+    static func readFromLabels(bitmap: Bitmap, labels: [Label]) -> GraphReading? {
+        let numbers = labels.filter { !$0.symbolic }
+        func group(_ key: (Label) -> Double, tolerance: Double) -> [Label] {
+            var best: [Label] = []
+            for label in numbers {
+                let members = numbers.filter { abs(key($0) - key(label)) <= tolerance }
+                if members.count > best.count { best = members }
+            }
+            return best
+        }
+        let row = group({ $0.row }, tolerance: 5), column = group({ $0.column }, tolerance: 8)
+        guard row.count >= 3, column.count >= 3,
+              let x = leastSquares(row.map { ($0.value, $0.column) }),
+              let y = leastSquares(column.map { ($0.value, $0.row) }),
+              x.scale > 0, y.scale < 0 else { return nil }
+        // Every label must agree with its fit to within a few pixels (a misread number spoils the scale).
+        guard row.allSatisfy({ abs(x.origin + x.scale * $0.value - $0.column) <= 6 }),
+              column.allSatisfy({ abs(y.origin + y.scale * $0.value - $0.row) <= 6 }) else { return nil }
+        let xMap = GraphReading.AxisMap(origin: x.origin, scale: x.scale, labelCount: row.count, extent: 0...Double(bitmap.width - 1))
+        let yMap = GraphReading.AxisMap(origin: y.origin, scale: y.scale, labelCount: column.count, extent: 0...Double(bitmap.height - 1))
+        return GraphReading(width: bitmap.width, height: bitmap.height, x: xMap, y: yMap, curves: [])
     }
 
     /// Recent readings and recognised labels, by picture (and hints), so a chart's checks read each picture once.

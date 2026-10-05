@@ -180,6 +180,8 @@ public enum ShapeVerifier {
                 fills.contains { mark in mark.pieces.contains { $0.count == 2 && x >= $0[0][0] && x <= $0[1][0] && y >= $0[0][1] && y <= $0[1][1] } }
             }
             var agree = 0, total = 0, shadedCount = 0
+            // Each sample's colour (a small neighbourhood's mean) and the predicted side, for the two-tone test below.
+            var samples: [(inside: Bool, colour: (Double, Double, Double))] = []
             let steps = 48
             for j in 0..<steps { for i in 0..<steps {
                 let c = columns.lowerBound + (columns.count - 1) * (2 * i + 1) / (2 * steps)
@@ -190,7 +192,25 @@ public enum ShapeVerifier {
                 total += 1
                 if inside == seen { agree += 1 }
                 if seen { shadedCount += 1 }
+                var sum = (0.0, 0.0, 0.0), n = 0.0
+                for dr in -2...2 { for dc in -2...2 where columns.contains(c + dc) && rows.contains(r + dr) {
+                    let q = bitmap.rgb(c + dc, r + dr)
+                    sum.0 += Double(q.r); sum.1 += Double(q.g); sum.2 += Double(q.b); n += 1
+                } }
+                samples.append((inside, (sum.0 / n, sum.1 / n, sum.2 / n)))
             } }
+            // A picture shaded on both sides (grey on one, tan on the other): which side is which is told by colour,
+            // not by paper versus tint. Each sample is nearer its own side's mean colour when the region is right.
+            let ins = samples.filter(\.inside), outs = samples.filter { !$0.inside }
+            func mean(_ list: [(inside: Bool, colour: (Double, Double, Double))]) -> (Double, Double, Double) {
+                let n = Double(max(1, list.count))
+                return (list.reduce(0) { $0 + $1.colour.0 } / n, list.reduce(0) { $0 + $1.colour.1 } / n, list.reduce(0) { $0 + $1.colour.2 } / n)
+            }
+            let mi = mean(ins), mo = mean(outs)
+            func distance(_ a: (Double, Double, Double), _ b: (Double, Double, Double)) -> Double { hypot(hypot(a.0 - b.0, a.1 - b.1), a.2 - b.2) }
+            if shadedCount * 10 >= total * 9, !ins.isEmpty, !outs.isEmpty, distance(mi, mo) >= 25 {
+                agree = samples.filter { distance($0.colour, $0.inside ? mi : mo) <= distance($0.colour, $0.inside ? mo : mi) }.count
+            }
             if total >= 30, shadedCount * 50 >= total {
                 anyCheck = true
                 let share = Double(agree) / Double(total)
