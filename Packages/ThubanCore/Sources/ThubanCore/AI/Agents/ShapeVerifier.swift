@@ -74,7 +74,10 @@ public enum ShapeVerifier {
             return columns.contains(c) && rows.contains(r) ? (c, r) : nil
         }
 
-        func isInk(_ c: Int, _ r: Int) -> Bool { !bitmap.isBackground(c, r) && !bitmap.isGrid(c, r) }
+        func isInk(_ c: Int, _ r: Int) -> Bool {
+            guard c >= 0, r >= 0, c < bitmap.width, r < bitmap.height else { return false }
+            return !bitmap.isBackground(c, r) && !bitmap.isGrid(c, r)
+        }
 
         func inkNear(_ c: Int, _ r: Int) -> Bool {
             for dr in -radius...radius { for dc in -radius...radius {
