@@ -307,7 +307,7 @@ public struct FigureScene: Sendable, Equatable {
                !x.isEmpty, !y.isEmpty { return .parametric(x, y) }
             if let pair = ChartShapes.parametricPair(latex) { return .parametric(pair.x, pair.y) }
             return .curve
-        case .point, .vector:
+        case .point, .vector, .segment, .angle:
             return .curve
         case .curve:
             guard !latex.isEmpty else { return .curve }

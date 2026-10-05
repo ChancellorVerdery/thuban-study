@@ -8,7 +8,16 @@ public enum FigureStatus: String, Codable, Sendable, CaseIterable {
     case pending, reviewing, accepted, keptOriginal, skipped
 }
 
-public enum ChartSeriesKind: String, Sendable { case curve, region, level, parametric, point, vector }
+public enum ChartSeriesKind: String, Sendable { case curve, region, level, parametric, point, vector, segment, angle }
+
+/// Text the original prints inside the plot (a curve's label "16", a vector's name "a", "|u| = 2", "60°"), at a
+/// data position.
+public struct ChartAnnotation: Codable, Sendable, Equatable {
+    public var text: String
+    public var x: Double
+    public var y: Double
+    public init(text: String, x: Double, y: Double) { self.text = text; self.x = x; self.y = y }
+}
 
 /// One series of a `StandardChart`: a table of `[x, y]` points, a LaTeX function of x (or relation), a shaded
 /// region, level curves, or a parametric curve (`kind`).
@@ -32,7 +41,11 @@ public struct ChartSeries: Codable, Sendable, Equatable {
     /// - "level": the level curves `latex` = c of a function of x and y, one for each value in `levels`;
     /// - "parametric": the curve (`xt`, `yt`) for t in `tRange`, with arrows along it when `directionArrows`;
     /// - "point": marked points `points`, drawn as dots (with `labels`);
-    /// - "vector": an arrow from `points[0]` to `points[1]` (a position or tangent vector, a segment AB).
+    /// - "vector": an arrow from `points[0]` to `points[1]` (a position or tangent vector, a segment AB);
+    /// - "segment": a plain line through `points` (a side of a triangle, a diagonal), no arrowhead;
+    /// - "angle": an angle mark at vertex `points[0]` between the rays to `points[1]` and `points[2]` (a right angle
+    ///   when `rightAngle`), with `labels[0]` ("60°") beside it.
+    /// Every kind may carry a `label` printed beside it (a vector's name "a", a curve's level "16").
     public var kind: String?
     public var levels: [Double]?
     public var xt: String?
@@ -44,6 +57,12 @@ public struct ChartSeries: Codable, Sendable, Equatable {
     public var markAt: Double?
     public var positionVector: Bool?
     public var tangentVector: Bool?
+    /// A short name printed beside the series in the original ("a", "u", "16").
+    public var label: String?
+    /// kind "angle": a right-angle box instead of an arc.
+    public var rightAngle: Bool?
+    /// kind "segment" / "vector": tick marks across the middle (equal-length marks), 0 for none.
+    public var ticks: Int?
     /// Arrowheads as the picture draws them, `[x, y, dx, dy]` (`MarkerReader`): drawn instead of evenly spaced ones,
     /// so a curve traced out and back keeps its two opposite arrows.
     public var arrowMarks: [[Double]]?
@@ -163,6 +182,17 @@ public struct StandardChart: Codable, Sendable, Equatable {
     /// Solution sketches without a field: the right-hand side of `dy/dx = f(x, y)` the drawn curves solve (from the
     /// question, possibly with a fitted time scale). Series with `through` are integrated with it (`CurveFitter`).
     public var odeSlope: String?
+    /// false: a diagram drawn without axes, grid or numbers (vectors in the plane, a triangle of vectors); the
+    /// series' coordinates are in any consistent units.
+    public var showAxes: Bool?
+    /// The axis runs the other way (depth increasing downward, as in a lake's temperature profile).
+    public var yReversed: Bool?
+    public var xReversed: Bool?
+    /// The plot area itself is tinted in the original (a filled panel behind data curves), not a region.
+    public var tintedPlot: Bool?
+    /// Text printed inside the plot.
+    public var annotations: [ChartAnnotation]?
+    public var axesHidden: Bool { showAxes == false }
     /// Every curve in the original is one colour: the redraw uses one colour too (set from the picture).
     public var monochrome: Bool?
     /// The picture holds several plots side by side (maps I and II): each is its own chart, left to right, drawn
@@ -248,6 +278,7 @@ public struct StandardChart: Codable, Sendable, Equatable {
         case provenance, definition, checks, verification, xTicks, yTicks, candidates
         case xAxisLabels, yAxisLabels, fieldSamples, fieldFromPicture, phaseLine, odeSlope
         case monochrome, panels, title, shapeCandidates
+        case showAxes, yReversed, xReversed, tintedPlot, annotations
     }
 
     public init(from decoder: Decoder) throws {
@@ -283,6 +314,11 @@ public struct StandardChart: Codable, Sendable, Equatable {
         panels = try? c.decodeIfPresent([StandardChart].self, forKey: .panels)
         title = try c.decodeIfPresent(String.self, forKey: .title)
         shapeCandidates = try? c.decodeIfPresent([ChartSeries].self, forKey: .shapeCandidates)
+        showAxes = try c.decodeIfPresent(Bool.self, forKey: .showAxes)
+        yReversed = try c.decodeIfPresent(Bool.self, forKey: .yReversed)
+        xReversed = try c.decodeIfPresent(Bool.self, forKey: .xReversed)
+        tintedPlot = try c.decodeIfPresent(Bool.self, forKey: .tintedPlot)
+        annotations = try? c.decodeIfPresent([ChartAnnotation].self, forKey: .annotations)
     }
 }
 
