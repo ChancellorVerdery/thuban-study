@@ -13,7 +13,20 @@ struct FigureCanvasView: View {
     var body: some View {
         ZStack {
             theme.panelColor
-            if let phase = chart.phaseLine, chart.isPhaseLine {
+            if chart.hasPanels, let panels = chart.panels {
+                HStack(spacing: 8) {
+                    ForEach(panels.indices, id: \.self) { k in
+                        ZStack(alignment: .topLeading) {
+                            AnyView(FigureCanvasView(chart: panels[k]))
+                            if let title = panels[k].title, !title.isEmpty {
+                                Text(title).font(.system(size: 13, weight: .semibold, design: .serif)).foregroundStyle(Color(hex: theme.ink))
+                                    .padding(6)
+                            }
+                        }
+                    }
+                }
+                .padding(6)
+            } else if let phase = chart.phaseLine, chart.isPhaseLine {
                 let zoom = AppZoom.shared.scale
                 Canvas(opaque: false, rendersAsynchronously: true) { context, size in
                     PhaseLineRenderer(phase: phase, theme: theme, zoom: zoom).draw(in: &context, size: size)
@@ -32,6 +45,7 @@ struct FigureCanvasView: View {
         .accessibilityElement()
         .accessibilityLabel(accessibilityText)
         .task(id: chart) {
+            guard !chart.hasPanels else { return }
             // Keep the previous drawing on screen until the new one is ready (no flash between figures).
             let built = await FigureCache.scene(for: chart, engine: app.engine)
             guard !Task.isCancelled else { return }
@@ -71,6 +85,8 @@ struct FigureCanvasRenderer {
         let ink = Color(hex: theme.ink)
         let line = Color(hex: theme.line)
         let dim = Color(hex: theme.inkDim)
+        // Nothing is drawn outside the plot (a curve leaving the window stops at its edge).
+        context.clip(to: Path(CGRect(origin: .zero, size: size)))
 
         // Grid: minor at half steps, major at the tick spacing.
         var minor = Path(), major = Path()
@@ -149,6 +165,26 @@ struct FigureCanvasRenderer {
             switch mark.kind {
             case .fill:
                 break
+            case .vector:
+                // A straight arrow from its tail to its head.
+                for piece in mark.pieces where piece.count >= 2 {
+                    let a = point(piece[0]), b = point(piece[1])
+                    var dx = b.x - a.x, dy = b.y - a.y
+                    let length = (dx * dx + dy * dy).squareRoot()
+                    guard length > 1 else { continue }
+                    dx /= length; dy /= length
+                    let headLength = min(16, length * 0.4), w = headLength * 0.45
+                    let base = CGPoint(x: b.x - dx * headLength, y: b.y - dy * headLength)
+                    var shaft = Path()
+                    shaft.move(to: a); shaft.addLine(to: base)
+                    context.stroke(shaft, with: .color(color), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    var head = Path()
+                    head.move(to: b)
+                    head.addLine(to: CGPoint(x: base.x - dy * w, y: base.y + dx * w))
+                    head.addLine(to: CGPoint(x: base.x + dy * w, y: base.y - dx * w))
+                    head.closeSubpath()
+                    context.fill(head, with: .color(color))
+                }
             case .arrows:
                 // Filled heads on the curve, pointing the way the parameter runs.
                 var heads = Path()
@@ -176,9 +212,15 @@ struct FigureCanvasRenderer {
                 let dash: [CGFloat] = mark.style == .dashed ? [12, 7.5] : mark.style == .dotted ? [2.25, 6] : []
                 context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 3.75, lineCap: .round, lineJoin: .round, dash: dash))
             case .dots:
-                for p in mark.pieces.flatMap({ $0 }) {
+                for (k, p) in mark.pieces.flatMap({ $0 }).enumerated() {
                     let c = point(p)
                     context.fill(Path(ellipseIn: CGRect(x: c.x - 5.25, y: c.y - 5.25, width: 10.5, height: 10.5)), with: .color(color))
+                    if let text = mark.labels?[safe: k], !text.isEmpty {
+                        // Beside the dot, on the side with room.
+                        let right = c.x < size.width - 60
+                        context.draw(Text(text).font(Font.system(size: 12 * zoom, design: .serif).italic()).foregroundColor(ink),
+                                     at: CGPoint(x: c.x + (right ? 9 : -9), y: c.y - 9), anchor: right ? .bottomLeading : .bottomTrailing)
+                    }
                 }
             case .bars:
                 for p in mark.pieces.flatMap({ $0 }) {
@@ -210,16 +252,20 @@ struct FigureCanvasRenderer {
             lastX = at
             label(tick.text, at: CGPoint(x: at, y: xLabelY), anchor: .top)
         }
-        let yLabelX = max(yAxisX - 4, 14)
+        // Too little room left of the axis for a number ("0.8" would be cut to ".8"): numbers go on its right.
+        let yLabelsRight = yAxisX < 34
+        let yLabelX = yLabelsRight ? yAxisX + 5 : yAxisX - 4
         let yTicks: [ChartTick] = scene.yTickLabels ?? FigureScene.ticks(in: window.y, step: scene.yStep)
             .filter { abs($0) > scene.yStep * 1e-6 }.map { ChartTick(value: $0, text: ChartGeometry.number($0).replacingOccurrences(of: "-", with: "−")) }
         var lastY = CGFloat.infinity
         for tick in yTicks.sorted(by: { $0.value < $1.value }) where tick.value >= window.y.lowerBound - ySlack && tick.value <= window.y.upperBound + ySlack {
             let at = min(max(py(tick.value), 8), size.height - 8)
             guard lastY - at >= 14 else { continue }
+            // On the right of the axis the top number would run into the axis name.
+            if yLabelsRight, at < 26 { continue }
             lastY = at
             let text = tick.text
-            label(text, at: CGPoint(x: yLabelX, y: at), anchor: yAxisX - 4 < 14 ? .leading : .trailing)
+            label(text, at: CGPoint(x: yLabelX, y: at), anchor: yLabelsRight ? .leading : .trailing)
         }
         if scene.xTickLabels == nil, scene.yTickLabels == nil, window.x.contains(0), window.y.contains(0) {
             label("0", at: CGPoint(x: px(0) - 4, y: py(0) + 3), anchor: .topTrailing)

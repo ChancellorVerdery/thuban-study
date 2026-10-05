@@ -30,7 +30,23 @@ public actor FigureAgent {
     /// Images per call; a question with more figures is split.
     public static let maxImagesPerCall = 8
 
-    static let chartSchema: JSONValue = [
+    /// The chart schema with `panels` (charts side by side, each the base schema) and `shapeCandidates` (series).
+    static let chartSchema: JSONValue = {
+        guard case .object(var root) = baseChartSchema, case .object(var properties)? = root["properties"],
+              case .object(let series)? = properties["series"], let item = series["items"] else { return baseChartSchema }
+        properties["panels"] = [
+            "type": "array", "items": baseChartSchema,
+            "description": "Only when the image holds two or more separate plots side by side (maps I and II, Figures A and B): describe each as its own chart here, left to right, each with its `title` as printed. Then leave the outer `series` empty.",
+        ]
+        properties["shapeCandidates"] = [
+            "type": "array", "items": item,
+            "description": "When the question offers several shapes for pictures like this one (\"match the parametric equations (a)–(f) with graphs I–VI\", \"which function has this contour map\"): every offered option as a series of the same kind (parametric with xt/yt/tRange, or level with latex), named by its label, whether or not you chose it. The app draws each against the picture and keeps the best match, so list them all.",
+        ]
+        root["properties"] = .object(properties)
+        return .object(root)
+    }()
+
+    static let baseChartSchema: JSONValue = [
         "type": "object",
         "properties": [
             "chartType": ["type": "string", "enum": ["line", "scatter", "bar", "function", "histogram", "slopeField"]],
@@ -57,6 +73,7 @@ public actor FigureAgent {
             "yTicks": ["type": "array", "items": ["type": "number"], "description": "Every numeric label printed along the y-axis, top to bottom, exactly as printed (e.g. [1.7, 0.5, -2.2])."],
             "xStep": ["type": "number", "description": "Spacing of the x-axis ticks/gridlines in the original (e.g. 1, 0.5, 5)."],
             "yStep": ["type": "number", "description": "Spacing of the y-axis ticks/gridlines in the original."],
+            "title": ["type": "string", "description": "A panel's label as printed (\"I\", \"II\", \"Figure A\")."],
             "notes": ["type": "string", "description": "Everything else needed to reproduce the picture: marked points and labels, where each curve enters and leaves the window, dashed or dotted parts, asymptotes, shading, which quadrants are shown."],
             "xLabel": ["type": "string"],
             "yLabel": ["type": "string"],
@@ -73,13 +90,15 @@ public actor FigureAgent {
                         ],
                         "latex": ["type": "string", "description": "Stated curves: the function of x (or relation) exactly as the question gives it. Preferred over points whenever the question defines the curve. For kind \"region\": the inequalities that hold inside, comma-separated, in x and y (\"x^2+y^2\\\\le 49, x\\\\ge 0\", \"-1\\\\le x+y\\\\le 1\"). For kind \"level\": the function f(x, y) whose level curves are drawn (\"x^2+y^2\", \"y e^{x}\")."],
                         "kind": [
-                            "type": "string", "enum": ["curve", "region", "level", "parametric"],
-                            "description": "What the series is (default \"curve\": a function of x, a relation, or traced points). \"region\": a shaded area, one series per shaded piece, with its inequalities in `latex` (polar regions converted to x and y). \"level\": a contour map — the level curves f(x, y) = c of `latex`, one for each c in `levels`, drawn as one series instead of one series per curve. \"parametric\": the curve x = `xt`, y = `yt` for t in `tRange`.",
+                            "type": "string", "enum": ["curve", "region", "level", "parametric", "point", "vector"],
+                            "description": "What the series is (default \"curve\": a function of x, a relation, or traced points). \"region\": a shaded area, one series per shaded piece, with its inequalities in `latex` (polar regions converted to x and y). \"level\": a contour map — the level curves f(x, y) = c of `latex`, one for each c in `levels`, drawn as one series instead of one series per curve. \"parametric\": the curve x = `xt`, y = `yt` for t in `tRange`. \"point\": marked dots at `points` (with `labels`). \"vector\": one arrow from `points[0]` (tail) to `points[1]` (head) — a position vector, tangent vector, or directed segment AB.",
                         ],
                         "levels": ["type": "array", "items": ["type": "number"], "description": "kind \"level\" only: every value c whose level curve the picture draws (as labelled, or as you can read them), e.g. [-2, -1, 0, 1, 2]."],
                         "xt": ["type": "string", "description": "kind \"parametric\" only: x as a function of t in LaTeX, e.g. \"\\\\cos(5t)\"."],
                         "yt": ["type": "string", "description": "kind \"parametric\" only: y as a function of t in LaTeX."],
                         "tRange": ["type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2, "description": "kind \"parametric\" only: [tStart, tEnd] as the question gives it (default [0, 2π])."],
+                        "labels": ["type": "array", "items": ["type": "string"], "description": "kind \"point\" only: the label printed beside each point, in order (\"A\", \"(8, 0)\"); \"\" for none."],
+                        "domain": ["type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2, "description": "A curve drawn only over part of the window: [xMin, xMax] of the drawn stretch (a segment from x = 0 to 16, one arm x ≤ 0)."],
                         "directionArrows": ["type": "boolean", "description": "true when the picture draws arrows along this curve (the direction t increases)."],
                         "through": [
                             "type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2,
@@ -332,9 +351,17 @@ public actor FigureAgent {
         return results
     }
 
+    /// Charts the picture check draws whole (`ShapeVerifier`): any region, level, parametric, point or vector series,
+    /// arrows along a curve, or candidates to choose from.
+    static func isShapeChart(_ chart: StandardChart) -> Bool {
+        ShapeVerifier.hasShapes(chart) || !(chart.shapeCandidates ?? []).isEmpty
+            || chart.series.contains { $0.seriesKind == .point || $0.seriesKind == .vector || $0.directionArrows == true }
+    }
+
     /// No equation, no field, no initial condition, and only a handful of points per series.
     public static func isThin(_ chart: StandardChart) -> Bool {
-        guard (chart.slope ?? "").isEmpty, !chart.isSlopeField, !chart.isPhaseLine, !ShapeVerifier.hasShapes(chart) else { return false }
+        guard (chart.slope ?? "").isEmpty, !chart.isSlopeField, !chart.isPhaseLine, !chart.hasPanels,
+              !ShapeVerifier.hasShapes(chart), !chart.series.contains(where: { $0.seriesKind == .point || $0.seriesKind == .vector }) else { return false }
         // A vertical line ("x = 0": a phase line's axis) or a handful of points is not a plot.
         let verticalLine = try! NSRegularExpression(pattern: #"^\s*x\s*=\s*-?[0-9.]*\s*$"#)
         return chart.series.allSatisfy { series in
@@ -350,14 +377,71 @@ public actor FigureAgent {
     /// Curves the picture only gives as traced points are then replaced by the exact curves the question's text
     /// defines, when those land on the drawn curve (`CurveFitter`).
     public static func check(_ chart: StandardChart, png: Data, engine: MathEngine, questionText: String = "") async -> StandardChart {
+        var checked = await checkDrawing(chart, png: png, engine: engine, questionText: questionText)
+        // A shaded picture redrawn without its region has lost what the picture is about.
+        if !checked.isPhaseLine, !checked.isSlopeField, !checked.hasPanels,
+           !checked.series.contains(where: { FigureScene.shape(of: $0).isRegion }),
+           let share = PictureInk.shadedShare(png: png), share >= 0.15 {
+            checked.verification = ChartVerification(passed: false, summary: "Mismatch with the picture: about \(Int((share * 100).rounded()))% of it is shaded, but the chart draws no shaded region. Give each shaded area as a series of kind \"region\" with its inequalities (the whole plane except a line y = x is two regions, y > x and y < x).")
+            checked.confidence = min(checked.confidence, 0.5)
+        }
+        return checked
+    }
+
+    static func checkDrawing(_ chart: StandardChart, png: Data, engine: MathEngine, questionText: String) async -> StandardChart {
         if chart.isPhaseLine { return chart }
-        // Regions, contour maps and parametric curves are drawn and compared with the picture as a whole: the
-        // reconciler's one-curve-per-colour reading cannot hold them.
-        if ShapeVerifier.hasShapes(chart) {
+        // Several plots side by side: each panel is checked against its own part of the picture.
+        if chart.hasPanels, let panels = chart.panels {
+            let crops = PictureInk.panels(png: png)
             var checked = chart
-            checked.verification = await ShapeVerifier.verify(chart, png: png, engine: engine)
-            if checked.verification?.passed == true { checked.confidence = max(checked.confidence, 0.75) }
+            var results: [StandardChart] = []
+            for (k, panel) in panels.enumerated() {
+                let crop = crops.flatMap { $0.count == panels.count ? $0[k] : nil } ?? png
+                results.append(await check(panel, png: crop, engine: engine, questionText: questionText))
+            }
+            checked.panels = results
+            let verdicts = results.compactMap(\.verification)
+            let passed = !verdicts.isEmpty && verdicts.count == results.count && verdicts.allSatisfy(\.passed)
+            checked.verification = ChartVerification(passed: passed, summary: results.enumerated().map { k, panel in
+                "\(panel.title ?? "Panel \(k + 1)"): \(panel.verification?.summary ?? "unverified")"
+            }.joined(separator: " "))
+            checked.confidence = results.map(\.confidence).min() ?? chart.confidence
             return checked
+        }
+        var chart = chart
+        // A one-colour original is redrawn in one colour.
+        if let monochrome = PictureInk.isMonochrome(png: png) { chart.monochrome = monochrome }
+        // Regions, contour maps, parametric curves, points and vectors are fitted to the picture and compared with
+        // it as a whole: the reconciler's one-curve-per-colour reading cannot hold them.
+        let picture = await ShapeVerifier.Picture(png: png, hints: chart)
+        if Self.isShapeChart(chart) {
+            var checked = await ShapeFitter.fit(chart, png: png, engine: engine)
+            checked.verification = await ShapeVerifier.verify(checked, png: png, engine: engine)
+            if checked.verification?.passed == true { checked.confidence = max(checked.confidence, 0.75); return checked }
+            // A family of curves whose stated function does not fit: the picture may still name its family.
+            if checked.series.contains(where: { $0.seriesKind == .level }), let picture,
+               let recognised = await FamilyRecognizer.recognise(chart, picture: picture, engine: engine) { return recognised }
+            return checked
+        }
+        // Many curves traced as points (a contour map with no stated function): recognise the family from the
+        // picture; failing that, trace the curves from the pixels when the agent's points miss them.
+        let traced = chart.isTraced || chart.series.allSatisfy { ($0.latex ?? "").isEmpty && $0.throughPoint == nil }
+        if traced, !chart.isSlopeField, let picture, picture.curves.count >= 1 {
+            if let recognised = await FamilyRecognizer.recognise(chart, picture: picture, engine: engine) { return recognised }
+            if chart.monochrome == true {
+                let agentScene = await FigureScene.build(chart, engine: engine)
+                let agentScore = ShapeVerifier.lineScore(agentScene, picture: picture)
+                let agentFits = (agentScore.coverage ?? 0) >= ShapeVerifier.lineCoverage && (agentScore.recall ?? 0) >= ShapeVerifier.lineRecall
+                if !agentFits, var pixels = FamilyRecognizer.trace(chart, picture: picture) {
+                    let scene = await FigureScene.build(pixels, engine: engine)
+                    pixels.verification = ShapeVerifier.verify(scene: scene, picture: picture)
+                    if pixels.verification?.passed == true {
+                        pixels.verification = ChartVerification(passed: true, summary: "Traced from the picture: \(pixels.series.count) curve\(pixels.series.count == 1 ? "" : "s") followed pixel by pixel.")
+                        pixels.confidence = max(chart.confidence, 0.75)
+                        return pixels
+                    }
+                }
+            }
         }
         if var reconciled = await FigureReconciler.reconcile(chart, png: png, engine: engine) {
             // Confidence is the picture's verdict, not the agent's guess: a chart that matches its picture is at
@@ -454,7 +538,7 @@ public actor FigureAgent {
         if kind == .chart, let raw = input["chart"], let data = try? raw.data() {
             chart = try? JSONDecoder().decode(StandardChart.self, from: data)
             // A chart needs something to draw: series, or a slope field's equation (a field alone is a chart).
-            if let c = chart, c.series.isEmpty, !(c.isSlopeField && !(c.slope ?? "").isEmpty) { chart = nil }
+            if let c = chart, c.series.isEmpty, !c.hasPanels, !(c.isSlopeField && !(c.slope ?? "").isEmpty) { chart = nil }
             // Provenance follows from what was given when the agent forgot to say.
             if var c = chart, c.provenance == nil {
                 let hasEquation = !(c.slope ?? "").isEmpty || c.series.contains { !($0.latex ?? "").isEmpty }

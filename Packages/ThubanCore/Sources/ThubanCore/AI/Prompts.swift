@@ -379,7 +379,29 @@ public enum Prompts {
           fits.
         - A parametric curve is kind "parametric" with `xt`, `yt` and `tRange`; set `directionArrows` when the \
           picture shows arrows along it. Do not eliminate the parameter: the arrows and the traced part depend on t.
-        The app draws these exactly and compares them with the picture as a whole, so give the formulas, not points.
+        - Marked points (a dot at the start or end of a parametric curve, the point a vector is drawn at, a single point \
+          plotted in polar coordinates) are a series of kind "point" with `points` and `labels`. A plot that is only \
+          axes and one marked point is still a chart, not a diagram.
+        - Arrows drawn as vectors (a position vector r(t), a tangent vector r′(t) drawn at a point, a directed segment \
+          AB) are each a series of kind "vector" with `points` = [tail, head]. Read the endpoints off the grid or \
+          compute them from the question (r(t0) and r(t0) + r′(t0)).
+        - A curve drawn only over part of the window (a segment, one arm of a parabola, t from −2 to 2) gets its \
+          `domain` (curves of x) or `tRange` (parametric) so nothing extra is drawn.
+        - Arrows along a curve showing the direction of motion: set `directionArrows`; for parametric curves the \
+          direction is the way t increases, so the `tRange` order matters. Answer choices that differ only in \
+          direction must differ in this.
+        - A family of curves in one picture with no stated function (a contour map shown as a candidate) is still \
+          a "level" series: recognise the function from the shapes (circles x^2+y^2, hyperbolas xy or x^2−y^2, \
+          parabolas x−y^2, exponentials y e^{−x}, roots y−\\sqrt{x}, logarithms y−\\ln|x|, …), give it in `latex` \
+          and the levels you see; the app fits the levels and the scale to the picture and rejects a wrong function. \
+          Never call a contour map or a family of curves on axes a diagram.
+        - When the question offers several formulas for several pictures (match the equations (a)–(f) with graphs \
+          I–VI, which function goes with which contour map), list every offered formula in `shapeCandidates` as well \
+          as giving your choice; the app tests each against the picture.
+        - Two or more separate plots in one image (maps I and II side by side) go in `panels`, one chart each.
+        - Plots whose horizontal axis is t (graphs of x(t) or y(t)) set `xLabel` to "t".
+        The app draws these exactly and compares them with the picture as a whole, so give the formulas, not points; \
+        trace `points` only for a curve no formula can describe (measured data).
 
         Keep series names short; they are shown once, not on every point.
 

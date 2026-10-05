@@ -93,13 +93,60 @@ public enum GraphReader {
     /// The reading, or nil when no axes could be found. `hints` supplies the agent's window and tick spacing
     /// for axes without recognisable labels.
     public static func read(png: Data, hints: StandardChart? = nil) async -> GraphReading? {
+        // One picture is read several times while a chart is checked (fitted, verified, re-checked); the reading
+        // depends only on the picture and the hints' window and ticks, so it is remembered.
+        let key = ReadingCache.key(png: png, hints: hints)
+        if let cached = ReadingCache.shared.value(key) { return cached.reading }
         guard let image = ImageCodec.image(from: png), let bitmap = Bitmap(image: image) else { return nil }
         let horizontals = longRuns(bitmap, horizontal: true)
         let verticals = longRuns(bitmap, horizontal: false)
-        guard !horizontals.isEmpty, !verticals.isEmpty else { return nil }
-        let labels = (try? await recognizeLabels(in: image, horizontals: horizontals, verticals: verticals)) ?? []
-        return try? await ParserSupport.offloaded {
+        guard !horizontals.isEmpty, !verticals.isEmpty else { ReadingCache.shared.store(key, nil); return nil }
+        let labelKey = ReadingCache.key(png: png, hints: nil) + "|labels"
+        let labels: [Label]
+        if let cached = ReadingCache.shared.labels(labelKey) { labels = cached }
+        else {
+            labels = (try? await recognizeLabels(in: image, horizontals: horizontals, verticals: verticals)) ?? []
+            ReadingCache.shared.storeLabels(labelKey, labels)
+        }
+        let reading = try? await ParserSupport.offloaded {
             read(bitmap: bitmap, horizontals: horizontals, verticals: verticals, labels: labels, hints: hints)
+        }
+        ReadingCache.shared.store(key, reading)
+        return reading
+    }
+
+    /// Recent readings and recognised labels, by picture (and hints), so a chart's checks read each picture once.
+    final class ReadingCache: @unchecked Sendable {
+        static let shared = ReadingCache()
+        struct Entry { var reading: GraphReading? }
+        private let lock = NSLock()
+        private var readings: [String: Entry] = [:], order: [String] = []
+        private var labelSets: [String: [Label]] = [:], labelOrder: [String] = []
+        static let limit = 48
+
+        static func key(png: Data, hints: StandardChart?) -> String {
+            var hasher = Hasher()
+            hasher.combine(png)
+            var key = "\(png.count)-\(hasher.finalize())"
+            if let hints {
+                key += "|\(hints.xRange ?? [])|\(hints.yRange ?? [])|\(hints.xTicks ?? [])|\(hints.yTicks ?? [])|\(hints.xStep ?? 0)|\(hints.yStep ?? 0)"
+            }
+            return key
+        }
+
+        func value(_ key: String) -> Entry? { lock.lock(); defer { lock.unlock() }; return readings[key] }
+        func store(_ key: String, _ reading: GraphReading?) {
+            lock.lock(); defer { lock.unlock() }
+            if readings[key] == nil { order.append(key) }
+            readings[key] = Entry(reading: reading)
+            while order.count > Self.limit { readings[order.removeFirst()] = nil }
+        }
+        func labels(_ key: String) -> [Label]? { lock.lock(); defer { lock.unlock() }; return labelSets[key] }
+        func storeLabels(_ key: String, _ labels: [Label]) {
+            lock.lock(); defer { lock.unlock() }
+            if labelSets[key] == nil { labelOrder.append(key) }
+            labelSets[key] = labels
+            while labelOrder.count > Self.limit { labelSets[labelOrder.removeFirst()] = nil }
         }
     }
 

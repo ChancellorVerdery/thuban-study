@@ -18,6 +18,14 @@ final class FigureReanalysisReportTests: XCTestCase {
         for classId in try await store.allClasses().map(\.id) {
             documents += try await store.documents(in: classId).filter { selector == "all" || $0.id.raw.lowercased() == selector.lowercased() }
         }
+        // "class:<name>": every document of that class.
+        if selector.hasPrefix("class:") {
+            let name = String(selector.dropFirst(6))
+            documents = []
+            for studyClass in try await store.allClasses() where studyClass.name == name {
+                documents += try await store.documents(in: studyClass.id)
+            }
+        }
         XCTAssertFalse(documents.isEmpty, "no document matched \(selector)")
         if ProcessInfo.processInfo.environment["THUBAN_DEDUPE"] != nil {
             for classId in Set(documents.map(\.classId)) {

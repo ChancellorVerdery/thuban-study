@@ -24,7 +24,7 @@ public struct FigureScene: Sendable, Equatable {
     /// One series as drawn: polylines (a curve may break at a gap or asymptote), dots, bars, a shaded region, or
     /// arrowheads along a curve.
     public struct Mark: Sendable, Equatable {
-        public enum Kind: Sendable, Equatable { case line, dots, bars, fill, arrows }
+        public enum Kind: Sendable, Equatable { case line, dots, bars, fill, arrows, vector }
         public var kind: Kind
         public var name: String
         /// Polylines, each `[[x, y], …]`; for dots and bars one list of points; for a fill rectangles
@@ -35,6 +35,8 @@ public struct FigureScene: Sendable, Equatable {
         public var color: String?
         /// Position among the chart's series (picks the palette colour).
         public var paletteIndex: Int
+        /// Dots: the label printed beside each point.
+        public var labels: [String]? = nil
     }
 
     public var window: Window
@@ -139,9 +141,24 @@ public struct FigureScene: Sendable, Equatable {
         for (index, series) in chart.series.enumerated() {
             let style = LineStyle(rawValue: (series.style ?? "solid").lowercased()) ?? .solid
             func mark(_ kind: Mark.Kind, _ pieces: [[[Double]]]) -> Mark {
-                Mark(kind: kind, name: series.name, pieces: pieces, style: style, color: series.color?.nilIfBlank, paletteIndex: index)
+                // A one-colour original is redrawn in one colour.
+                Mark(kind: kind, name: series.name, pieces: pieces, style: style, color: chart.monochrome == true ? nil : series.color?.nilIfBlank,
+                     paletteIndex: chart.monochrome == true ? 0 : index)
             }
             let latex = series.latex?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let given = (series.points ?? []).filter { $0.count >= 2 && $0[0].isFinite && $0[1].isFinite }
+            if series.seriesKind == .point {
+                if !given.isEmpty {
+                    var dots = mark(.dots, [given])
+                    dots.labels = series.labels
+                    marks.append(dots)
+                }
+                continue
+            }
+            if series.seriesKind == .vector {
+                if given.count >= 2 { marks.append(mark(.vector, [Array(given.prefix(2))])) }
+                continue
+            }
             switch shape(of: series) {
             case .region(let conditions):
                 if let region = await ChartShapes.region(conditions, window: window, engine: engine) {
@@ -172,7 +189,13 @@ public struct FigureScene: Sendable, Equatable {
                 break
             }
             if !latex.isEmpty {
-                if let pieces = await curve(latex, window: window, engine: engine), !pieces.isEmpty {
+                if var pieces = await curve(latex, window: window, engine: engine), !pieces.isEmpty {
+                    // A stretch of the curve only (a segment, one arm of a parabola).
+                    if let domain = series.domain, domain.count == 2, domain[0] < domain[1] {
+                        pieces = pieces.flatMap { piece in
+                            piece.split { $0[0] < domain[0] - 1e-9 || $0[0] > domain[1] + 1e-9 }.map(Array.init)
+                        }.filter { $0.count >= 2 }
+                    }
                     marks.append(mark(.line, pieces))
                     if series.directionArrows == true { marks.append(mark(.arrows, [ChartShapes.arrowMarks(along: pieces, window: window)])) }
                 }
@@ -225,6 +248,7 @@ public struct FigureScene: Sendable, Equatable {
         case region(String)
         case level(String, [Double])
         case parametric(String, String)
+        public var isRegion: Bool { if case .region = self { return true } else { return false } }
         /// One equation kept where some conditions hold ("x^2+y^2=49, x\\le 0": the left half of the circle).
         case restricted(String, [String])
     }
@@ -241,6 +265,8 @@ public struct FigureScene: Sendable, Equatable {
             if let x = series.xt?.trimmingCharacters(in: .whitespacesAndNewlines), let y = series.yt?.trimmingCharacters(in: .whitespacesAndNewlines),
                !x.isEmpty, !y.isEmpty { return .parametric(x, y) }
             if let pair = ChartShapes.parametricPair(latex) { return .parametric(pair.x, pair.y) }
+            return .curve
+        case .point, .vector:
             return .curve
         case .curve:
             guard !latex.isEmpty else { return .curve }

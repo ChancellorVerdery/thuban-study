@@ -45,8 +45,15 @@ public enum ChartGeometry {
     public static func smoothed(_ raw: [[Double]], samplesPerSegment: Int = 8) -> [[Double]] {
         var points = raw.filter { $0.count >= 2 && $0[0].isFinite && $0[1].isFinite }.map { [$0[0], $0[1]] }
         guard points.count >= 2 else { return points }
+        // Points read left to right with a slip or two are put in order; a curve that loops, closes or doubles
+        // back keeps the order it was traced in (sorting it by x would zigzag across it).
+        let steps = zip(points, points.dropFirst()).map { $1[0] - $0[0] }
+        let rising = steps.filter { $0 > 0 }.count, falling = steps.filter { $0 < 0 }.count
         let xs = points.map { $0[0] }
-        if Set(xs).count == xs.count { points.sort { $0[0] < $1[0] } }
+        if Set(xs).count == xs.count, steps.count >= 2 {
+            if Double(falling) <= max(1, Double(steps.count) * 0.15) { points.sort { $0[0] < $1[0] } }
+            else if Double(rising) <= max(1, Double(steps.count) * 0.15) { points.sort { $0[0] > $1[0] } }
+        }
         guard points.count >= 3, samplesPerSegment > 1 else { return points }
 
         // Duplicate the ends so the spline passes through the first and last points.

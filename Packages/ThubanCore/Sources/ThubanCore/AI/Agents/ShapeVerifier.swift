@@ -6,41 +6,67 @@ import Foundation
 /// picture directly, through the axes `GraphReader` finds:
 /// - a region's predicted inside against the picture's shading (a tint or hatching), sampled away from the
 ///   boundary;
-/// - every drawn line (boundaries, level curves, parametric curves, other curves) against the picture's ink: the
-///   share of points along it with ink nearby.
+/// - the drawn lines against the picture's curves, both ways: the share of drawn points with ink nearby
+///   (coverage — nothing drawn where the picture has no curve) and the share of the picture's curve ink with a
+///   drawn line nearby (recall — no curve of the picture left out).
 public enum ShapeVerifier {
     /// A region passes when its inside agrees with the picture's shading at this share of the sampled points.
     static let regionAgreement = 0.85
-    /// Lines pass when this share of their points has ink nearby.
+    /// Lines pass when this share of their points has ink nearby, and this share of the picture's curves has a
+    /// drawn line nearby.
     static let lineCoverage = 0.8
+    static let lineRecall = 0.8
 
     /// The chart has a series the reconciler cannot check (a region, level curves or a parametric curve).
     public static func hasShapes(_ chart: StandardChart) -> Bool {
         chart.series.contains { FigureScene.shape(of: $0) != .curve }
     }
 
-    public static func verify(_ chart: StandardChart, png: Data, engine: MathEngine) async -> ChartVerification? {
-        guard let image = ImageCodec.image(from: png), let bitmap = GraphReader.Bitmap(image: image),
-              let reading = await GraphReader.read(png: png, hints: chart) else {
-            return ChartVerification(passed: false, summary: "Unverified: the picture's axes could not be read, so the shading and curves could not be compared with it.")
-        }
-        let scene = await FigureScene.build(chart, engine: engine)
-        return verify(scene: scene, chart: chart, reading: reading, bitmap: bitmap)
-    }
+    /// The picture as the comparisons see it: its pixels, its axes, the plot box and the separate curves in it.
+    struct Picture {
+        let bitmap: GraphReader.Bitmap
+        let reading: GraphReading
+        let columns: ClosedRange<Int>
+        let rows: ClosedRange<Int>
+        let radius: Int
+        let axisColumn: Double
+        let axisRow: Double
+        let curves: [[(Int, Int)]]
 
-    static func verify(scene: FigureScene, chart: StandardChart, reading: GraphReading, bitmap: GraphReader.Bitmap) -> ChartVerification {
-        let columns = max(0, Int(reading.x.extent.lowerBound))...min(bitmap.width - 1, Int(reading.x.extent.upperBound))
-        let rows = max(0, Int(min(reading.y.extent.lowerBound, reading.y.extent.upperBound)))...min(bitmap.height - 1, Int(max(reading.y.extent.lowerBound, reading.y.extent.upperBound)))
-        guard columns.count > 20, rows.count > 20 else {
-            return ChartVerification(passed: false, summary: "Unverified: the picture's plot area is too small to compare.")
+        init?(png: Data, hints: StandardChart) async {
+            guard let image = ImageCodec.image(from: png), let bitmap = GraphReader.Bitmap(image: image),
+                  let reading = await GraphReader.read(png: png, hints: hints) else { return nil }
+            self.init(bitmap: bitmap, reading: reading)
         }
-        let radius = max(3, Int((Double(min(columns.count, rows.count)) * 0.015).rounded()))
+
+        init?(bitmap: GraphReader.Bitmap, reading: GraphReading) {
+            let columns = max(0, Int(reading.x.extent.lowerBound))...min(bitmap.width - 1, Int(reading.x.extent.upperBound))
+            let r0 = Int(min(reading.y.extent.lowerBound, reading.y.extent.upperBound)), r1 = Int(max(reading.y.extent.lowerBound, reading.y.extent.upperBound))
+            guard columns.count > 20, r1 - r0 > 20 else { return nil }
+            let rows = max(0, r0)...min(bitmap.height - 1, r1)
+            self.bitmap = bitmap
+            self.reading = reading
+            self.columns = columns
+            self.rows = rows
+            radius = max(3, Int((Double(min(columns.count, rows.count)) * 0.015).rounded()))
+            let axisColumn = reading.x.pixel(0), axisRow = reading.y.pixel(0)
+            self.axisColumn = axisColumn
+            self.axisRow = axisRow
+            curves = PictureInk.curves(bitmap, columns: columns, rows: rows) { c, r in
+                abs(Double(c) - axisColumn) <= 2 || abs(Double(r) - axisRow) <= 2
+            }
+        }
+
+        /// The axes are ink everywhere along them: a curve point on an axis proves nothing.
+        func nearAxis(_ c: Int, _ r: Int) -> Bool { abs(Double(c) - axisColumn) <= 2 || abs(Double(r) - axisRow) <= 2 }
+
         func pixel(_ p: [Double]) -> (Int, Int)? {
             let c = Int(reading.x.pixel(p[0]).rounded()), r = Int(reading.y.pixel(p[1]).rounded())
             return columns.contains(c) && rows.contains(r) ? (c, r) : nil
         }
-        // Ink: anything darker or more coloured than paper and a pale gridline.
+
         func isInk(_ c: Int, _ r: Int) -> Bool { !bitmap.isBackground(c, r) && !bitmap.isGrid(c, r) }
+
         func inkNear(_ c: Int, _ r: Int) -> Bool {
             for dr in -radius...radius { for dc in -radius...radius {
                 let cc = c + dc, rr = r + dr
@@ -49,20 +75,81 @@ public enum ShapeVerifier {
             } }
             return false
         }
-        let axisColumn = reading.x.pixel(0), axisRow = reading.y.pixel(0)
-        // The axes are ink everywhere along them: a curve point on an axis proves nothing.
-        func nearAxis(_ c: Int, _ r: Int) -> Bool { abs(Double(c) - axisColumn) <= 2 || abs(Double(r) - axisRow) <= 2 }
+    }
 
+    /// How well the scene's lines match the picture's curves: coverage and recall (nil when either has too little
+    /// to measure).
+    static func lineScore(_ scene: FigureScene, picture: Picture) -> (coverage: Double?, recall: Double?, sampled: Int) {
+        let w = picture.columns.count, h = picture.rows.count
+        var drawn = [Bool](repeating: false, count: w * h)
+        var sampled = 0, covered = 0
+        for mark in scene.marks where mark.kind == .line || mark.kind == .vector {
+            for piece in mark.pieces {
+                var last: (Int, Int)?
+                for (a, b) in zip(piece, piece.dropFirst()) {
+                    // Every pixel along the segment, stamped into the drawn mask; every ~4 px a coverage sample.
+                    let pa = (picture.reading.x.pixel(a[0]), picture.reading.y.pixel(a[1]))
+                    let pb = (picture.reading.x.pixel(b[0]), picture.reading.y.pixel(b[1]))
+                    let steps = max(1, Int(max(abs(pb.0 - pa.0), abs(pb.1 - pa.1)).rounded(.up)))
+                    guard steps < 4000 else { continue }
+                    for k in 0...steps {
+                        let t = Double(k) / Double(steps)
+                        let c = Int((pa.0 + (pb.0 - pa.0) * t).rounded()), r = Int((pa.1 + (pb.1 - pa.1) * t).rounded())
+                        guard picture.columns.contains(c), picture.rows.contains(r) else { continue }
+                        let rad = picture.radius
+                        for dr in -rad...rad { for dc in -rad...rad {
+                            let cc = c - picture.columns.lowerBound + dc, rr = r - picture.rows.lowerBound + dr
+                            if cc >= 0, cc < w, rr >= 0, rr < h { drawn[rr * w + cc] = true }
+                        } }
+                        guard !picture.nearAxis(c, r) else { continue }
+                        if let l = last, hypot(Double(c - l.0), Double(r - l.1)) < 4 { continue }
+                        last = (c, r)
+                        sampled += 1
+                        if picture.inkNear(c, r) { covered += 1 }
+                    }
+                }
+            }
+        }
+        var inkTotal = 0, inkHit = 0
+        for curve in picture.curves {
+            let stride = max(1, curve.count / 60)
+            for k in Swift.stride(from: 0, to: curve.count, by: stride) {
+                let (c, r) = curve[k]
+                inkTotal += 1
+                if drawn[(r - picture.rows.lowerBound) * w + (c - picture.columns.lowerBound)] { inkHit += 1 }
+            }
+        }
+        return (sampled >= 20 ? Double(covered) / Double(sampled) : nil, inkTotal >= 30 ? Double(inkHit) / Double(inkTotal) : nil, sampled)
+    }
+
+    /// One number for choosing between candidate drawings: the harmonic mean of coverage and recall.
+    static func fitScore(_ scene: FigureScene, picture: Picture) -> Double {
+        let score = lineScore(scene, picture: picture)
+        guard let coverage = score.coverage else { return 0 }
+        let recall = score.recall ?? coverage
+        return coverage + recall > 0 ? 2 * coverage * recall / (coverage + recall) : 0
+    }
+
+    public static func verify(_ chart: StandardChart, png: Data, engine: MathEngine) async -> ChartVerification? {
+        guard let picture = await Picture(png: png, hints: chart) else {
+            return ChartVerification(passed: false, summary: "Unverified: the picture's axes could not be read, so the shading and curves could not be compared with it.")
+        }
+        let scene = await FigureScene.build(chart, engine: engine)
+        return verify(scene: scene, picture: picture)
+    }
+
+    static func verify(scene: FigureScene, picture: Picture) -> ChartVerification {
+        let bitmap = picture.bitmap, reading = picture.reading, columns = picture.columns, rows = picture.rows
         var notes: [String] = [], passed = true, anyCheck = false
 
         // Regions.
         let fills = scene.marks.filter { $0.kind == .fill }
         if !fills.isEmpty {
             // Shaded: a solid tint (most pixels not paper) or hatching / dense colour (enough dark or coloured pixels).
-            let half = max(4, radius + 1)
+            let half = max(4, picture.radius + 1)
             func shaded(_ c: Int, _ r: Int) -> Bool {
                 var any = 0, strong = 0, total = 0
-                for dr in stride(from: -half, through: half, by: 2) { for dc in stride(from: -half, through: half, by: 2) {
+                for dr in Swift.stride(from: -half, through: half, by: 2) { for dc in Swift.stride(from: -half, through: half, by: 2) {
                     let cc = c + dc, rr = r + dr
                     guard columns.contains(cc), rows.contains(rr) else { continue }
                     total += 1
@@ -72,7 +159,7 @@ public enum ShapeVerifier {
                 guard total > 0 else { return false }
                 return Double(any) / Double(total) >= 0.55 || Double(strong) / Double(total) >= 0.18
             }
-            let boundaries = scene.marks.filter { $0.kind == .line }.flatMap(\.pieces).flatMap { $0 }.compactMap(pixel)
+            let boundaries = scene.marks.filter { $0.kind == .line }.flatMap(\.pieces).flatMap { $0 }.compactMap(picture.pixel)
             func nearBoundary(_ c: Int, _ r: Int) -> Bool {
                 let reach = Double(half * 2 + 2)
                 return boundaries.contains { hypot(Double($0.0 - c), Double($0.1 - r)) < reach }
@@ -80,18 +167,17 @@ public enum ShapeVerifier {
             func predictedInside(_ x: Double, _ y: Double) -> Bool {
                 fills.contains { mark in mark.pieces.contains { $0.count == 2 && x >= $0[0][0] && x <= $0[1][0] && y >= $0[0][1] && y <= $0[1][1] } }
             }
-            var agree = 0, total = 0, shadedCount = 0, insideCount = 0
+            var agree = 0, total = 0, shadedCount = 0
             let steps = 48
             for j in 0..<steps { for i in 0..<steps {
                 let c = columns.lowerBound + (columns.count - 1) * (2 * i + 1) / (2 * steps)
                 let r = rows.lowerBound + (rows.count - 1) * (2 * j + 1) / (2 * steps)
-                guard !nearAxis(c, r), !nearBoundary(c, r) else { continue }
+                guard !picture.nearAxis(c, r), !nearBoundary(c, r) else { continue }
                 let p = reading.data(column: Double(c), row: Double(r))
                 let inside = predictedInside(p.x, p.y), seen = shaded(c, r)
                 total += 1
                 if inside == seen { agree += 1 }
                 if seen { shadedCount += 1 }
-                if inside { insideCount += 1 }
             } }
             if total >= 30, shadedCount * 50 >= total {
                 anyCheck = true
@@ -104,34 +190,38 @@ public enum ShapeVerifier {
             }
         }
 
-        // Lines: every boundary, level curve and parametric curve the chart draws.
-        var sampled = 0, covered = 0
-        for mark in scene.marks where mark.kind == .line {
-            for piece in mark.pieces {
-                // About every 4 pixels along the piece.
-                var last: (Int, Int)?
-                for p in piece {
-                    guard let at = pixel(p), !nearAxis(at.0, at.1) else { continue }
-                    if let last, hypot(Double(at.0 - last.0), Double(at.1 - last.1)) < 4 { continue }
-                    last = at
-                    sampled += 1
-                    if inkNear(at.0, at.1) { covered += 1 }
-                }
-            }
-        }
-        if sampled >= 20 {
+        // Lines, both ways.
+        let score = lineScore(scene, picture: picture)
+        if let coverage = score.coverage {
             anyCheck = true
-            let share = Double(covered) / Double(sampled)
-            let ok = share >= lineCoverage
+            let ok = coverage >= lineCoverage
             passed = passed && ok
-            notes.append("\(Int((share * 100).rounded()))% of the drawn curves lie on the picture's ink" + (ok ? "" : " (needs \(Int(lineCoverage * 100))%)"))
+            notes.append("\(Int((coverage * 100).rounded()))% of the drawn curves lie on the picture's ink" + (ok ? "" : " (needs \(Int(lineCoverage * 100))%)"))
+        }
+        // Recall only for line drawings: a region's own shading is not a curve to cover.
+        if fills.isEmpty, let recall = score.recall {
+            let ok = recall >= lineRecall
+            passed = passed && ok
+            notes.append("\(Int((recall * 100).rounded()))% of the picture's curves are drawn" + (ok ? "" : " (needs \(Int(lineRecall * 100))%; some curves are missing or misplaced)"))
         }
 
         guard anyCheck else {
             return ChartVerification(passed: false, summary: "Unverified: nothing the chart draws falls inside the picture's axes.")
         }
-        let calibration = reading.isCalibratedFromLabels ? "" : " (axes not labelled; scale approximate)"
-        return ChartVerification(passed: passed, summary: (passed ? "Verified against the picture: " : "Mismatch with the picture: ")
-                                 + notes.joined(separator: "; ") + calibration + ".")
+        let calibration = reading.isCalibratedFromLabels ? "" : " (axes not labelled; scale fitted)"
+        var summary = (passed ? "Verified against the picture: " : "Mismatch with the picture: ") + notes.joined(separator: "; ") + calibration + "."
+        // On a mismatch, where the picture's curves actually run (in the picture's own numbers), for the retry.
+        if !passed, reading.isCalibratedFromLabels, !picture.curves.isEmpty {
+            let measured = picture.curves.sorted { $0.count > $1.count }.prefix(3).flatMap { curve -> [String] in
+                let sorted = curve.sorted { $0.0 < $1.0 }
+                return [0.1, 0.5, 0.9].map { f in
+                    let (c, r) = sorted[min(sorted.count - 1, Int(Double(sorted.count) * f))]
+                    let p = reading.data(column: Double(c), row: Double(r))
+                    return "(\(ChartGeometry.number((p.x * 100).rounded() / 100)), \(ChartGeometry.number((p.y * 100).rounded() / 100)))"
+                }
+            }
+            summary += " The picture's curves pass through " + measured.joined(separator: ", ") + "."
+        }
+        return ChartVerification(passed: passed, summary: summary)
     }
 }

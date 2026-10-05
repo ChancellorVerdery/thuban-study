@@ -8,7 +8,7 @@ public enum FigureStatus: String, Codable, Sendable, CaseIterable {
     case pending, reviewing, accepted, keptOriginal, skipped
 }
 
-public enum ChartSeriesKind: String, Sendable { case curve, region, level, parametric }
+public enum ChartSeriesKind: String, Sendable { case curve, region, level, parametric, point, vector }
 
 /// One series of a `StandardChart`: a table of `[x, y]` points, a LaTeX function of x (or relation), a shaded
 /// region, level curves, or a parametric curve (`kind`).
@@ -30,13 +30,17 @@ public struct ChartSeries: Codable, Sendable, Equatable {
     /// What the series is (nil = "curve": a function of x or a relation in `latex`, or `points`):
     /// - "region": a shaded area, the points where every condition in `latex` holds ("x^2+y^2\le 49, x\ge 0");
     /// - "level": the level curves `latex` = c of a function of x and y, one for each value in `levels`;
-    /// - "parametric": the curve (`xt`, `yt`) for t in `tRange`, with arrows along it when `directionArrows`.
+    /// - "parametric": the curve (`xt`, `yt`) for t in `tRange`, with arrows along it when `directionArrows`;
+    /// - "point": marked points `points`, drawn as dots (with `labels`);
+    /// - "vector": an arrow from `points[0]` to `points[1]` (a position or tangent vector, a segment AB).
     public var kind: String?
     public var levels: [Double]?
     public var xt: String?
     public var yt: String?
     public var tRange: [Double]?
     public var directionArrows: Bool?
+    /// kind "point": a label for each point as the original prints it ("A", "(8, 0)", "t = 1"); empty for none.
+    public var labels: [String]?
 
     public var seriesKind: ChartSeriesKind { ChartSeriesKind(rawValue: (kind ?? "curve").lowercased()) ?? .curve }
 
@@ -151,6 +155,18 @@ public struct StandardChart: Codable, Sendable, Equatable {
     /// Solution sketches without a field: the right-hand side of `dy/dx = f(x, y)` the drawn curves solve (from the
     /// question, possibly with a fitted time scale). Series with `through` are integrated with it (`CurveFitter`).
     public var odeSlope: String?
+    /// Every curve in the original is one colour: the redraw uses one colour too (set from the picture).
+    public var monochrome: Bool?
+    /// The picture holds several plots side by side (maps I and II): each is its own chart, left to right, drawn
+    /// side by side. The outer chart's own series are then ignored.
+    public var panels: [StandardChart]?
+    /// A panel's label as the original prints it ("I", "II", "Figure A").
+    public var title: String?
+    /// Shapes the question offers for this picture (each parametric pair, each f(x, y) of a matching question):
+    /// the app draws each against the picture and keeps the one that fits (`ShapeFitter`).
+    public var shapeCandidates: [ChartSeries]?
+
+    public var hasPanels: Bool { (panels?.count ?? 0) >= 2 }
 
     public var isPhaseLine: Bool { chartType == "phaseLine" && phaseLine != nil }
 
@@ -214,6 +230,7 @@ public struct StandardChart: Codable, Sendable, Equatable {
         case chartType, xLabel, yLabel, series, xRange, yRange, confidence, slope, arrows, xStep, yStep, fieldColumns, fieldRows, notes
         case provenance, definition, checks, verification, xTicks, yTicks, candidates
         case xAxisLabels, yAxisLabels, fieldSamples, fieldFromPicture, phaseLine, odeSlope
+        case monochrome, panels, title, shapeCandidates
     }
 
     public init(from decoder: Decoder) throws {
@@ -245,6 +262,10 @@ public struct StandardChart: Codable, Sendable, Equatable {
         fieldFromPicture = try c.decodeIfPresent(Bool.self, forKey: .fieldFromPicture)
         phaseLine = try c.decodeIfPresent(PhaseLine.self, forKey: .phaseLine)
         odeSlope = try c.decodeIfPresent(String.self, forKey: .odeSlope)
+        monochrome = try c.decodeIfPresent(Bool.self, forKey: .monochrome)
+        panels = try? c.decodeIfPresent([StandardChart].self, forKey: .panels)
+        title = try c.decodeIfPresent(String.self, forKey: .title)
+        shapeCandidates = try? c.decodeIfPresent([ChartSeries].self, forKey: .shapeCandidates)
     }
 }
 

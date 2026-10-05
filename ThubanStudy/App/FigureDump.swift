@@ -28,7 +28,10 @@ enum FigureDump {
         let only = ProcessInfo.processInfo.environment["THUBAN_FIGURE_DUMP_ONLY"]?
             .split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
         do {
+            // THUBAN_FIGURE_DUMP_CLASS=<name fragment>: only that class's figures.
+            let classFilter = ProcessInfo.processInfo.environment["THUBAN_FIGURE_DUMP_CLASS"]
             for studyClass in try await app.store.allClasses() {
+                if let classFilter, !studyClass.name.localizedCaseInsensitiveContains(classFilter) { continue }
                 let questions = (try? await app.store.questions(in: studyClass.id, filter: QuestionFilter())) ?? []
                 for figure in try await app.store.figures(in: studyClass.id) {
                     var number = figure.pageOrIndex + 1
@@ -45,7 +48,18 @@ enum FigureDump {
                        let png = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)), let phase = await PhaseLineReader.read(png: png, caption: figure.caption) {
                         stored = phase.chart
                     }
-                    guard var chart = stored else { continue }
+                    guard var chart = stored else {
+                        // A figure kept as a diagram: its original alone, so every figure of the class can be reviewed.
+                        if classFilter != nil {
+                            let original = NSImage(contentsOf: AppPaths.figureURL(figure.originalPath))
+                            let aspect = original.map { max(0.4, min(3, $0.size.width / max(1, $0.size.height))) } ?? 1
+                            let view = DumpPair(original: original, scene: nil, theme: app.theme, size: CGSize(width: 300 * aspect, height: 300),
+                                                title: "#\(number) · \(figure.kind.rawValue) (\(figure.status.rawValue)) · \(figure.caption?.prefix(90) ?? "")")
+                            pairs.append(view)
+                            lines.append(String(format: "#%03d %@ %@ (no chart) %@", number, figure.kind.rawValue, figure.status.rawValue, figure.caption ?? ""))
+                        }
+                        continue
+                    }
                     if ProcessInfo.processInfo.environment["THUBAN_FIGURE_DUMP_RECONCILE"] != nil,
                        let png = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)) {
                         let text = questions.filter { $0.figureIds.contains(figure.id) }.map(FigureWorkflow.questionText).joined(separator: "\n\n")
@@ -57,6 +71,8 @@ enum FigureDump {
                     }
                     let started = Date()
                     let scene = await FigureScene.build(chart, engine: app.engine)
+                    var panelScenes: [FigureScene] = []
+                    for panel in chart.panels ?? [] where chart.hasPanels { panelScenes.append(await FigureScene.build(panel, engine: app.engine)) }
                     let elapsed = Date().timeIntervalSince(started)
                     let original = NSImage(contentsOf: AppPaths.figureURL(figure.originalPath))
                     let aspect: CGFloat = {
@@ -65,7 +81,8 @@ enum FigureDump {
                     }()
                     let height: CGFloat = 300, width = height * aspect
                     let view = DumpPair(original: original, scene: scene, theme: app.theme, size: CGSize(width: width, height: height),
-                                        title: "#\(number) · \(chart.chartType) · \(figure.caption?.prefix(90) ?? "")", phase: chart.phaseLine)
+                                        title: "#\(number) · \(chart.chartType) (\(figure.status.rawValue)) · \(figure.caption?.prefix(90) ?? "")", phase: chart.phaseLine,
+                                        panelScenes: panelScenes)
                     pairs.append(view)
                     let renderer = ImageRenderer(content: view)
                     renderer.scale = 2
@@ -104,11 +121,12 @@ enum FigureDump {
 /// Original and native redraw side by side at the same size.
 private struct DumpPair: View {
     var original: NSImage?
-    var scene: FigureScene
+    var scene: FigureScene?
     var theme: ResolvedTheme
     var size: CGSize
     var title: String
     var phase: PhaseLine? = nil
+    var panelScenes: [FigureScene] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -122,7 +140,14 @@ private struct DumpPair: View {
                 Canvas { context, canvasSize in
                     if let phase = phase {
                         PhaseLineRenderer(phase: phase, theme: theme).draw(in: &context, size: canvasSize)
-                    } else {
+                    } else if !panelScenes.isEmpty {
+                        let w = canvasSize.width / CGFloat(panelScenes.count)
+                        for (k, panel) in panelScenes.enumerated() {
+                            var sub = context
+                            sub.translateBy(x: w * CGFloat(k), y: 0)
+                            FigureCanvasRenderer(scene: panel, theme: theme).draw(in: &sub, size: CGSize(width: w - 6, height: canvasSize.height))
+                        }
+                    } else if let scene {
                         FigureCanvasRenderer(scene: scene, theme: theme).draw(in: &context, size: canvasSize)
                     }
                 }
@@ -132,5 +157,43 @@ private struct DumpPair: View {
         }
         .padding(8)
         .background(Color.white)
+    }
+}
+
+/// `THUBAN_REANALYSE_CLASS=<class name>` at launch: re-runs the figure workflow over every document of that class in
+/// the background, with the app's own Claude connection (so no second process shares its credentials), writing the
+/// results to the bank as an in-app re-analysis would. `THUBAN_REANALYSE_REPORT=<file>` receives one line per
+/// figure and a final "DONE" line. The app stays usable throughout.
+@MainActor
+enum FigureReanalysisLaunch {
+    static func startIfEnabled(app: AppModel) {
+        guard let name = ProcessInfo.processInfo.environment["THUBAN_REANALYSE_CLASS"], !name.isEmpty else { return }
+        let reportPath = ProcessInfo.processInfo.environment["THUBAN_REANALYSE_REPORT"]
+        let store = app.store, engine = app.engine
+        let agent = FigureAgent(client: app.claudeClient, model: app.modelPolicy.pinned ?? .sonnet)
+        Task.detached(priority: .utility) {
+            var lines: [String] = []
+            func write() {
+                guard let reportPath else { return }
+                try? lines.joined(separator: "\n").write(toFile: reportPath, atomically: true, encoding: .utf8)
+            }
+            do {
+                for studyClass in try await store.allClasses() where studyClass.name == name {
+                    for document in try await store.documents(in: studyClass.id) {
+                        lines.append("DOC \(document.filename)")
+                        write()
+                        let outcomes = try await FigureWorkflow.reanalyse(document: document, store: store, agent: agent, engine: engine)
+                        for o in outcomes {
+                            lines.append("#\(o.index + 1) \(o.kind.rawValue) " + (o.verification.map { ($0.passed ? "PASS " : "FAIL ") + $0.summary } ?? (o.isFigure ? "unverified" : "not a figure")))
+                        }
+                        write()
+                    }
+                }
+                lines.append("DONE")
+            } catch {
+                lines.append("ERROR \(error.localizedDescription)")
+            }
+            write()
+        }
     }
 }
