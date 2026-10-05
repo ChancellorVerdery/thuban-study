@@ -99,6 +99,9 @@ public actor FigureAgent {
                         "tRange": ["type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2, "description": "kind \"parametric\" only: [tStart, tEnd] as the question gives it (default [0, 2π])."],
                         "labels": ["type": "array", "items": ["type": "string"], "description": "kind \"point\" only: the label printed beside each point, in order (\"A\", \"(8, 0)\"); \"\" for none."],
                         "domain": ["type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2, "description": "A curve drawn only over part of the window: [xMin, xMax] of the drawn stretch (a segment from x = 0 to 16, one arm x ≤ 0)."],
+                        "markAt": ["type": "number", "description": "kind \"parametric\" only: the parameter value t₀ of a point the picture marks (\"the point where t = 1\"). The app draws the dot r(t₀)."],
+                        "positionVector": ["type": "boolean", "description": "kind \"parametric\" with markAt: the picture draws the position vector r(t₀) from the origin."],
+                        "tangentVector": ["type": "boolean", "description": "kind \"parametric\" with markAt: the picture draws the tangent vector r′(t₀) starting at r(t₀). The app computes it from xt and yt."],
                         "directionArrows": ["type": "boolean", "description": "true when the picture draws arrows along this curve (the direction t increases)."],
                         "through": [
                             "type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2,
@@ -417,6 +420,22 @@ public actor FigureAgent {
             let scene = await FigureScene.build(checked, engine: engine)
             let score = ShapeVerifier.lineScore(scene, picture: picture)
             let fits = (score.coverage ?? 0) >= 0.9 && (score.recall ?? 0) >= 0.85
+            // The component tracer follows each curve in order (no per-column spikes): preferred whenever it holds.
+            if fits, var pixels = FamilyRecognizer.trace(checked, picture: picture) {
+                let mapped = picture.reading(in: FamilyRecognizer.axisMaps(picture), scale: 1)
+                let traced = await FigureScene.build(pixels, engine: engine)
+                let verdict = ShapeVerifier.verify(scene: traced, picture: mapped)
+                if verdict.passed {
+                    // Keep the agent's axis names and arrows-along-the-curve claim.
+                    pixels.xLabel = checked.xLabel; pixels.yLabel = checked.yLabel
+                    if checked.series.contains(where: { $0.directionArrows == true }) {
+                        for k in pixels.series.indices { pixels.series[k].directionArrows = true }
+                    }
+                    pixels.verification = ChartVerification(passed: true, summary: "Traced from the picture: \(pixels.series.count) curve\(pixels.series.count == 1 ? "" : "s") followed pixel by pixel.")
+                    pixels.confidence = max(checked.confidence, 0.75)
+                    return pixels
+                }
+            }
             if !fits {
                 if var pixels = FamilyRecognizer.trace(checked, picture: picture) {
                     let mapped = picture.reading(in: FamilyRecognizer.axisMaps(picture), scale: 1)
@@ -475,6 +494,11 @@ public actor FigureAgent {
             var checked = await ShapeFitter.fit(chart, png: png, engine: engine)
             checked.verification = await ShapeVerifier.verify(checked, png: png, engine: engine)
             if checked.verification?.passed == true { checked.confidence = max(checked.confidence, 0.75); return checked }
+            // A region of straight lines that misses the picture: its lines measured from the picture instead.
+            if let picture, var fixed = await RegionFixer.fix(checked, picture: picture, engine: engine) {
+                fixed.confidence = max(fixed.confidence, 0.75)
+                return fixed
+            }
             // A family of curves whose stated function does not fit: the picture may still name its family.
             if checked.series.contains(where: { $0.seriesKind == .level }), let picture,
                let recognised = await FamilyRecognizer.recognise(chart, picture: picture, engine: engine) { return recognised }

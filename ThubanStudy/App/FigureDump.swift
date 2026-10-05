@@ -186,6 +186,9 @@ enum FigureReanalysisLaunch {
             do {
                 for studyClass in try await store.allClasses() where studyClass.name == name {
                     for document in try await store.documents(in: studyClass.id) {
+                        // THUBAN_REANALYSE_ONLY=doc:<filename prefix>: only that document (all of its figures).
+                        let onlyValue = ProcessInfo.processInfo.environment["THUBAN_REANALYSE_ONLY"] ?? ""
+                        if onlyValue.hasPrefix("doc:"), !document.filename.hasPrefix(String(onlyValue.dropFirst(4))) { continue }
                         lines.append("DOC \(document.filename)")
                         write()
                         // THUBAN_REANALYSE_ONLY=reviewing: only the figures still waiting for review (and diagrams).

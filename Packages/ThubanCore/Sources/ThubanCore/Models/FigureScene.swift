@@ -186,6 +186,20 @@ public struct FigureScene: Sendable, Equatable {
                 }
                 continue
             case .parametric(let x, let y):
+                // A marked point r(t₀), its position vector and its tangent vector r′(t₀), computed from the formulas.
+                if let t0 = series.markAt, t0.isFinite {
+                    let h = 1e-5
+                    if let rows = try? await engine.values(of: [ChartShapes.normalised(x), ChartShapes.normalised(y)], variables: ["t"], at: [[t0], [t0 - h], [t0 + h]]),
+                       rows.count == 2, let xs = rows[0], let ys = rows[1],
+                       let px = xs[0], let py = ys[0] {
+                        if series.positionVector == true { marks.append(mark(.vector, [[[0, 0], [px, py]]])) }
+                        if series.tangentVector == true, let xa = xs[1], let xb = xs[2], let ya = ys[1], let yb = ys[2] {
+                            let dx = (xb - xa) / (2 * h), dy = (yb - ya) / (2 * h)
+                            if dx.isFinite, dy.isFinite { marks.append(mark(.vector, [[[px, py], [px + dx, py + dy]]])) }
+                        }
+                        marks.append(mark(.dots, [[[px, py]]]))
+                    }
+                }
                 if let curve = await ChartShapes.parametric(x: x, y: y, tRange: series.tRange, arrows: series.directionArrows == true,
                                                             window: window, engine: engine) {
                     marks.append(mark(.line, curve.pieces))

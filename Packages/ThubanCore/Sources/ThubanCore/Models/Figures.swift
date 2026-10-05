@@ -39,6 +39,11 @@ public struct ChartSeries: Codable, Sendable, Equatable {
     public var yt: String?
     public var tRange: [Double]?
     public var directionArrows: Bool?
+    /// kind "parametric": a parameter value t₀ the picture marks; the app draws the dot r(t₀) and, when asked, the
+    /// position vector from the origin to it and the tangent vector r′(t₀) from it (computed, never estimated).
+    public var markAt: Double?
+    public var positionVector: Bool?
+    public var tangentVector: Bool?
     /// Arrowheads as the picture draws them, `[x, y, dx, dy]` (`MarkerReader`): drawn instead of evenly spaced ones,
     /// so a curve traced out and back keeps its two opposite arrows.
     public var arrowMarks: [[Double]]?

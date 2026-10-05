@@ -382,8 +382,12 @@ public enum Prompts {
         - Marked points (a dot at the start or end of a parametric curve, the point a vector is drawn at, a single point \
           plotted in polar coordinates) are a series of kind "point" with `points` and `labels`. A plot that is only \
           axes and one marked point is still a chart, not a diagram.
-        - Arrows drawn as vectors (a position vector r(t), a tangent vector r′(t) drawn at a point, a directed segment \
-          AB) are each a series of kind "vector" with `points` = [tail, head]. Read the endpoints off the grid or \
+        - A curve r(t) drawn with its position vector r(t₀) and tangent vector r′(t₀) (sketch the curve, r(t₀) and \
+          r′(t₀)) is ONE series of kind "parametric" with `xt`, `yt`, `tRange` covering what the picture shows, \
+          `markAt` = t₀, `positionVector` and `tangentVector` true. The app computes the point and both vectors \
+          from the formulas; do not add them as separate vector series.
+        - Other arrows drawn as vectors (a directed segment AB, a vector a in the plane) are each a series of kind \
+          "vector" with `points` = [tail, head]. Read the endpoints off the grid or \
           compute them from the question (r(t0) and r(t0) + r′(t0)).
         - A curve drawn only over part of the window (a segment, one arm of a parabola, t from −2 to 2) gets its \
           `domain` (curves of x) or `tRange` (parametric) so nothing extra is drawn.

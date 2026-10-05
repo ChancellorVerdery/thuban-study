@@ -64,7 +64,10 @@ public enum MarkerReader {
         }
         let scene = await FigureScene.build(result, engine: engine)
         let markers = read(scene: scene, picture: picture)
-        for (index, arrows) in markers.arrows where result.series.indices.contains(index) && !arrows.isEmpty {
+        // Arrows only on curves that are traced out (parametric) or that the picture shows with arrows: a plain graph
+        // has none, and a blob on it (a label, a crossing) is not one.
+        for (index, arrows) in markers.arrows where result.series.indices.contains(index) && !arrows.isEmpty
+            && (result.series[index].seriesKind == .parametric || chart.series[safe: index]?.directionArrows == true) {
             result.series[index].arrowMarks = arrows
             result.series[index].directionArrows = true
         }
