@@ -176,6 +176,15 @@ public struct StandardChart: Codable, Sendable, Equatable {
 
     public var hasPanels: Bool { (panels?.count ?? 0) >= 2 }
 
+    /// Every curve is a trace of the picture (points, no formula, no recognised family): a redraw can only
+    /// approximate the original, so the original image is shown instead.
+    public var isOnlyTraced: Bool {
+        guard !isSlopeField, !isPhaseLine, !hasPanels, !series.isEmpty else { return false }
+        return series.allSatisfy { s in
+            (s.latex ?? "").isEmpty && s.xt == nil && [.curve].contains(s.seriesKind) && (s.points?.count ?? 0) >= 2
+        } && (provenance == StandardChart.traced || verification?.summary.contains("raced from the pi") == true)
+    }
+
     public var isPhaseLine: Bool { chartType == "phaseLine" && phaseLine != nil }
 
     public var isSlopeField: Bool { chartType == "slopeField" }
@@ -319,6 +328,11 @@ public struct Figure: Codable, Identifiable, Sendable, Equatable {
     /// already made (accepted, kept original, skipped) are left alone. Returns whether it was accepted.
     @discardableResult
     public mutating func acceptIfConfident() -> Bool {
+        // A trace of the picture is never as faithful as the picture: keep the original.
+        if status == .pending || status == .reviewing || status == .accepted, kind == .chart, chart?.isOnlyTraced == true {
+            status = .keptOriginal
+            return false
+        }
         guard status == .pending || status == .reviewing, kind == .chart, let chart,
               chart.confidence >= Self.autoAcceptConfidence, chart.verification?.passed != false else { return false }
         status = .accepted

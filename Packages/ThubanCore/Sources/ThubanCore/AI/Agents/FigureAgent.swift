@@ -388,6 +388,14 @@ public actor FigureAgent {
     /// defines, when those land on the drawn curve (`CurveFitter`).
     public static func check(_ chart: StandardChart, png: Data, engine: MathEngine, questionText: String = "") async -> StandardChart {
         var checked = await checkDrawing(chart, png: png, engine: engine, questionText: questionText)
+        // Curves traced from a picture that is mostly shaded (a tinted data plot, isotherms on a filled panel) are
+        // not to be trusted: the original image stays.
+        if checked.isTraced, !checked.series.contains(where: { FigureScene.shape(of: $0).isRegion }),
+           let share = PictureInk.shadedShare(png: png), share >= 0.3 {
+            checked.verification = ChartVerification(passed: false, summary: "Kept as the original: curves traced from a shaded picture (\(Int((share * 100).rounded()))% shaded) cannot be checked against it.")
+            checked.confidence = min(checked.confidence, 0.4)
+            return checked
+        }
         // The picture's own arrowheads and dots on its curves (and its whole frame, when numbered).
         let marked = await MarkerReader.apply(checked, png: png, engine: engine)
         if marked != checked {
@@ -493,7 +501,11 @@ public actor FigureAgent {
         if Self.isShapeChart(chart) {
             var checked = await ShapeFitter.fit(chart, png: png, engine: engine)
             checked.verification = await ShapeVerifier.verify(checked, png: png, engine: engine)
-            if checked.verification?.passed == true { checked.confidence = max(checked.confidence, 0.75); return checked }
+            if checked.verification?.passed == true {
+                checked.confidence = max(checked.confidence, 0.75)
+                if let picture { checked = await RegionFixer.dropStrayLines(checked, picture: picture, engine: engine) }
+                return checked
+            }
             // A region of straight lines that misses the picture: its lines measured from the picture instead.
             if let picture, var fixed = await RegionFixer.fix(checked, picture: picture, engine: engine) {
                 fixed.confidence = max(fixed.confidence, 0.75)

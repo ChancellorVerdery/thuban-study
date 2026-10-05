@@ -42,8 +42,26 @@ public enum RegionFixer {
             }
         }
         guard var fixed = best?.chart else { return nil }
+        fixed = await dropStrayLines(fixed, picture: picture, engine: engine)
         fixed.notes = [chart.notes, "Boundary lines measured from the picture."].compactMap { $0 }.joined(separator: " ")
         return fixed
+    }
+
+    /// A region chart without the separate curves that do not lie on the picture (stated boundary lines that were
+    /// wrong): the region draws its own edges.
+    static func dropStrayLines(_ chart: StandardChart, picture: ShapeVerifier.Picture, engine: MathEngine) async -> StandardChart {
+        guard chart.series.contains(where: { FigureScene.shape(of: $0).isRegion }) else { return chart }
+        var result = chart
+        var kept: [ChartSeries] = []
+        for series in chart.series {
+            if FigureScene.shape(of: series).isRegion || (series.latex ?? "").isEmpty { kept.append(series); continue }
+            var alone = chart
+            alone.series = [series]
+            let scene = await FigureScene.build(alone, engine: engine)
+            if (ShapeVerifier.lineScore(scene, picture: picture).coverage ?? 1) >= 0.6 { kept.append(series) }
+        }
+        result.series = kept
+        return result
     }
 
     /// The picture's straight boundary lines in data units: (slope, intercept, vertical) — vertical lines as x = q.

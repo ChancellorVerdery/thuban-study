@@ -36,11 +36,48 @@ public enum ShapeFitter {
             if best == nil || score > best!.score + 1e-9 { best = (option, score) }
         }
         var result = best?.chart ?? chart
+        if let marked = await fitMarkedPoint(result, picture: picture, engine: engine) { result = marked }
         if let chosen = best?.chart, chosen != chart, !candidates.isEmpty, let shape = chosen.series.first(where: { FigureScene.shape(of: $0) != .curve }) {
             let note = "Chose \(shape.name) from the question's \(candidates.count + 1) options: it matches the picture best."
             result.notes = [chart.notes, note].compactMap { $0 }.joined(separator: " ")
         }
         return result
+    }
+
+    /// A parametric curve with a marked r(t0) and its vectors that misses the picture (answer choices share one
+    /// caption but each marks its own point, or draws the curve turned): t0 tried at the common values and the curve
+    /// mirrored or turned, the version that fits the picture kept.
+    static func fitMarkedPoint(_ chart: StandardChart, picture: ShapeVerifier.Picture, engine: MathEngine) async -> StandardChart? {
+        guard let index = chart.series.firstIndex(where: { $0.seriesKind == .parametric && $0.markAt != nil }),
+              let xt = chart.series[index].xt, let yt = chart.series[index].yt else { return nil }
+        let first = await FigureScene.build(chart, engine: engine)
+        guard !ShapeVerifier.verify(scene: first, picture: picture).passed else { return nil }
+        let pi = Double.pi
+        var times: [Double] = [chart.series[index].markAt!]
+        for k in -8...8 { times.append(Double(k) * pi / 4); times.append(Double(k) * pi / 6) }
+        for k in -3...3 { times.append(Double(k)); times.append(Double(k) + 0.5) }
+        var seen = Set<Int>(); times = times.filter { seen.insert(Int(($0 * 1000).rounded())).inserted }
+        let turns: [(String, String)] = [(xt, yt), ("-(\(xt))", yt), (xt, "-(\(yt))"), ("-(\(xt))", "-(\(yt))"),
+                                         (yt, xt), ("-(\(yt))", xt), (yt, "-(\(xt))"), ("-(\(yt))", "-(\(xt))")]
+        var best: (StandardChart, Double)?
+        for (x, y) in turns {
+            // The curve first (cheap): only orientations whose curve fits are tried with every t0.
+            var curveOnly = chart
+            curveOnly.series[index].xt = x; curveOnly.series[index].yt = y
+            curveOnly.series[index].markAt = nil
+            let curveScene = await FigureScene.build(curveOnly, engine: engine)
+            guard (ShapeVerifier.lineScore(curveScene, picture: picture).coverage ?? 0) >= 0.7 else { continue }
+            for t in times {
+                var option = curveOnly
+                option.series[index].markAt = t
+                let scene = await FigureScene.build(option, engine: engine)
+                let verdict = ShapeVerifier.verify(scene: scene, picture: picture)
+                let score = ShapeVerifier.fitScore(scene, picture: picture) + (verdict.passed ? 1 : 0)
+                if best == nil || score > best!.1 { best = (option, score) }
+            }
+        }
+        guard let found = best, found.1 > 1 else { return nil }
+        return found.0
     }
 
     /// The levels (and, for unnumbered axes, the scale) of a level series, read from the picture's curves; nil when

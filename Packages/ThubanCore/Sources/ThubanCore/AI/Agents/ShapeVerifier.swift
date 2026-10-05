@@ -215,13 +215,14 @@ public enum ShapeVerifier {
                 let reach = picture.radius + 2
                 for dr in Swift.stride(from: -reach, through: reach, by: 2) { for dc in Swift.stride(from: -reach, through: reach, by: 2) {
                     var on = 0, total = 0
-                    for y in -3...3 { for x in -3...3 where x * x + y * y <= 9 {
+                    // A solid disc a line through the spot cannot fill (a drawn dot, not a curve passing by).
+                    for y in -4...4 { for x in -4...4 where x * x + y * y <= 16 {
                         total += 1
                         if picture.isInk(c + dc + x, r + dr + y) { on += 1 }
                     } }
                     best = max(best, Double(on) / Double(total))
                 } }
-                if best >= 0.6 { found += 1 }
+                if best >= 0.88 { found += 1 }
             }
             if inside > 0 {
                 anyCheck = true
