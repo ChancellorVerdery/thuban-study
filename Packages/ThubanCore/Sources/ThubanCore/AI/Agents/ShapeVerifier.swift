@@ -128,7 +128,7 @@ public enum ShapeVerifier {
                 if drawn[(r - picture.rows.lowerBound) * w + (c - picture.columns.lowerBound)] { inkHit += 1 }
             }
         }
-        return (sampled >= 20 ? Double(covered) / Double(sampled) : nil, inkTotal >= 30 ? Double(inkHit) / Double(inkTotal) : nil, sampled)
+        return (sampled >= 8 ? Double(covered) / Double(sampled) : nil, inkTotal >= 30 ? Double(inkHit) / Double(inkTotal) : nil, sampled)
     }
 
     /// One number for choosing between candidate drawings: the harmonic mean of coverage and recall.
@@ -196,6 +196,38 @@ public enum ShapeVerifier {
                 notes.append("the shaded region matches the picture's shading at \(Int((share * 100).rounded()))% of \(total) sampled points" + (ok ? "" : " (needs \(Int(regionAgreement * 100))%)"))
             } else if total >= 30 {
                 notes.append("the picture shows no shading to compare (only the boundary was checked)")
+            }
+        }
+
+        // Plotted points: each must sit on a drawn dot (a solid blob of ink), not just near a line.
+        let dots = scene.marks.filter { $0.kind == .dots }.flatMap(\.pieces).flatMap { $0 }
+        if !dots.isEmpty {
+            var found = 0, inside = 0
+            for p in dots {
+                let c = Int(reading.x.pixel(p[0]).rounded()), r = Int(reading.y.pixel(p[1]).rounded())
+                guard columns.contains(c), rows.contains(r) else { continue }
+                inside += 1
+                // The densest small disc within reach of where the point should be.
+                var best = 0.0
+                let reach = picture.radius + 2
+                for dr in Swift.stride(from: -reach, through: reach, by: 2) { for dc in Swift.stride(from: -reach, through: reach, by: 2) {
+                    var on = 0, total = 0
+                    for y in -3...3 { for x in -3...3 where x * x + y * y <= 9 {
+                        total += 1
+                        if picture.isInk(c + dc + x, r + dr + y) { on += 1 }
+                    } }
+                    best = max(best, Double(on) / Double(total))
+                } }
+                if best >= 0.6 { found += 1 }
+            }
+            if inside > 0 {
+                anyCheck = true
+                let ok = Double(found) / Double(inside) >= 0.8
+                passed = passed && ok
+                notes.append("\(found) of \(inside) plotted point\(inside == 1 ? "" : "s") sit on a drawn dot")
+            } else {
+                passed = false
+                notes.append("the plotted points fall outside the picture's axes")
             }
         }
 
