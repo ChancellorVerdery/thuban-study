@@ -161,12 +161,22 @@ public actor MathEngine {
         struct Request: Encodable { var latex: String; var points: [Point] }
         struct Result: Decodable { var values: [Double?]; var scales: [Double?]; var explicit: Bool }
         do {
-            let request = Request(latex: latex, points: points.map { Point(x: $0.x, y: $0.y) })
+            // Plain-text formulas ("2-sqrt(x)") as LaTeX the engine reads.
+            let request = Request(latex: ChartShapes.normalised(latex), points: points.map { Point(x: $0.x, y: $0.y) })
             let result = try loadedRuntime().call("evaluateAt", request, as: Result.self)
             return Samples(values: result.values, scales: result.scales, explicit: result.explicit)
         } catch ThubanError.engine(let detail) where detail == "unparseable" {
             throw ThubanError.parse("'\(latex)' is not a valid expression.")
         }
+    }
+
+    /// Each expression (plain LaTeX, no "=") at every point, the point's coordinates bound to `variables` in order
+    /// (["x", "y"] for a grid, ["t"] for a parameter). `nil` where an expression is undefined or complex; a whole row is
+    /// nil when the expression does not parse.
+    public func values(of expressions: [String], variables: [String], at points: [[Double]]) async throws -> [[Double?]?] {
+        struct Request: Encodable { var exprs: [String]; var vars: [String]; var points: [[Double]] }
+        struct Result: Decodable { var values: [[Double?]?] }
+        return try loadedRuntime().call("evaluateExpressions", Request(exprs: expressions, vars: variables, points: points), as: Result.self).values
     }
 
     private func latexCall(_ function: String, _ latex: String) throws -> String {

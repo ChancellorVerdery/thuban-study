@@ -24,14 +24,22 @@ enum FigureDump {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         var lines: [String] = []
         var pairs: [DumpPair] = []
+        var statusCounter = 0
         let only = ProcessInfo.processInfo.environment["THUBAN_FIGURE_DUMP_ONLY"]?
             .split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
         do {
             for studyClass in try await app.store.allClasses() {
                 let questions = (try? await app.store.questions(in: studyClass.id, filter: QuestionFilter())) ?? []
                 for figure in try await app.store.figures(in: studyClass.id) {
-                    let number = figure.pageOrIndex + 1
-                    if let only, !only.isEmpty, !only.contains(number) { continue }
+                    var number = figure.pageOrIndex + 1
+                    // THUBAN_FIGURE_DUMP_STATUS=reviewing,pending: only figures in those review states, numbered in order
+                    // (page numbers collide across documents).
+                    if let statuses = ProcessInfo.processInfo.environment["THUBAN_FIGURE_DUMP_STATUS"]?.split(separator: ",").map(String.init) {
+                        guard statuses.contains(figure.status.rawValue) else { continue }
+                        statusCounter += 1
+                        number = statusCounter
+                        lines.append(String(format: "#%03d = %@ %@ p%d", number, studyClass.name, figure.id.raw, figure.pageOrIndex))
+                    } else if let only, !only.isEmpty, !only.contains(number) { continue }
                     var stored = figure.chart
                     if ProcessInfo.processInfo.environment["THUBAN_FIGURE_DUMP_RECONCILE"] != nil, stored == nil || FigureAgent.isThin(stored!),
                        let png = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)), let phase = await PhaseLineReader.read(png: png, caption: figure.caption) {

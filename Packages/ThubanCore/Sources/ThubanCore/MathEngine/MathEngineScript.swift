@@ -1661,6 +1661,44 @@ var thubanMath = (function () {
     return { values: values, scales: scales, explicit: explicit };
   }
 
+  // Several plain expressions over many points, each compiled once: { exprs: [latex], vars: ["x","y"] | ["t"],
+  // points: [[...]] } → { values: [[number|null] per point] per expression }. Undefined and complex values are null.
+  // A expression the compiler rejects is evaluated symbolically on at most 2,500 points (the rest null), so a bad
+  // formula never stalls a figure.
+  function evaluateExpressions(r) {
+    var vars = (r.vars || ['x', 'y']).map(String);
+    var points = r.points || [];
+    var out = [];
+    (r.exprs || []).forEach(function (latex) {
+      var expr = ce.parse(String(latex));
+      if (!expr.isValid) { out.push(null); return; }
+      var compiled = compileFn(expr);
+      var row = [];
+      for (var i = 0; i < points.length; i++) {
+        var at = {};
+        for (var k = 0; k < vars.length; k++) at[vars[k]] = Number(points[i][k]);
+        var v = null;
+        if (compiled) {
+          try {
+            var c = compiled(at);
+            if (typeof c === 'number') v = isFinite(c) ? c : null;
+            else if (c && typeof c.re === 'number') v = isFinite(c.re) && Math.abs(c.im || 0) < 1e-9 ? c.re : null;
+            else if (typeof c === 'boolean') v = c ? 1 : -1;
+          } catch (e) { compiled = null; }
+        }
+        if (!compiled) {
+          if (i < 2500) {
+            var n = numericValue(expr, at);
+            v = n && Math.abs(n.im) < 1e-9 && isFinite(n.re) ? n.re : null;
+          } else v = null;
+        }
+        row.push(v);
+      }
+      out.push(row);
+    });
+    return { values: out };
+  }
+
   function evaluate(latex) {
     var expr = ce.parse(String(latex));
     if (!expr.isValid) return { error: 'unparseable' };
@@ -1769,6 +1807,7 @@ var thubanMath = (function () {
     evaluate: wrap(function (r) { return evaluate(r.latex); }),
     integrateSlope: wrap(integrateSlope),
     evaluateAt: wrap(evaluateAt),
+    evaluateExpressions: wrap(evaluateExpressions),
     simplify: wrap(function (r) { return simplify(r.latex); }),
     checkConstraints: wrap(checkConstraints),
     instantiateAnswer: wrap(instantiateAnswer),

@@ -366,6 +366,21 @@ public enum Prompts {
         heads, and give each solution curve drawn on top as a series with `through` = a point it passes through (its \
         initial condition, e.g. where it crosses the y-axis). Never turn the arrows themselves into points.
 
+        Shapes that are not one curve y = f(x) each have their own series `kind` — never trace them as points when \
+        the question defines them:
+        - A shaded region (a domain, a region of integration, an inequality's solution set) is kind "region" with the \
+          inequalities that hold inside as `latex`, in x and y ("x^2+y^2\\le 49, x\\ge 0"; a polar region \
+          0 ≤ r ≤ 7, −π/2 ≤ θ ≤ π/2 becomes "x^2+y^2\\le 49, x\\ge 0"). One series per separately shaded piece \
+          (|x + y| ≥ 1 is "x+y\\ge 1" and "x+y\\le -1"). Add the boundary lines the picture draws (dashed for a \
+          strict inequality) as ordinary curves only when they are not the region's own edge.
+        - A contour map (level curves of f(x, y)) is one series of kind "level": `latex` = f(x, y) and `levels` = \
+          every c the picture draws a curve for. When the question asks which function a map belongs to, test each \
+          offered function against the picture (shape, spacing, which way the values increase) and use the one that \
+          fits.
+        - A parametric curve is kind "parametric" with `xt`, `yt` and `tRange`; set `directionArrows` when the \
+          picture shows arrows along it. Do not eliminate the parameter: the arrows and the traced part depend on t.
+        The app draws these exactly and compares them with the picture as a whole, so give the formulas, not points.
+
         Keep series names short; they are shown once, not on every point.
 
         Always give a one-sentence `caption` a student would find useful.

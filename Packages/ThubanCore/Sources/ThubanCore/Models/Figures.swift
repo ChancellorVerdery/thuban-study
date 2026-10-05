@@ -8,7 +8,10 @@ public enum FigureStatus: String, Codable, Sendable, CaseIterable {
     case pending, reviewing, accepted, keptOriginal, skipped
 }
 
-/// One series of a `StandardChart`: either a table of `[x, y]` points or a LaTeX function of x.
+public enum ChartSeriesKind: String, Sendable { case curve, region, level, parametric }
+
+/// One series of a `StandardChart`: a table of `[x, y]` points, a LaTeX function of x (or relation), a shaded
+/// region, level curves, or a parametric curve (`kind`).
 public struct ChartSeries: Codable, Sendable, Equatable {
     public var name: String
     /// `[[x, y], …]`
@@ -24,6 +27,18 @@ public struct ChartSeries: Codable, Sendable, Equatable {
     public var style: String?
     /// `[xMin, xMax]`: the stretch of x a solution curve is drawn over (nil: the whole window).
     public var domain: [Double]?
+    /// What the series is (nil = "curve": a function of x or a relation in `latex`, or `points`):
+    /// - "region": a shaded area, the points where every condition in `latex` holds ("x^2+y^2\le 49, x\ge 0");
+    /// - "level": the level curves `latex` = c of a function of x and y, one for each value in `levels`;
+    /// - "parametric": the curve (`xt`, `yt`) for t in `tRange`, with arrows along it when `directionArrows`.
+    public var kind: String?
+    public var levels: [Double]?
+    public var xt: String?
+    public var yt: String?
+    public var tRange: [Double]?
+    public var directionArrows: Bool?
+
+    public var seriesKind: ChartSeriesKind { ChartSeriesKind(rawValue: (kind ?? "curve").lowercased()) ?? .curve }
 
     public init(name: String, points: [[Double]]? = nil, latex: String? = nil, color: String? = nil, through: [Double]? = nil, style: String? = nil) {
         self.name = name

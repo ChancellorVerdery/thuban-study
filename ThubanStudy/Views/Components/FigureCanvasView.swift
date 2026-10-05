@@ -133,9 +133,40 @@ struct FigureCanvasRenderer {
         let palette: [String] = scene.hasField
             ? [theme.accent, theme.neg, theme.pos, theme.accentDeep]
             : [theme.accent, theme.signal, theme.neg, theme.pos, theme.accentDeep]
-        for mark in scene.marks {
+        // Shaded regions first, translucent, so every curve and axis stays visible through them.
+        for mark in scene.marks where mark.kind == .fill {
+            let color = Color(hex: mark.color ?? palette[mark.paletteIndex % palette.count])
+            var path = Path()
+            for rect in mark.pieces where rect.count == 2 {
+                let a = point(rect[0]), b = point(rect[1])
+                // Rows overlap by a hair so no seam shows between them.
+                path.addRect(CGRect(x: min(a.x, b.x), y: min(a.y, b.y) - 0.25, width: abs(b.x - a.x), height: abs(b.y - a.y) + 0.5))
+            }
+            context.fill(path, with: .color(color.opacity(0.28)))
+        }
+        for mark in scene.marks where mark.kind != .fill {
             let color = Color(hex: mark.color ?? palette[mark.paletteIndex % palette.count])
             switch mark.kind {
+            case .fill:
+                break
+            case .arrows:
+                // Filled heads on the curve, pointing the way the parameter runs.
+                var heads = Path()
+                for a in mark.pieces.flatMap({ $0 }) where a.count >= 4 {
+                    var dx = CGFloat(a[2] * sx), dy = CGFloat(-a[3] * sy)
+                    let length = (dx * dx + dy * dy).squareRoot()
+                    guard length > 0, length.isFinite else { continue }
+                    dx /= length; dy /= length
+                    let c = point(a)
+                    let headLength: CGFloat = 15, w: CGFloat = 7
+                    let tip = CGPoint(x: c.x + dx * headLength / 2, y: c.y + dy * headLength / 2)
+                    let base = CGPoint(x: c.x - dx * headLength / 2, y: c.y - dy * headLength / 2)
+                    heads.move(to: tip)
+                    heads.addLine(to: CGPoint(x: base.x - dy * w, y: base.y + dx * w))
+                    heads.addLine(to: CGPoint(x: base.x + dy * w, y: base.y - dx * w))
+                    heads.closeSubpath()
+                }
+                context.fill(heads, with: .color(color))
             case .line:
                 var path = Path()
                 for piece in mark.pieces where piece.count >= 2 {

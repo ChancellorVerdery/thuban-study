@@ -71,7 +71,16 @@ public actor FigureAgent {
                             "items": ["type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2],
                             "description": "Traced curves: [[x, y], …] read off the axes along the curve, 12–40 of them, in order; the app draws a smooth curve through them (dots only for scatter charts). Never one point per arrow of a field.",
                         ],
-                        "latex": ["type": "string", "description": "Stated curves: the function of x (or relation) exactly as the question gives it. Preferred over points whenever the question defines the curve."],
+                        "latex": ["type": "string", "description": "Stated curves: the function of x (or relation) exactly as the question gives it. Preferred over points whenever the question defines the curve. For kind \"region\": the inequalities that hold inside, comma-separated, in x and y (\"x^2+y^2\\\\le 49, x\\\\ge 0\", \"-1\\\\le x+y\\\\le 1\"). For kind \"level\": the function f(x, y) whose level curves are drawn (\"x^2+y^2\", \"y e^{x}\")."],
+                        "kind": [
+                            "type": "string", "enum": ["curve", "region", "level", "parametric"],
+                            "description": "What the series is (default \"curve\": a function of x, a relation, or traced points). \"region\": a shaded area, one series per shaded piece, with its inequalities in `latex` (polar regions converted to x and y). \"level\": a contour map — the level curves f(x, y) = c of `latex`, one for each c in `levels`, drawn as one series instead of one series per curve. \"parametric\": the curve x = `xt`, y = `yt` for t in `tRange`.",
+                        ],
+                        "levels": ["type": "array", "items": ["type": "number"], "description": "kind \"level\" only: every value c whose level curve the picture draws (as labelled, or as you can read them), e.g. [-2, -1, 0, 1, 2]."],
+                        "xt": ["type": "string", "description": "kind \"parametric\" only: x as a function of t in LaTeX, e.g. \"\\\\cos(5t)\"."],
+                        "yt": ["type": "string", "description": "kind \"parametric\" only: y as a function of t in LaTeX."],
+                        "tRange": ["type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2, "description": "kind \"parametric\" only: [tStart, tEnd] as the question gives it (default [0, 2π])."],
+                        "directionArrows": ["type": "boolean", "description": "true when the picture draws arrows along this curve (the direction t increases)."],
                         "through": [
                             "type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2,
                             "description": "slopeField only: [x0, y0] the solution curve passes through (its initial condition). The app integrates the curve from it; never trace a solution curve as points.",
@@ -325,7 +334,7 @@ public actor FigureAgent {
 
     /// No equation, no field, no initial condition, and only a handful of points per series.
     public static func isThin(_ chart: StandardChart) -> Bool {
-        guard (chart.slope ?? "").isEmpty, !chart.isSlopeField, !chart.isPhaseLine else { return false }
+        guard (chart.slope ?? "").isEmpty, !chart.isSlopeField, !chart.isPhaseLine, !ShapeVerifier.hasShapes(chart) else { return false }
         // A vertical line ("x = 0": a phase line's axis) or a handful of points is not a plot.
         let verticalLine = try! NSRegularExpression(pattern: #"^\s*x\s*=\s*-?[0-9.]*\s*$"#)
         return chart.series.allSatisfy { series in
@@ -342,6 +351,14 @@ public actor FigureAgent {
     /// defines, when those land on the drawn curve (`CurveFitter`).
     public static func check(_ chart: StandardChart, png: Data, engine: MathEngine, questionText: String = "") async -> StandardChart {
         if chart.isPhaseLine { return chart }
+        // Regions, contour maps and parametric curves are drawn and compared with the picture as a whole: the
+        // reconciler's one-curve-per-colour reading cannot hold them.
+        if ShapeVerifier.hasShapes(chart) {
+            var checked = chart
+            checked.verification = await ShapeVerifier.verify(chart, png: png, engine: engine)
+            if checked.verification?.passed == true { checked.confidence = max(checked.confidence, 0.75) }
+            return checked
+        }
         if var reconciled = await FigureReconciler.reconcile(chart, png: png, engine: engine) {
             // Confidence is the picture's verdict, not the agent's guess: a chart that matches its picture is at
             // least 75 %, and exact curves raise it (`CurveFitter`).

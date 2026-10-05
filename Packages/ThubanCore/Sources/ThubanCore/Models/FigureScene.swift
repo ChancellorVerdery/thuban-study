@@ -21,12 +21,14 @@ public struct FigureScene: Sendable, Equatable {
 
     public enum LineStyle: String, Sendable, Equatable { case solid, dashed, dotted }
 
-    /// One series as drawn: polylines (a curve may break at a gap or asymptote), dots, or bars.
+    /// One series as drawn: polylines (a curve may break at a gap or asymptote), dots, bars, a shaded region, or
+    /// arrowheads along a curve.
     public struct Mark: Sendable, Equatable {
-        public enum Kind: Sendable, Equatable { case line, dots, bars }
+        public enum Kind: Sendable, Equatable { case line, dots, bars, fill, arrows }
         public var kind: Kind
         public var name: String
-        /// Polylines, each `[[x, y], …]`; for dots and bars one list of points.
+        /// Polylines, each `[[x, y], …]`; for dots and bars one list of points; for a fill rectangles
+        /// `[[x0, y0], [x1, y1]]`; for arrows one list of `[x, y, dx, dy]`.
         public var pieces: [[[Double]]]
         public var style: LineStyle
         /// Hex colour from the chart, or nil for the theme palette.
@@ -139,8 +141,41 @@ public struct FigureScene: Sendable, Equatable {
             func mark(_ kind: Mark.Kind, _ pieces: [[[Double]]]) -> Mark {
                 Mark(kind: kind, name: series.name, pieces: pieces, style: style, color: series.color?.nilIfBlank, paletteIndex: index)
             }
-            if let latex = series.latex?.trimmingCharacters(in: .whitespacesAndNewlines), !latex.isEmpty {
-                if let pieces = await curve(latex, window: window, engine: engine), !pieces.isEmpty { marks.append(mark(.line, pieces)) }
+            let latex = series.latex?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            switch shape(of: series) {
+            case .region(let conditions):
+                if let region = await ChartShapes.region(conditions, window: window, engine: engine) {
+                    if !region.fill.isEmpty { marks.append(mark(.fill, region.fill)) }
+                    if !region.boundary.isEmpty { marks.append(mark(.line, region.boundary)) }
+                }
+                continue
+            case .level(let function, let levels):
+                if let curves = await ChartShapes.levelCurves(function, levels: levels, window: window, engine: engine) {
+                    let pieces = curves.flatMap { $0 }
+                    if !pieces.isEmpty { marks.append(mark(.line, pieces)) }
+                }
+                continue
+            case .parametric(let x, let y):
+                if let curve = await ChartShapes.parametric(x: x, y: y, tRange: series.tRange, arrows: series.directionArrows == true,
+                                                            window: window, engine: engine) {
+                    marks.append(mark(.line, curve.pieces))
+                    if !curve.arrows.isEmpty { marks.append(mark(.arrows, [curve.arrows])) }
+                }
+                continue
+            case .restricted(let equation, let conditions):
+                if let pieces = await ChartShapes.restrictedRelation(equation, conditions: conditions, window: window, engine: engine), !pieces.isEmpty {
+                    marks.append(mark(.line, pieces))
+                    if series.directionArrows == true { marks.append(mark(.arrows, [ChartShapes.arrowMarks(along: pieces, window: window)])) }
+                }
+                continue
+            case .curve:
+                break
+            }
+            if !latex.isEmpty {
+                if let pieces = await curve(latex, window: window, engine: engine), !pieces.isEmpty {
+                    marks.append(mark(.line, pieces))
+                    if series.directionArrows == true { marks.append(mark(.arrows, [ChartShapes.arrowMarks(along: pieces, window: window)])) }
+                }
                 continue
             }
             let points = (series.points ?? []).filter { $0.count >= 2 && $0[0].isFinite && $0[1].isFinite }
@@ -150,7 +185,11 @@ public struct FigureScene: Sendable, Equatable {
                 case "bar", "histogram": marks.append(mark(.bars, [points]))
                 default:
                     if points.count == 1 { marks.append(mark(.dots, [points])) }
-                    else { marks.append(mark(.line, [ChartGeometry.smoothed(points)])) }
+                    else {
+                        let line = ChartGeometry.smoothed(points)
+                        marks.append(mark(.line, [line]))
+                        if series.directionArrows == true { marks.append(mark(.arrows, [ChartShapes.arrowMarks(along: [line], window: window)])) }
+                    }
                 }
                 continue
             }
@@ -179,9 +218,43 @@ public struct FigureScene: Sendable, Equatable {
                            xTickLabels: chart.xAxisLabels, yTickLabels: chart.yAxisLabels)
     }
 
+    /// What a series draws, from its `kind` or (for series stored before kinds existed) from its LaTeX: an
+    /// inequality is a region, "x = f(t), y = g(t)" a parametric curve.
+    public enum Shape: Equatable {
+        case curve
+        case region(String)
+        case level(String, [Double])
+        case parametric(String, String)
+        /// One equation kept where some conditions hold ("x^2+y^2=49, x\\le 0": the left half of the circle).
+        case restricted(String, [String])
+    }
+
+    public static func shape(of series: ChartSeries) -> Shape {
+        let latex = series.latex?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        switch series.seriesKind {
+        case .region:
+            return latex.isEmpty ? .curve : .region(latex)
+        case .level:
+            let levels = (series.levels ?? []).filter(\.isFinite)
+            return latex.isEmpty || levels.isEmpty ? .curve : .level(latex, levels)
+        case .parametric:
+            if let x = series.xt?.trimmingCharacters(in: .whitespacesAndNewlines), let y = series.yt?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !x.isEmpty, !y.isEmpty { return .parametric(x, y) }
+            if let pair = ChartShapes.parametricPair(latex) { return .parametric(pair.x, pair.y) }
+            return .curve
+        case .curve:
+            guard !latex.isEmpty else { return .curve }
+            if ChartShapes.isInequality(latex) { return .region(latex) }
+            if let pair = ChartShapes.parametricPair(latex) { return .parametric(pair.x, pair.y) }
+            if let restricted = ChartShapes.restrictedEquation(latex) { return .restricted(restricted.equation, restricted.conditions) }
+            return .curve
+        }
+    }
+
     /// A function or relation as polylines: `y = f(x)` sampled across the window (broken where it is undefined
-    /// or jumps across the window — an asymptote); any other equation by marching squares on its residual.
-    static func curve(_ latex: String, window: Window, engine: MathEngine) async -> [[[Double]]]? {
+    /// or jumps across the window — an asymptote); any other equation as the chained zero contour of its residual.
+    static func curve(_ rawLatex: String, window: Window, engine: MathEngine) async -> [[[Double]]]? {
+        let latex = ChartShapes.normalised(rawLatex)
         let xSpan = window.x.upperBound - window.x.lowerBound, ySpan = window.y.upperBound - window.y.lowerBound
         let xs = (0...explicitSamples).map { window.x.lowerBound + xSpan * Double($0) / Double(explicitSamples) }
         guard let probe = try? await engine.samples(of: latex, at: xs.map { (x: $0, y: 0) }) else { return nil }
@@ -203,15 +276,8 @@ public struct FigureScene: Sendable, Equatable {
             if current.count >= 2 { pieces.append(current) }
             return pieces
         }
-        // Implicit: residual on a grid, contour at zero.
-        let n = implicitGrid
-        var points: [(x: Double, y: Double)] = []
-        points.reserveCapacity((n + 1) * (n + 1))
-        for j in 0...n { for i in 0...n {
-            points.append((window.x.lowerBound + xSpan * Double(i) / Double(n), window.y.lowerBound + ySpan * Double(j) / Double(n)))
-        } }
-        guard let grid = try? await engine.samples(of: latex, at: points) else { return nil }
-        return marchingSquares(values: grid.values, n: n, window: window)
+        // Implicit: the residual on a grid (one compiled call), contour at zero, chained into polylines.
+        return await ChartShapes.relation(latex, window: window, engine: engine)
     }
 
     /// Zero contour of a residual sampled on an (n+1)×(n+1) grid, as two-point segments.

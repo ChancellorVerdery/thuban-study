@@ -46,9 +46,11 @@ final class FigureSceneTests: XCTestCase {
     func testImplicitRelationsAreContoured() async throws {
         let chart = StandardChart(chartType: "function", series: [ChartSeries(name: "circle", latex: "x^2+y^2=4")], xRange: [-3, 3], yRange: [-3, 3], confidence: 1)
         let scene = await FigureScene.build(chart, engine: Self.engine)
-        let segments = try XCTUnwrap(scene.marks.first).pieces
-        XCTAssertGreaterThan(segments.count, 100)
-        for segment in segments { for p in segment { XCTAssertEqual((p[0] * p[0] + p[1] * p[1]).squareRoot(), 2, accuracy: 0.05) } }
+        let pieces = try XCTUnwrap(scene.marks.first).pieces
+        XCTAssertEqual(pieces.count, 1, "the circle is one chained loop (a dashed style dashes along it, not per segment)")
+        XCTAssertGreaterThan(pieces[0].count, 100)
+        XCTAssertEqual(pieces[0].first?[0] ?? 0, pieces[0].last?[0] ?? 1, accuracy: 1e-9, "closed")
+        for piece in pieces { for p in piece { XCTAssertEqual((p[0] * p[0] + p[1] * p[1]).squareRoot(), 2, accuracy: 0.05) } }
     }
 
     func testPointsDotsAndBars() async throws {
