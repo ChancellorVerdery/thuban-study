@@ -63,6 +63,10 @@ final class EquationsState {
     var pendingDeleteGroup: EquationSheet.Section?
     /// The export workbench is open.
     var isExporting = false
+    /// Equations imports suggested for the sheet, waiting for the student's approve or deny.
+    var suggestions: [EquationSuggestion] = []
+    /// The bank is being scanned for missing equations ("Suggest from bank").
+    var isSuggesting = false
     var error: String?
     /// The last queued sheet change; the next one waits for it (see `ClassSession.enqueueSheetChange`).
     @ObservationIgnored var changeQueue: Task<Void, Never>?
@@ -100,7 +104,9 @@ final class EquationsState {
     /// Sends the (filtered) sheet to both pages.
     func push() {
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        sheetPage.load(filteredSheet, emptyMessage: query.isEmpty ? "" : "No equations match “\(query)”.")
+        // Suggestions sit above the sheet while not searching.
+        sheetPage.load(filteredSheet, emptyMessage: query.isEmpty ? "" : "No equations match “\(query)”.",
+                       suggestions: query.isEmpty ? suggestions : [])
         let panelQuery = panelSearch.trimmingCharacters(in: .whitespacesAndNewlines)
         let panelEmpty = sheet.isEmpty
             ? "This class has no equations yet."
@@ -142,6 +148,12 @@ extension ClassSession {
             page.onMoveEntryBy = { [weak self] id, delta in
                 self?.enqueueSheetChange { await self?.moveEquationEntry(id, by: delta) }
             }
+            page.onApproveSuggestion = { [weak self] id in
+                self?.enqueueSheetChange { await self?.approveEquationSuggestion(id) }
+            }
+            page.onDenySuggestion = { [weak self] id in
+                self?.enqueueSheetChange { await self?.denyEquationSuggestion(id) }
+            }
         }
         state.panelPage.onToggleGroup = { [weak state] groupId, collapsed in
             guard let state else { return }
@@ -167,6 +179,7 @@ extension ClassSession {
     func loadEquationSheet() async {
         do {
             let sheet = try await store.equationSheet(for: classId)
+            equations.suggestions = (try? await store.equationSuggestions(in: classId, status: .pending)) ?? equations.suggestions
             equations.setSheet(sheet)
             equations.collapsed.formIntersection(Set(sheet.groups.map(\.id)))
             equations.push()
@@ -195,6 +208,37 @@ extension ClassSession {
             equations.error = error.localizedDescription
         }
         await loadEquationSheet()
+    }
+
+    // MARK: Suggestions
+
+    /// Reloads the pending suggestions (after an import added some) and redraws the page.
+    func loadEquationSuggestions() async {
+        equations.suggestions = (try? await store.equationSuggestions(in: classId, status: .pending)) ?? []
+        if equations.isLoaded { equations.push() }
+    }
+
+    /// Adds the suggestion to the sheet (its group made when missing).
+    func approveEquationSuggestion(_ id: EquationSuggestionID) async {
+        await changeSheet { try await store.approveEquationSuggestion(id) }
+    }
+
+    /// Declines it: it leaves the list and is never suggested again.
+    func denyEquationSuggestion(_ id: EquationSuggestionID) async {
+        await changeSheet { try await store.setEquationSuggestionStatus(id, to: .denied) }
+    }
+
+    /// Scans the whole question bank for equations the sheet lacks (the same pass an import runs on its questions).
+    func suggestEquationsFromBank() async {
+        guard !equations.isSuggesting else { return }
+        equations.isSuggesting = true
+        defer { equations.isSuggesting = false }
+        let questions = (try? await store.questions(in: classId, filter: nil)) ?? []
+        guard !questions.isEmpty else { equations.error = "This class has no questions to scan yet."; return }
+        guard app.isConnected else { equations.error = "Connect your Claude account in Settings to get suggestions."; return }
+        let added = await app.suggestEquations(for: questions, in: classId, documentId: nil)
+        await loadEquationSuggestions()
+        equations.error = added == 0 ? "No missing equations found: the sheet covers this class's questions." : nil
     }
 
     // MARK: Groups

@@ -20,6 +20,7 @@ extension MessageID: DatabaseValueConvertible {}
 extension EquationGroupID: DatabaseValueConvertible {}
 extension EquationEntryID: DatabaseValueConvertible {}
 extension FlashcardID: DatabaseValueConvertible {}
+extension EquationSuggestionID: DatabaseValueConvertible {}
 
 extension TutorStyle: DatabaseValueConvertible {}
 extension DocumentKind: DatabaseValueConvertible {}
@@ -71,6 +72,10 @@ extension EquationEntry: FetchableRecord, PersistableRecord {
 
 extension Flashcard: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "flashcards"
+}
+
+extension EquationSuggestion: FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "equation_suggestions"
 }
 
 // MARK: - Internal rows

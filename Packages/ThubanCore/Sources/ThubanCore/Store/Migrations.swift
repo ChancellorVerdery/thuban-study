@@ -63,17 +63,22 @@ extension Store {
             // Each class's flashcard deck, scheduled on the 1-3-7-14-21-day ladder.
             try createFlashcards(db)
         }
+        migrator.registerMigration("v8-equation-suggestions") { db in
+            // Equations an import suggested for a class's sheet, pending the student's approval (denied ones are
+            // kept so they are never suggested again).
+            try createEquationSuggestions(db)
+        }
         return migrator
     }
 
     /// Every migration identifier, in order.
     public static let migrationIdentifiers = ["v1", "v2-document-warnings", "v3-question-type", "v4-figures-outlive-documents", "v5-message-seed",
-                                                 "v6-equation-sheets", "v7-flashcards"]
+                                                 "v6-equation-sheets", "v7-flashcards", "v8-equation-suggestions"]
 
     /// Every table the migrations create, in dependency order.
     public static let tableNames = [
         "classes", "documents", "questions", "figures", "attempts", "progress", "messages", "settings",
-        "equation_groups", "equation_entries", "flashcards",
+        "equation_groups", "equation_entries", "flashcards", "equation_suggestions",
     ]
 
     private static func createClasses(_ db: Database) throws {
@@ -211,6 +216,24 @@ extension Store {
             t.column("createdAt", .datetime).notNull()
         }
         try db.create(index: "flashcards_on_class_position", on: "flashcards", columns: ["classId", "position"])
+    }
+
+    /// Suggestions belong to a class and go with it; the document that prompted one may be removed first.
+    static func createEquationSuggestions(_ db: Database) throws {
+        try db.create(table: "equation_suggestions") { t in
+            t.primaryKey("id", .text)
+            t.column("classId", .text).notNull().references("classes", onDelete: .cascade)
+            t.column("groupName", .text).notNull()
+            t.column("name", .text).notNull()
+            t.column("equations", .text).notNull()      // JSON array of LaTeX
+            t.column("note", .text)
+            t.column("reason", .text)
+            t.column("kind", .text).notNull()
+            t.column("status", .text).notNull()
+            t.column("documentId", .text).references("documents", onDelete: .setNull)
+            t.column("createdAt", .datetime).notNull()
+        }
+        try db.create(index: "equation_suggestions_on_class_status", on: "equation_suggestions", columns: ["classId", "status"])
     }
 
     private static func createSettings(_ db: Database) throws {

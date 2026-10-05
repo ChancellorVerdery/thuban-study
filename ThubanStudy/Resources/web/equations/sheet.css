@@ -212,3 +212,24 @@ body.is-panel { background: var(--panel, #fffdf7); }
 .cards.drop-into .add-tile, .cards.drop-into:empty { border-color: var(--accent, #e0b15c); }
 .cards.drop-into { outline: 1px dashed var(--accent, #e0b15c); outline-offset: 4px; border-radius: 10px; }
 .cards:empty { min-height: 40px; }
+
+/* ----------------------------------------------------------- suggestions */
+
+.suggestions { margin-bottom: 28px; }
+.suggest-intro { margin: -4px 0 12px; font-size: 13px; color: var(--ink-dim, #535a68); max-width: 70ch; }
+.suggest-card { border-style: dashed; }
+.suggest-card.is-leaving { opacity: 0.4; pointer-events: none; transition: opacity 0.15s; }
+.suggest-kind {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--accent-deep, #8a6a2f); margin-left: auto;
+}
+.suggest-reason { margin: 6px 0 0; font-size: 12px; color: var(--ink-dim, #535a68); }
+.suggest-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.suggest-group { flex: 1; font-size: 12px; color: var(--ink-faint, #8a8f99); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.suggest-btn {
+  font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--line, #E3E0D9); background: var(--panel, #fffdf7); color: var(--ink, #23262d);
+}
+.suggest-btn:hover { border-color: var(--accent, #c49a3c); }
+.suggest-btn:focus-visible { outline: 2px solid var(--accent, #c49a3c); outline-offset: 1px; }
+.suggest-btn.is-primary { background: var(--accent, #c49a3c); border-color: var(--accent, #c49a3c); color: var(--on-accent, #fff); }

@@ -104,6 +104,10 @@ private struct ActivityRow: View {
                 if activity.cardCount > 0 {
                     Chip("\(activity.cardCount) flashcard\(activity.cardCount == 1 ? "" : "s")", kind: .signal)
                 }
+                if activity.suggestionCount > 0 {
+                    Chip("\(activity.suggestionCount) equation\(activity.suggestionCount == 1 ? "" : "s") suggested", kind: .accent)
+                        .help("Approve or deny them in the Equations section")
+                }
             }
         }
         .padding(.horizontal, 14.z)

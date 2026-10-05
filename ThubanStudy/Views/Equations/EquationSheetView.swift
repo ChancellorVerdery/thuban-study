@@ -28,12 +28,17 @@ struct EquationSheetView: View {
                     .padding(.bottom, 8.z)
             }
             Rectangle().fill(theme.lineColor).frame(height: 1)
-            if state.isLoaded, state.sheet.isEmpty {
+            if state.isLoaded, state.sheet.isEmpty, state.suggestions.isEmpty {
                 EmptyState(icon: .equations, title: "No equations yet",
                            message: "Build this class's equation sheet by hand: make a group such as “Derivatives”, then add the equations you want within reach while you study.") {
                     Button("Add a group") { state.groupNaming = EquationsState.GroupNaming(group: nil) }
                         .buttonStyle(.thubanPrimary)
                         .keyboardShortcut(.defaultAction)
+                    Button(state.isSuggesting ? "Scanning questions…" : "Suggest from question bank") {
+                        Task { await session.suggestEquationsFromBank() }
+                    }
+                    .buttonStyle(.thubanSecondary)
+                    .disabled(state.isSuggesting)
                 }
             } else {
                 EquationSheetWebView(controller: state.sheetPage)
@@ -110,6 +115,12 @@ struct EquationSheetView: View {
                 SearchField(placeholder: "Search equations  ⌘F", label: "Search equations",
                             text: $state.search, focused: $searchFocused)
                     .frame(width: 260.z)
+            }
+            if !state.sheet.isEmpty || !state.suggestions.isEmpty {
+                Button(state.isSuggesting ? "Scanning…" : "Suggest") { Task { await session.suggestEquationsFromBank() } }
+                    .buttonStyle(.thubanSecondary)
+                    .disabled(state.isSuggesting)
+                    .help("Find general equations, rules and constants this class's questions need that the sheet lacks")
             }
             // An empty sheet has one action, the empty state's primary "Add a group".
             if state.sheet.entryCount > 0 {

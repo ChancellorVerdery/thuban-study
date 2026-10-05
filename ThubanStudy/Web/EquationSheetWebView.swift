@@ -42,6 +42,8 @@ struct EquationSheetWebView: View {
         var onDeleteEntry: ((EquationEntryID) -> Void)?
         var onCopyLatex: ((EquationEntryID, Int?) -> Void)?
         var onToggleGroup: ((EquationGroupID, Bool) -> Void)?
+        var onApproveSuggestion: ((EquationSuggestionID) -> Void)?
+        var onDenySuggestion: ((EquationSuggestionID) -> Void)?
 
         init(mode: Mode) {
             self.mode = mode
@@ -90,6 +92,14 @@ struct EquationSheetWebView: View {
                 guard let entry = payload["entryId"]?.stringValue else { return }
                 self?.onCopyLatex?(EquationEntryID(raw: entry), payload["index"]?.doubleValue.map { Int($0) })
             }
+            bridge.on("approveSuggestion") { [weak self] payload in
+                guard let id = payload["id"]?.stringValue else { return }
+                self?.onApproveSuggestion?(EquationSuggestionID(raw: id))
+            }
+            bridge.on("denySuggestion") { [weak self] payload in
+                guard let id = payload["id"]?.stringValue else { return }
+                self?.onDenySuggestion?(EquationSuggestionID(raw: id))
+            }
             bridge.on("toggleGroup") { [weak self] payload in
                 guard let group = payload["groupId"]?.stringValue else { return }
                 self?.onToggleGroup?(EquationGroupID(raw: group), payload["collapsed"]?.boolValue ?? false)
@@ -100,8 +110,24 @@ struct EquationSheetWebView: View {
 
         /// Shows `sheet` (already filtered). Sticky: a re-created view (section switched, panel toggled) gets the
         /// latest sheet again as soon as its page is ready.
-        func load(_ sheet: EquationSheet, collapsed: Set<EquationGroupID> = [], emptyMessage: String) {
-            bridge.sendSticky("load", Self.payload(sheet, mode: mode, collapsed: collapsed, emptyMessage: emptyMessage))
+        func load(_ sheet: EquationSheet, collapsed: Set<EquationGroupID> = [], emptyMessage: String, suggestions: [EquationSuggestion] = []) {
+            var payload = Self.payload(sheet, mode: mode, collapsed: collapsed, emptyMessage: emptyMessage)
+            if case .object(var object) = payload {
+                object["suggestions"] = .array(suggestions.map { suggestion in
+                    var item: [String: JSONValue] = [
+                        "id": .string(suggestion.id.raw),
+                        "group": .string(suggestion.groupName),
+                        "name": .string(suggestion.name),
+                        "kind": .string(suggestion.kind.rawValue),
+                        "equations": .array(suggestion.equations.map { .string($0) }),
+                    ]
+                    if let note = suggestion.note { item["note"] = .string(note) }
+                    if let reason = suggestion.reason { item["reason"] = .string(reason) }
+                    return .object(item)
+                })
+                payload = .object(object)
+            }
+            bridge.sendSticky("load", payload)
         }
 
         func focus(entry id: EquationEntryID) {

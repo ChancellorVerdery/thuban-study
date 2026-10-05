@@ -29,6 +29,8 @@ final class ImportPipeline {
         var questionCount = 0
         /// Terms, definitions and equations this file added to the flashcards.
         var cardCount = 0
+        /// General equations this file's questions need that the sheet lacks, suggested for approval.
+        var suggestionCount = 0
         var figureCount = 0
         var chartCount = 0
         var warnings: [String] = []
@@ -270,6 +272,15 @@ final class ImportPipeline {
                                    figureCount: content.figures.count, warnings: warnings, for: document.id)
             update(document.id) { $0.warnings = warnings }
             await session.loadQuestions()
+
+            // Equations the questions need that the sheet lacks: suggested in the background, for the student to
+            // approve or deny in the Equations section.
+            let suggestionQuestions = questions, suggestionDocument = document.id
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let added = await self.session.app.suggestEquations(for: suggestionQuestions, in: self.classId, documentId: suggestionDocument)
+                if added > 0 { self.update(suggestionDocument) { $0.suggestionCount = added } }
+            }
 
             // 5. Figure agent (may reject images the size gate let through; those leave the bank again)
             let (charts, dropped, figureWarnings) = await analyseFigures(content.figures, figureIds: figureIds, content: content, questions: questions, document: &document)

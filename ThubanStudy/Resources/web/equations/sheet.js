@@ -221,6 +221,55 @@
     thuban.send('menu', payload);
   }
 
+  /* ========================================================== suggestions */
+
+  // Equations an import found the questions need and the sheet lacks: each with its math, where it would go, why,
+  // and Add / Dismiss. Only in the editable sheet.
+  function buildSuggestions(list) {
+    const section = el('section', 'suggestions');
+    section.setAttribute('aria-label', 'Suggested equations');
+    const head = el('div', 'group-head');
+    head.appendChild(el('h2', 'group-title', 'Suggested from your questions'));
+    head.appendChild(el('span', 'group-count', String(list.length)));
+    head.appendChild(el('div', 'group-rule'));
+    section.appendChild(head);
+    section.appendChild(el('p', 'suggest-intro', 'General equations, rules and constants your imported questions use that the sheet does not have yet. Add the ones you want; dismissed ones are not suggested again.'));
+    const cards = el('div', 'cards');
+    for (const item of list) {
+      const card = el('article', 'eq-card suggest-card');
+      card.dataset.suggestionId = item.id;
+      const head = el('div', 'eq-head');
+      head.appendChild(el('h3', 'eq-name', item.name));
+      if (item.kind && item.kind !== 'equation') head.appendChild(el('span', 'suggest-kind', item.kind));
+      card.appendChild(head);
+      const eqs = el('div', 'eq-list');
+      (Array.isArray(item.equations) ? item.equations : []).forEach((latex) => {
+        const row = el('div', 'eq');
+        renderMath(row, latex);
+        eqs.appendChild(row);
+      });
+      card.appendChild(eqs);
+      if (item.note) card.appendChild(el('p', 'eq-note', item.note));
+      if (item.reason) card.appendChild(el('p', 'suggest-reason', item.reason));
+      const actions = el('div', 'suggest-actions');
+      actions.appendChild(el('span', 'suggest-group', item.group ? 'Adds to ' + item.group : ''));
+      const deny = el('button', 'suggest-btn', 'Dismiss');
+      deny.type = 'button';
+      deny.setAttribute('aria-label', 'Dismiss ' + item.name);
+      deny.addEventListener('click', () => { card.classList.add('is-leaving'); thuban.send('denySuggestion', { id: item.id }); });
+      const add = el('button', 'suggest-btn is-primary', 'Add');
+      add.type = 'button';
+      add.setAttribute('aria-label', 'Add ' + item.name + ' to the sheet');
+      add.addEventListener('click', () => { card.classList.add('is-leaving'); thuban.send('approveSuggestion', { id: item.id }); });
+      actions.appendChild(deny);
+      actions.appendChild(add);
+      card.appendChild(actions);
+      cards.appendChild(card);
+    }
+    section.appendChild(cards);
+    return section;
+  }
+
   function load(payload) {
     mode = payload && payload.mode === 'panel' ? 'panel' : 'sheet';
     document.body.classList.toggle('is-panel', mode === 'panel');
@@ -234,8 +283,10 @@
     const scrollTop = document.scrollingElement ? document.scrollingElement.scrollTop : 0;
 
     sheetEl.textContent = '';
+    const suggestions = mode === 'sheet' && Array.isArray(payload && payload.suggestions) ? payload.suggestions : [];
+    if (suggestions.length) sheetEl.appendChild(buildSuggestions(suggestions));
     for (const group of groups) sheetEl.appendChild(buildGroup(group));
-    emptyEl.hidden = groups.length > 0;
+    emptyEl.hidden = groups.length > 0 || suggestions.length > 0;
     emptyEl.textContent = (payload && payload.emptyMessage) || '';
 
     if (document.scrollingElement) document.scrollingElement.scrollTop = scrollTop;

@@ -34,7 +34,7 @@ public struct EquationGroup: Codable, Identifiable, Sendable, Equatable, Hashabl
 
 /// One named item on the sheet: a single equation (a card) or several (a named list), with an optional short
 /// plain-text note ("for |r| < 1"). Entries are ordered by `position` within their group. The student curates the
-/// sheet by hand; nothing fills it automatically.
+/// sheet; imports only suggest entries (`EquationSuggestion`), which join it when the student approves them.
 public struct EquationEntry: Codable, Identifiable, Sendable, Equatable, Hashable {
     public var id: EquationEntryID
     public var groupId: EquationGroupID
