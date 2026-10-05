@@ -165,9 +165,15 @@ public struct FigureScene: Sendable, Equatable {
             case .region(let conditions):
                 if let region = await ChartShapes.region(conditions, window: window, engine: engine) {
                     if !region.fill.isEmpty { marks.append(mark(.fill, region.fill)) }
-                    if !region.boundary.isEmpty { marks.append(mark(.line, region.boundary)) }
-                    if !region.dashed.isEmpty {
-                        var edge = mark(.line, region.dashed)
+                    // An edge along an axis (y ≥ 0) is the axis itself, already drawn.
+                    let xEps = (window.x.upperBound - window.x.lowerBound) * 0.004, yEps = (window.y.upperBound - window.y.lowerBound) * 0.004
+                    func offAxis(_ pieces: [[[Double]]]) -> [[[Double]]] {
+                        pieces.filter { piece in !(piece.allSatisfy { abs($0[1]) <= yEps } || piece.allSatisfy { abs($0[0]) <= xEps }) }
+                    }
+                    let solidEdges = offAxis(region.boundary), dashedEdges = offAxis(region.dashed)
+                    if !solidEdges.isEmpty { marks.append(mark(.line, solidEdges)) }
+                    if !dashedEdges.isEmpty {
+                        var edge = mark(.line, dashedEdges)
                         edge.style = .dashed
                         marks.append(edge)
                     }
@@ -246,6 +252,17 @@ public struct FigureScene: Sendable, Equatable {
             }
         }
 
+        // A curve drawn along a dashed (strict) region edge is that edge: dashed too.
+        let dashedEdges = marks.filter { $0.kind == .line && $0.style == .dashed }.flatMap(\.pieces).flatMap { $0 }
+        if !dashedEdges.isEmpty {
+            let reach = max(window.x.upperBound - window.x.lowerBound, window.y.upperBound - window.y.lowerBound) * 0.01
+            for k in marks.indices where marks[k].kind == .line && marks[k].style == .solid {
+                let points = marks[k].pieces.flatMap { $0 }.filter { window.x.contains($0[0]) && window.y.contains($0[1]) }
+                guard points.count >= 10 else { continue }
+                let near = points.filter { p in dashedEdges.contains { hypot($0[0] - p[0], $0[1] - p[1]) <= reach } }.count
+                if near * 10 >= points.count * 8 { marks[k].style = .dashed }
+            }
+        }
         return FigureScene(window: window, xStep: xStep, yStep: yStep, xLabel: chart.xLabel?.nilIfBlank, yLabel: chart.yLabel?.nilIfBlank,
                            arrows: arrows, arrowheads: chart.arrows, fieldColumns: columnsDrawn, fieldRows: rowsDrawn, marks: marks,
                            xTickLabels: chart.xAxisLabels, yTickLabels: chart.yAxisLabels)

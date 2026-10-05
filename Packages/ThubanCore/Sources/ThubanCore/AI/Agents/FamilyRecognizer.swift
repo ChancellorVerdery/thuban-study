@@ -126,16 +126,40 @@ public enum FamilyRecognizer {
     /// The picture's curves traced from its pixels, one series each, in one colour: for pictures no formula
     /// describes (measured data) or that the agent traced badly. Nil when the picture has no separate curves.
     static func trace(_ chart: StandardChart, picture: ShapeVerifier.Picture) -> StandardChart? {
-        let curves = picture.curves.filter { $0.count >= 25 }
+        // Pieces far smaller than the curves (a label, a stray mark) are not curves.
+        func extent(_ c: [(Int, Int)]) -> Int {
+            let xs = c.map(\.0), ys = c.map(\.1)
+            return max(xs.max()! - xs.min()!, ys.max()! - ys.min()!)
+        }
+        let all = picture.curves.filter { $0.count >= 25 }
+        guard let largest = all.map(extent).max() else { return nil }
+        let curves = all.filter { extent($0) * 6 >= largest }
         guard !curves.isEmpty else { return nil }
         let maps = axisMaps(picture)
+        // Pieces whose ends meet (a curve cut where it crosses an axis) are one curve again.
+        var lines = curves.flatMap { polylines($0) }.filter { $0.count >= 2 }
+        var joined = true
+        while joined {
+            joined = false
+            search: for i in lines.indices { for j in lines.indices where j != i {
+                let a = lines[i], b = lines[j]
+                let ends: [([(Double, Double)], Double)] = [
+                    (a + b, hypot(a.last!.0 - b.first!.0, a.last!.1 - b.first!.1)),
+                    (a + b.reversed(), hypot(a.last!.0 - b.last!.0, a.last!.1 - b.last!.1)),
+                    (a.reversed() + b, hypot(a.first!.0 - b.first!.0, a.first!.1 - b.first!.1)),
+                ]
+                guard let best = ends.min(by: { $0.1 < $1.1 }), best.1 <= 12 else { continue }
+                lines[i] = best.0
+                lines.remove(at: j)
+                joined = true
+                break search
+            } }
+        }
         var series: [ChartSeries] = []
-        for curve in curves {
-            for piece in polylines(curve) where piece.count >= 2 {
-                let stride = max(1, piece.count / 120)
-                let points = Swift.stride(from: 0, to: piece.count, by: stride).map { piece[$0] } + [piece[piece.count - 1]]
-                series.append(ChartSeries(name: "Curve \(series.count + 1)", points: points.map { [maps.x.value($0.0), maps.y.value($0.1)] }))
-            }
+        for piece in lines {
+            let stride = max(1, piece.count / 160)
+            let points = Swift.stride(from: 0, to: piece.count, by: stride).map { piece[$0] } + [piece[piece.count - 1]]
+            series.append(ChartSeries(name: "Curve \(series.count + 1)", points: points.map { [maps.x.value($0.0), maps.y.value($0.1)] }))
         }
         guard !series.isEmpty else { return nil }
         var result = chart
@@ -172,7 +196,10 @@ public enum FamilyRecognizer {
                     let ma = Double(a.reduce(0, +)) / Double(a.count), mb = Double(b.reduce(0, +)) / Double(b.count)
                     return abs(ma - (previous ?? ma)) < abs(mb - (previous ?? mb))
                 }!
-                let mean = Double(chosen.reduce(0, +)) / Double(chosen.count)
+                // A blob in the run (an arrowhead, a dot) would pull the middle off the curve: take the pixel nearest
+                // where the curve was going instead.
+                var mean = Double(chosen.reduce(0, +)) / Double(chosen.count)
+                if chosen.count > 6, let previous { mean = Double(chosen.min { abs(Double($0) - previous) < abs(Double($1) - previous) }!) }
                 line.append(ofX ? (Double(key), mean) : (mean, Double(key)))
             }
             return Double(single) >= Double(groups.count) * 0.9 ? line : nil

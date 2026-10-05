@@ -24,7 +24,18 @@ public enum MarkerReader {
               let picture = await ShapeVerifier.Picture(png: png, hints: chart) else { return chart }
         var result = chart
         // Vectors and plotted points where the picture draws them.
-        result = fitVectors(result, picture: picture)
+        // Vectors are refitted only when the stated ones miss the picture (exact ones, computed from r(t), stay).
+        if result.series.contains(where: { $0.seriesKind == .vector }) {
+            let stated = await FigureScene.build(result, engine: engine)
+            // With a curve on the same axes (a tangent vector at a point of r(t)) arrows touch each other and the
+            // curve, and a refit cannot tell them apart: there the stated vectors are only corrected in place.
+            let withCurves = result.series.contains { [.curve, .parametric, .level].contains($0.seriesKind) && ($0.points == nil || $0.latex != nil || $0.xt != nil) }
+            if ShapeVerifier.verify(scene: stated, picture: picture).passed, let corrected = correctVectors(result, picture: picture) {
+                result = corrected
+            } else if !withCurves {
+                result = fitVectors(result, picture: picture)
+            }
+        }
         result = snapPoints(result, picture: picture)
         guard hasCurves else { return result }
         // A numbered plot shows its whole frame: a window cut to the curve's own extent clips it at the edges.
@@ -71,7 +82,7 @@ public enum MarkerReader {
     static func fitVectors(_ chart: StandardChart, picture: ShapeVerifier.Picture) -> StandardChart {
         let vectors = chart.series.indices.filter { chart.series[$0].seriesKind == .vector && (chart.series[$0].points?.count ?? 0) >= 2 }
         guard !vectors.isEmpty else { return chart }
-        struct Segment { var pixels: [(Int, Int)]; var a: (Double, Double); var b: (Double, Double); var dir: (Double, Double); var length: Double }
+        struct Segment { var pixels: [(Int, Int)]; var a: (Double, Double); var b: (Double, Double); var dir: (Double, Double); var length: Double; var hue: Int? = nil }
         func fit(_ pixels: [(Int, Int)]) -> Segment? {
             guard pixels.count >= 6 else { return nil }
             let n = Double(pixels.count)
@@ -95,7 +106,54 @@ public enum MarkerReader {
         // Short pieces too (a vector cut in two where it crosses an axis), joined below.
         let pieces = PictureInk.curves(picture.bitmap, columns: picture.columns, rows: picture.rows, skip: { c, r in picture.nearAxis(c, r) },
                                        minimum: 6, minimumExtent: 4)
-        var segments = pieces.compactMap(fit)
+        // Arrows that touch (a position vector's head meeting a tangent's tail) are one blob of ink: split each blob
+        // into its straight runs, the line through the most pixels first.
+        func straightRuns(_ pixels: [(Int, Int)]) -> [[(Int, Int)]] {
+            var remaining = pixels, runs: [[(Int, Int)]] = []
+            var seed: UInt64 = 0x9E3779B97F4A7C15
+            func next(_ bound: Int) -> Int {
+                seed = seed &* 6364136223846793005 &+ 1442695040888963407
+                return Int((seed >> 33) % UInt64(max(1, bound)))
+            }
+            while remaining.count >= 12, runs.count < 6 {
+                var best: [Int] = []
+                var bestLine = (0.0, 0.0, 0.0, 0.0)
+                for _ in 0..<90 {
+                    let p = remaining[next(remaining.count)], q = remaining[next(remaining.count)]
+                    let dx = Double(q.0 - p.0), dy = Double(q.1 - p.1), length = hypot(dx, dy)
+                    guard length >= 8 else { continue }
+                    let ux = dx / length, uy = dy / length
+                    var inliers: [Int] = []
+                    for (k, r) in remaining.enumerated() where abs(-(Double(r.0 - p.0)) * uy + Double(r.1 - p.1) * ux) <= 1.5 { inliers.append(k) }
+                    if inliers.count > best.count { best = inliers; bestLine = (Double(p.0), Double(p.1), ux, uy) }
+                }
+                guard best.count >= 12 else { break }
+                // The longest stretch along the line without a gap (collinear ink elsewhere is another piece).
+                let along = best.map { k -> (Double, Int) in
+                    let r = remaining[k]
+                    return ((Double(r.0) - bestLine.0) * bestLine.2 + (Double(r.1) - bestLine.1) * bestLine.3, k)
+                }.sorted { $0.0 < $1.0 }
+                var longest: [Int] = [], current: [Int] = [], last = -Double.infinity
+                for (t, k) in along {
+                    if t - last > 6, !current.isEmpty { if current.count > longest.count { longest = current }; current = [] }
+                    current.append(k); last = t
+                }
+                if current.count > longest.count { longest = current }
+                guard longest.count >= 12 else { break }
+                runs.append(longest.map { remaining[$0] })
+                let taken = Set(longest)
+                remaining = remaining.enumerated().filter { !taken.contains($0.offset) }.map(\.element)
+            }
+            return runs
+        }
+        // A blob is arrows when a few straight runs explain most of it (a V of two vectors); a curve (an ellipse) is
+        // not, and its straight slivers are not vectors.
+        var segments = pieces.flatMap { piece -> [Segment] in
+            if let single = fit(piece) { return [single] }
+            let runs = straightRuns(piece)
+            guard runs.prefix(3).reduce(0, { $0 + $1.count }) * 10 >= piece.count * 7 else { return [] }
+            return runs.compactMap(fit)
+        }
         // Join collinear pieces an axis cut apart.
         var merged = true
         while merged {
@@ -133,13 +191,14 @@ public enum MarkerReader {
             }
             func reach(from end: (Double, Double), sign: Double) -> (Double, Double) {
                 var last = end, gap = 0
-                for t in 1...240 {
+                for t in 1...22 {
                     let p = (end.0 + segment.dir.0 * Double(t) * sign, end.1 + segment.dir.1 * Double(t) * sign)
                     if ink(p.0, p.1) { last = p; gap = 0 } else { gap += 1; if gap > 4 { break } }
                 }
                 return last
             }
             var extended = segment
+            extended.hue = coloured ? bin : nil
             extended.a = reach(from: segment.a, sign: -1)
             extended.b = reach(from: segment.b, sign: 1)
             extended.length = hypot(extended.b.0 - extended.a.0, extended.b.1 - extended.a.1)
@@ -192,15 +251,19 @@ public enum MarkerReader {
             let bitmap = picture.bitmap
             func wings(_ e: (Double, Double)) -> Int {
                 let inward: (Double, Double) = hypot(e.0 - s.a.0, e.1 - s.a.1) < 1 ? s.dir : (-s.dir.0, -s.dir.1)
-                var count = 0
-                for t in 9...20 { for d in 3...9 { for side in [-1.0, 1.0] {
+                // Both sides of the shaft: a head has a wing on each; another arrow arriving at this end adds ink to one.
+                var counts = [0, 0]
+                for (k, side) in [-1.0, 1.0].enumerated() { for t in 9...20 { for d in 3...9 {
                     let x = e.0 + inward.0 * Double(t) - inward.1 * Double(d) * side
                     let y = e.1 + inward.1 * Double(t) + inward.0 * Double(d) * side
                     let c = Int(x.rounded()), r = Int(y.rounded())
-                    guard picture.columns.contains(c), picture.rows.contains(r), !picture.nearAxis(c, r) else { continue }
-                    if !bitmap.isBackground(c, r), !bitmap.isGrid(c, r) { count += 1 }
+                    guard picture.columns.contains(c), picture.rows.contains(r) else { continue }
+                    // Only the arrow's own colour: a curve of another colour passing its end is not a wing.
+                    if let hue = s.hue {
+                        if let b = bitmap.hueBin(c, r), min(abs(b - hue), 12 - abs(b - hue)) <= 1 { counts[k] += 1 }
+                    } else if !picture.nearAxis(c, r), !bitmap.isBackground(c, r), !bitmap.isGrid(c, r) { counts[k] += 1 }
                 } } }
-                return count
+                return min(counts[0], counts[1])
             }
             return wings(s.a) >= wings(s.b) ? s.a : s.b
         }
@@ -214,17 +277,36 @@ public enum MarkerReader {
             result.xAxisLabels = []; result.yAxisLabels = []
         }
         var used = Set<Int>()
-        for index in vectors {
+        // Label strokes are short: only segments long enough to be a vector are candidates.
+        let candidates = segments.indices.filter { segments[$0].length >= 18 }
+        func cost(_ index: Int, _ k: Int, strict: Bool) -> Double? {
             let given = result.series[index].points!
             let tail = pixel(given[0]), head = pixel(given[1])
-            var best: (Int, Double)?
-            for (k, s) in segments.enumerated() where !used.contains(k) {
-                let d1 = hypot(tail.0 - s.a.0, tail.1 - s.a.1) + hypot(head.0 - s.b.0, head.1 - s.b.1)
-                let d2 = hypot(tail.0 - s.b.0, tail.1 - s.b.1) + hypot(head.0 - s.a.0, head.1 - s.a.1)
-                let d = min(d1, d2)
-                if d <= s.length * 0.8 + 30, best == nil || d < best!.1 { best = (k, d) }
+            let s = segments[k]
+            let d1 = hypot(tail.0 - s.a.0, tail.1 - s.a.1) + hypot(head.0 - s.b.0, head.1 - s.b.1)
+            let d2 = hypot(tail.0 - s.b.0, tail.1 - s.b.1) + hypot(head.0 - s.a.0, head.1 - s.a.1)
+            let vx = head.0 - tail.0, vy = head.1 - tail.1, vl = hypot(vx, vy)
+            let cosine = vl > 0 ? abs((vx * s.dir.0 + vy * s.dir.1) / vl) : 0
+            let d = min(d1, d2)
+            // A matching vector runs the same way as the drawn one; a stated vector far off (a stub, a wrong
+            // direction) still takes the drawn vector nobody else claims.
+            if strict { return cosine >= 0.85 && d <= s.length * 0.8 + 30 ? d : nil }
+            return d + 80 * (1 - cosine)
+        }
+        var assignment: [Int: Int] = [:]
+        for strict in [true, false] {
+            for index in vectors where assignment[index] == nil {
+                var best: (Int, Double)?
+                for k in candidates where !used.contains(k) {
+                    guard let c = cost(index, k, strict: strict) else { continue }
+                    if best == nil || c < best!.1 { best = (k, c) }
+                }
+                if let (k, _) = best { assignment[index] = k; used.insert(k) }
             }
-            guard let (k, _) = best else { continue }
+        }
+        for index in vectors {
+            let given = result.series[index].points!
+            guard let k = assignment[index] else { continue }
             used.insert(k)
             let s = segments[k]
             let tip = headEnd(s)
@@ -238,6 +320,78 @@ public enum MarkerReader {
             let backward = hypot(a[0] - given[1][0], a[1] - given[1][1]) + hypot(b[0] - given[0][0], b[1] - given[0][1])
             let (ta, tb) = forward <= backward ? (given[0], given[1]) : (given[1], given[0])
             result.series[index].points = [settle(a, near: ta), settle(b, near: tb)]
+        }
+        return result
+    }
+
+    /// Stated vectors that lie on the picture's ink, checked against it: each end carried out along the vector's own
+    /// line as far as its ink goes (a vector drawn short), and the head put at the end with the arrowhead (one drawn
+    /// backwards).
+    /// Nil when a stated vector does not lie on ink of one colour (it rides on another curve): refit them all instead.
+    static func correctVectors(_ chart: StandardChart, picture: ShapeVerifier.Picture) -> StandardChart? {
+        var result = chart
+        let reading = picture.reading, bitmap = picture.bitmap
+        for index in result.series.indices where result.series[index].seriesKind == .vector {
+            guard let given = result.series[index].points, given.count >= 2 else { continue }
+            var tail = (reading.x.pixel(given[0][0]), reading.y.pixel(given[0][1]))
+            var head = (reading.x.pixel(given[1][0]), reading.y.pixel(given[1][1]))
+            let length = hypot(head.0 - tail.0, head.1 - tail.1)
+            guard length >= 8 else { continue }
+            let u = ((head.0 - tail.0) / length, (head.1 - tail.1) / length)
+            // The vector's colour: the commonest hue along it.
+            var bins = [Int](repeating: 0, count: 12)
+            for t in Swift.stride(from: 0.2, through: 0.8, by: 0.05) {
+                let c = Int((tail.0 + (head.0 - tail.0) * t).rounded()), r = Int((tail.1 + (head.1 - tail.1) * t).rounded())
+                if picture.columns.contains(c), picture.rows.contains(r), let b = bitmap.hueBin(c, r) { bins[b] += 1 }
+            }
+            let bin = (0..<12).max { bins[$0] < bins[$1] }!
+            let colouredPicture = PictureInk.isMonochrome(bitmap) == false || bins.reduce(0, +) > 0
+            // Most of the shaft on one colour, or (a black drawing) on dark ink.
+            if colouredPicture, bins[bin] < 9 { return nil }
+            let hue: Int? = bins[bin] >= 4 ? bin : nil
+            func ink(_ x: Double, _ y: Double) -> Bool {
+                for d in -2...2 {
+                    let c = Int((x - u.1 * Double(d)).rounded()), r = Int((y + u.0 * Double(d)).rounded())
+                    guard picture.columns.contains(c), picture.rows.contains(r) else { continue }
+                    if let hue { if let b = bitmap.hueBin(c, r), min(abs(b - hue), 12 - abs(b - hue)) <= 1 { return true } }
+                    else if bitmap.isInk(c, r), !picture.nearAxis(c, r) { return true }
+                }
+                return false
+            }
+            func reach(_ from: (Double, Double), _ sign: Double) -> (Double, Double) {
+                var last = from, gap = 0
+                for t in 1...400 {
+                    let p = (from.0 + u.0 * Double(t) * sign, from.1 + u.1 * Double(t) * sign)
+                    if ink(p.0, p.1) { last = p; gap = 0 } else { gap += 1; if gap > 4 { break } }
+                }
+                return last
+            }
+            head = reach(head, 1)
+            // A tail only reaches a little past its stated start (another arrow often continues the same line there).
+            let reachedTail = reach(tail, -1)
+            if hypot(reachedTail.0 - tail.0, reachedTail.1 - tail.1) <= 12 { tail = reachedTail }
+            func wings(_ e: (Double, Double), inward: (Double, Double)) -> Int {
+                var counts = [0, 0]
+                for (k, side) in [-1.0, 1.0].enumerated() { for t in 9...20 { for d in 3...9 {
+                    let c = Int((e.0 + inward.0 * Double(t) - inward.1 * Double(d) * side).rounded())
+                    let r = Int((e.1 + inward.1 * Double(t) + inward.0 * Double(d) * side).rounded())
+                    guard picture.columns.contains(c), picture.rows.contains(r) else { continue }
+                    if let hue { if let b = bitmap.hueBin(c, r), min(abs(b - hue), 12 - abs(b - hue)) <= 1 { counts[k] += 1 } }
+                    else if !picture.nearAxis(c, r), bitmap.isInk(c, r) { counts[k] += 1 }
+                } } }
+                return min(counts[0], counts[1])
+            }
+            let atHead = wings(head, inward: (-u.0, -u.1)), atTail = wings(tail, inward: u)
+            if atTail > atHead + 3, Double(atTail) > Double(atHead) * 1.5 { swap(&head, &tail) }
+            func data(_ p: (Double, Double), near stated: [Double]) -> [Double] {
+                let d = reading.data(column: p.0, row: p.1)
+                let found = [(d.x * 100).rounded() / 100, (d.y * 100).rounded() / 100]
+                // The stated end, when the picture agrees with it (an exact value from the question).
+                return hypot(found[0] - stated[0], found[1] - stated[1]) <= 0.15 ? stated : found
+            }
+            let swapped = hypot(head.0 - reading.x.pixel(given[0][0]), head.1 - reading.y.pixel(given[0][1])) < hypot(tail.0 - reading.x.pixel(given[0][0]), tail.1 - reading.y.pixel(given[0][1]))
+            result.series[index].points = swapped ? [data(tail, near: given[1]), data(head, near: given[0])]
+                                                  : [data(tail, near: given[0]), data(head, near: given[1])]
         }
         return result
     }

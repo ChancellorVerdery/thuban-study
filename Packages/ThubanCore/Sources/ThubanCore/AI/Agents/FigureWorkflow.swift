@@ -120,6 +120,9 @@ public enum FigureWorkflow {
                 figure.chart = checked
                 // A chart the picture now rejects goes back to review, even if it was accepted before.
                 if figure.status == .accepted, checked.verification?.passed == false { figure.status = .reviewing }
+                // Traced data (no formula) that still misses the picture after every repair: the original image is
+                // the faithful one, so it is kept.
+                if checked.isTraced, checked.verification?.passed == false, figure.status == .reviewing { figure.status = .keptOriginal }
                 figure.acceptIfConfident()
             }
             try await store.update(figure)
