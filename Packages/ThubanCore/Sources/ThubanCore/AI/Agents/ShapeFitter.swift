@@ -85,24 +85,27 @@ public enum ShapeFitter {
     static func fitLevels(_ chart: StandardChart, series index: Int, picture: ShapeVerifier.Picture, engine: MathEngine) async -> StandardChart? {
         let series = chart.series[index]
         guard let latex = series.latex, let f = ChartShapes.levelFunction(latex) else { return nil }
-        let curves = picture.curves.filter { $0.count >= 25 }
-        guard !curves.isEmpty else { return nil }
-        let samples: [[(Int, Int)]] = curves.map { curve in
-            let stride = max(1, curve.count / 40)
-            return Swift.stride(from: 0, to: curve.count, by: stride).map { curve[$0] }
-        }
+        let samples = FamilyRecognizer.levelSamples(picture)
+        guard !samples.curves.isEmpty else { return nil }
         let maps = FamilyRecognizer.axisMaps(picture)
         let tried = picture.reading.isCalibratedFromLabels ? [1.0] : FamilyRecognizer.scales
+        let lines = samples.curves + samples.axes
         var points: [[Double]] = []
-        for s in tried { for sample in samples { for (c, r) in sample {
+        for s in tried { for line in lines { for (c, r) in line {
             points.append([maps.x.value(Double(c)) * s, maps.y.value(Double(r)) * s])
         } } }
         guard let rows = try? await engine.values(of: [f], variables: ["x", "y"], at: points), let first = rows.first, let values = first else { return nil }
-        let perScale = samples.reduce(0) { $0 + $1.count }
+        let perScale = lines.reduce(0) { $0 + $1.count }
+        // A homogeneous f (x^2 + y^2, xy) fits every scale alike: then the scale nearest the chart's own window wins.
+        let unitWidth = abs(maps.x.value(Double(picture.columns.upperBound)) - maps.x.value(Double(picture.columns.lowerBound)))
+        let own = chart.xRange.flatMap { $0.count == 2 && unitWidth > 0 ? ($0[1] - $0[0]) / unitWidth : nil } ?? 1
         var best: (scale: Double, fit: LevelFit)?
         for (k, s) in tried.enumerated() {
-            guard let fit = levelFit(Array(values[(k * perScale)..<((k + 1) * perScale)]), sizes: samples.map(\.count)) else { continue }
-            if best == nil || fit.dispersion < best!.fit.dispersion { best = (s, fit) }
+            let slice = Array(values[(k * perScale)..<((k + 1) * perScale)])
+            guard let fit = levelFit(slice, sizes: samples.curves.map(\.count), axes: samples.axes.map(\.count)) else { continue }
+            guard let current = best else { best = (s, fit); continue }
+            let tied = abs(fit.dispersion - current.fit.dispersion) <= 1e-6 * max(fit.dispersion, current.fit.dispersion)
+            if tied ? abs(log(s / own)) < abs(log(current.scale / own)) : fit.dispersion < current.fit.dispersion { best = (s, fit) }
         }
         guard let best, best.fit.dispersion < 0.5 else { return nil }
         var result = chart
@@ -120,9 +123,10 @@ public enum ShapeFitter {
         var levels: [Double]
     }
 
-    /// `values`: f at each curve's sample points, curve after curve (`sizes`).
-    static func levelFit(_ values: [Double?], sizes: [Int]) -> LevelFit? {
-        var offset = 0, medians: [Double] = [], spreads: [Double] = [], undefined = 0
+    /// `values`: f at each curve's sample points, curve after curve (`sizes`), then along each axis drawn in curve
+    /// colour (`axes`).
+    static func levelFit(_ values: [Double?], sizes: [Int], axes: [Int] = []) -> LevelFit? {
+        var offset = 0, curves: [CurveValues] = [], undefined = 0
         for size in sizes {
             let vs = values[offset..<(offset + size)].compactMap { $0 }
             offset += size
@@ -130,44 +134,81 @@ public enum ShapeFitter {
             guard vs.count >= max(3, size / 2) else { continue }
             let sorted = vs.sorted()
             let m = sorted[sorted.count / 2]
-            medians.append(m)
-            spreads.append(vs.map { abs($0 - m) }.sorted()[vs.count / 2])
+            curves.append(CurveValues(median: m, spread: vs.map { abs($0 - m) }.sorted()[vs.count / 2], weight: vs.count))
         }
-        guard medians.count >= 2 else { return nil }
-        let typical = spreads.sorted()[spreads.count / 2]
-        let levels = cluster(medians, spreads: spreads)
+        guard curves.count >= 2 else { return nil }
+        let levels = cluster(curves)
         // A constant f (every curve on one level) is no fit.
         guard levels.count >= 2 else { return nil }
         // Each curve's spread against the distance to the nearest other level, so a family whose values span many
-        // orders of magnitude (e^{x} over a wide window) is judged curve by curve, not by its largest values.
-        var ratios: [Double] = []
-        for (m, spread) in zip(medians, spreads) {
-            let others = levels.map { abs($0 - m) }.sorted()
+        // orders of magnitude (e^{x} over a wide window) is judged curve by curve, not by its largest values; the
+        // typical share is taken along the ink (long curves weigh most), so scraps where curves meet cannot carry it.
+        let ratios: [(value: Double, weight: Int)] = curves.map { curve in
             // levels[closest] is this curve's own level; the next is its neighbour.
-            let neighbour = others.count >= 2 ? others[1] : others[0]
-            guard neighbour > 0, neighbour.isFinite else { ratios.append(1); continue }
-            ratios.append(min(1, spread / neighbour))
+            let neighbour = levels.map { abs($0 - curve.median) }.sorted()[1]
+            guard neighbour > 0, neighbour.isFinite else { return (1, curve.weight) }
+            return (min(1, curve.spread / neighbour), curve.weight)
         }
         let total = sizes.reduce(0, +)
-        let typicalRatio = ratios.sorted()[ratios.count / 2]
-        return LevelFit(dispersion: typicalRatio + Double(undefined) / Double(max(1, total)), levels: levels)
+        var all = levels
+        for size in axes {
+            let along = values[offset..<(offset + size)]
+            offset += size
+            if let level = axisLevel(along, levels: all.sorted()) { all.append(level) }
+        }
+        return LevelFit(dispersion: weightedMedian(ratios) + Double(undefined) / Double(max(1, total)), levels: all.sorted())
+    }
+
+    /// The level along an axis the picture draws in curve colour (y = 0 for y = ce^{x}): nil unless f is defined and
+    /// constant along it to a tenth of the spacing between levels, and unless it is a level the curves lack.
+    static func axisLevel(_ values: ArraySlice<Double?>, levels: [Double]) -> Double? {
+        let vs = values.compactMap { $0 }.sorted()
+        guard !vs.isEmpty, Double(vs.count) >= 0.9 * Double(values.count) else { return nil }
+        let m = vs[vs.count / 2], spread = vs.map { abs($0 - m) }.sorted()[vs.count / 2]
+        let spacing = zip(levels, levels.dropFirst()).map { $1 - $0 }.min() ?? 0
+        guard spacing > 0, spread <= 0.1 * spacing, levels.allSatisfy({ abs($0 - m) > spacing / 2 }) else { return nil }
+        return m
+    }
+
+    /// f along one of the picture's curves: its median, the median distance from it, and the samples behind them.
+    struct CurveValues {
+        var median: Double
+        var spread: Double
+        var weight: Int
+    }
+
+    /// The middle of `values` counting each as often as its weight.
+    static func weightedMedian(_ values: [(value: Double, weight: Int)]) -> Double {
+        let sorted = values.sorted { $0.value < $1.value }
+        let half = sorted.reduce(0) { $0 + $1.weight } / 2
+        var running = 0
+        return (sorted.first { running += $0.weight; return running > half } ?? sorted[sorted.count - 1]).value
     }
 
     /// Distinct levels: curves whose values lie within a few times their own spread of each other are one level
-    /// (two branches of one hyperbola), averaged. Each curve's own spread decides, so a family whose values span
-    /// orders of magnitude (e^{y}) keeps its small levels apart.
-    static func cluster(_ values: [Double], spreads: [Double]) -> [Double] {
-        let pairs = zip(values, spreads).sorted { $0.0 < $1.0 }
-        guard var group = pairs.first.map({ [$0] }) else { return [] }
-        let floor = 1e-9 * (pairs.map { abs($0.0) }.max() ?? 1)
-        var result: [Double] = []
-        for p in pairs.dropFirst() {
-            let last = group.last!
-            if p.0 - last.0 <= 3 * max(p.1, last.1, floor) { group.append(p) }
-            else { result.append(group.map(\.0).reduce(0, +) / Double(group.count)); group = [p] }
+    /// (two branches of one hyperbola, a curve cut where another meets it), the level the middle of their values along
+    /// the ink (a branch drawn a pixel off does not move it). Each curve's own spread decides, so a family whose values
+    /// span orders of magnitude (e^{y}) keeps its small levels apart. Curves far looser than most (ink where curves
+    /// meet, f steep across the line) would join levels that are apart, so they found none.
+    static func cluster(_ curves: [CurveValues]) -> [Double] {
+        guard !curves.isEmpty else { return [] }
+        let floor = max(1e-9 * curves.map { abs($0.median) }.max()!, 1e-300)
+        let loose = max(4 * weightedMedian(curves.map { ($0.spread, $0.weight) }), floor)
+        // Apart by a few times the looser curve's spread and not much more than the tighter's, so a curve between two
+        // levels, looser than the curves on them, joins neither.
+        func oneLevel(_ a: CurveValues, _ b: CurveValues) -> Bool {
+            let gap = abs(b.median - a.median)
+            return gap <= 3 * max(a.spread, b.spread, floor) && gap <= 6 * max(min(a.spread, b.spread), floor)
         }
-        result.append(group.map(\.0).reduce(0, +) / Double(group.count))
-        return result
+        var groups: [[CurveValues]] = []
+        for curve in curves.filter({ $0.spread <= loose }).sorted(by: { $0.median < $1.median }) {
+            if let last = groups.last?.last, oneLevel(last, curve) {
+                groups[groups.count - 1].append(curve)
+            } else {
+                groups.append([curve])
+            }
+        }
+        return groups.map { group in weightedMedian(group.map { ($0.median, $0.weight) }) }
     }
 
     /// A level as a reader would print it: 3 significant figures, and exact when it is within 2 % of a round value.
