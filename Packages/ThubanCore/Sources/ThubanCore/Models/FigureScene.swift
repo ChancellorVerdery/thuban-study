@@ -21,24 +21,35 @@ public struct FigureScene: Sendable, Equatable {
 
     public enum LineStyle: String, Sendable, Equatable { case solid, dashed, dotted }
 
-    /// One series as drawn: polylines (a curve may break at a gap or asymptote), dots, bars, a shaded region, or
-    /// arrowheads along a curve.
+    /// One series as drawn: polylines (a curve may break at a gap or asymptote), dots, bars, a shaded region,
+    /// arrowheads along a curve, or an angle mark.
     public struct Mark: Sendable, Equatable {
-        public enum Kind: Sendable, Equatable { case line, dots, bars, fill, arrows, vector }
+        public enum Kind: Sendable, Equatable { case line, dots, bars, fill, arrows, vector, angle }
         public var kind: Kind
         public var name: String
         /// Polylines, each `[[x, y], …]`; for dots and bars one list of points; for a fill rectangles
-        /// `[[x0, y0], [x1, y1]]`; for arrows one list of `[x, y, dx, dy]`.
+        /// `[[x0, y0], [x1, y1]]`; for arrows one list of `[x, y, dx, dy]`; for an angle `[[vertex], [p1], [p2]]`.
         public var pieces: [[[Double]]]
         public var style: LineStyle
-        /// Hex colour from the chart, or nil for the theme palette.
+        /// Hex colour from the chart, or nil for the theme palette (or the ink, when `inInk`).
         public var color: String?
-        /// Position among the chart's series (picks the palette colour).
+        /// The palette colour by role: curves, regions and segments in series order, vectors after them, so a curve
+        /// and the vectors drawn on it never share a colour; 0 for everything in a one-colour original.
         public var paletteIndex: Int
         /// Dots: the label printed beside each point.
         public var labels: [String]? = nil
         /// The chart series it draws (−1: none).
         public var seriesIndex: Int = -1
+        /// Drawn in the theme's ink rather than a palette colour (marked points, angle marks), as a textbook does.
+        public var inInk = false
+        /// The series' name printed beside it ("a", "16"): on one mark of the series only, so it shows once.
+        public var label: String? = nil
+        /// A line drawn straight through given points (a segment): labelled at its middle, not at its end.
+        public var isSegment = false
+        /// Segments and vectors: tick marks across the middle (sides of equal length).
+        public var ticks = 0
+        /// Angles: a right-angle box instead of an arc.
+        public var rightAngle = false
     }
 
     public var window: Window
@@ -56,6 +67,15 @@ public struct FigureScene: Sendable, Equatable {
     /// list draws none (the original prints none on that axis).
     public var xTickLabels: [ChartTick]?
     public var yTickLabels: [ChartTick]?
+    /// false: a diagram with no grid, axes or numbers, drawn at equal x and y scale.
+    public var showAxes = true
+    /// The axis runs the other way (larger values down / to the left).
+    public var yReversed = false
+    public var xReversed = false
+    /// The plot area is tinted, as the original's panel is.
+    public var tintedPlot = false
+    /// Text printed inside the plot, at data positions.
+    public var annotations: [ChartAnnotation] = []
 
     public var hasField: Bool { !arrows.isEmpty }
 
@@ -79,7 +99,9 @@ public struct FigureScene: Sendable, Equatable {
         guard let minX = points.map({ $0[0] }).min(), let maxX = points.map({ $0[0] }).max(),
               let minY = points.map({ $0[1] }).min(), let maxY = points.map({ $0[1] }).max() else { return defaultWindow }
         let padX = max((maxX - minX) * 0.1, 1), padY = max((maxY - minY) * 0.1, 1)
-        return Window(x: (minX - padX)...(maxX + padX), y: (min(0, minY) - padY)...(maxY + padY))
+        // A diagram has no x-axis to keep in view.
+        let bottom = chart.axesHidden ? minY : min(0, minY)
+        return Window(x: (minX - padX)...(maxX + padX), y: (bottom - padY)...(maxY + padY))
     }
 
     /// A round tick spacing (1, 2 or 5 × 10ⁿ) giving about `target` ticks across `span`.
@@ -140,26 +162,55 @@ public struct FigureScene: Sendable, Equatable {
         if arrows.count == measured.count, !measured.isEmpty, let c = chart.fieldColumns, let r = chart.fieldRows { columnsDrawn = c; rowsDrawn = r }
 
         var marks: [Mark] = []
+        let curveColours = curvePaletteIndices(chart.series)
+        var nextVectorColour = curveColours.compactMap { $0 }.count
         for (index, series) in chart.series.enumerated() {
             let style = LineStyle(rawValue: (series.style ?? "solid").lowercased()) ?? .solid
             func mark(_ kind: Mark.Kind, _ pieces: [[[Double]]]) -> Mark {
+                var colour = curveColours[index] ?? 0
+                if kind == .vector {
+                    colour = nextVectorColour
+                    nextVectorColour += 1
+                }
                 // A one-colour original is redrawn in one colour.
-                Mark(kind: kind, name: series.name, pieces: pieces, style: style, color: chart.monochrome == true ? nil : series.color?.nilIfBlank,
-                     paletteIndex: chart.monochrome == true ? 0 : index, seriesIndex: index)
+                var mark = Mark(kind: kind, name: series.name, pieces: pieces, style: style, color: chart.monochrome == true ? nil : series.color?.nilIfBlank,
+                                paletteIndex: chart.monochrome == true ? 0 : colour, seriesIndex: index)
+                mark.ticks = max(0, series.ticks ?? 0)
+                return mark
             }
             let latex = series.latex?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let given = (series.points ?? []).filter { $0.count >= 2 && $0[0].isFinite && $0[1].isFinite }
-            if series.seriesKind == .point {
+            switch series.seriesKind {
+            case .point:
                 if !given.isEmpty {
                     var dots = mark(.dots, [given])
                     dots.labels = series.labels
+                    dots.inInk = true
                     marks.append(dots)
                 }
                 continue
-            }
-            if series.seriesKind == .vector {
+            case .vector:
                 if given.count >= 2 { marks.append(mark(.vector, [Array(given.prefix(2))])) }
                 continue
+            case .segment:
+                // Straight sides through the points as given (never smoothed: a triangle keeps its corners).
+                if given.count >= 2 {
+                    var segment = mark(.line, [given])
+                    segment.isSegment = true
+                    marks.append(segment)
+                }
+                continue
+            case .angle:
+                if given.count >= 3 {
+                    var angle = mark(.angle, given.prefix(3).map { [$0] })
+                    angle.inInk = true
+                    angle.rightAngle = series.rightAngle == true
+                    angle.label = series.labels?.first?.nilIfBlank ?? series.label?.nilIfBlank
+                    marks.append(angle)
+                }
+                continue
+            case .curve, .region, .level, .parametric:
+                break
             }
             switch shape(of: series) {
             case .region(let conditions):
@@ -197,7 +248,9 @@ public struct FigureScene: Sendable, Equatable {
                             let dx = (xb - xa) / (2 * h), dy = (yb - ya) / (2 * h)
                             if dx.isFinite, dy.isFinite { marks.append(mark(.vector, [[[px, py], [px + dx, py + dy]]])) }
                         }
-                        marks.append(mark(.dots, [[[px, py]]]))
+                        var dot = mark(.dots, [[[px, py]]])
+                        dot.inInk = true
+                        marks.append(dot)
                     }
                 }
                 if let curve = await ChartShapes.parametric(x: x, y: y, tRange: series.tRange, arrows: series.directionArrows == true,
@@ -277,9 +330,39 @@ public struct FigureScene: Sendable, Equatable {
                 if near * 10 >= points.count * 8 { marks[k].style = .dashed }
             }
         }
+        labelSeries(chart.series, in: &marks)
         return FigureScene(window: window, xStep: xStep, yStep: yStep, xLabel: chart.xLabel?.nilIfBlank, yLabel: chart.yLabel?.nilIfBlank,
                            arrows: arrows, arrowheads: chart.arrows, fieldColumns: columnsDrawn, fieldRows: rowsDrawn, marks: marks,
-                           xTickLabels: chart.xAxisLabels, yTickLabels: chart.yAxisLabels)
+                           xTickLabels: chart.xAxisLabels, yTickLabels: chart.yAxisLabels, showAxes: !chart.axesHidden,
+                           yReversed: chart.yReversed == true, xReversed: chart.xReversed == true, tintedPlot: chart.tintedPlot == true,
+                           annotations: (chart.annotations ?? []).filter { !$0.text.isEmpty && $0.x.isFinite && $0.y.isFinite })
+    }
+
+    /// The palette colour of each series that draws a curve, region or segment, in series order; nil for points,
+    /// vectors and angles, which take their colours by role (the ink, or the colours after the curves').
+    static func curvePaletteIndices(_ series: [ChartSeries]) -> [Int?] {
+        var next = 0
+        return series.map { s in
+            switch s.seriesKind {
+            case .point, .vector, .angle:
+                return nil
+            case .curve, .region, .level, .parametric, .segment:
+                next += 1
+                return next - 1
+            }
+        }
+    }
+
+    /// Gives each labelled series' name to one of its marks (its first line, else its first vector), so a region's
+    /// two edges or a curve's tangent vector do not repeat it.
+    static func labelSeries(_ series: [ChartSeries], in marks: inout [Mark]) {
+        for (index, s) in series.enumerated() {
+            guard let label = s.label?.nilIfBlank, s.seriesKind != .angle else { continue }
+            let own = marks.indices.filter { marks[$0].seriesIndex == index }
+            if let k = own.first(where: { marks[$0].kind == .line }) ?? own.first(where: { marks[$0].kind == .vector }) {
+                marks[k].label = label
+            }
+        }
     }
 
     /// What a series draws, from its `kind` or (for series stored before kinds existed) from its LaTeX: an

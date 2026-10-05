@@ -73,13 +73,38 @@ struct FigureCanvasRenderer {
     private var labelFont: Font { Font.system(size: 10 * zoom, weight: .regular, design: .default).monospacedDigit() }
     private var axisNameFont: Font { Font.system(size: 13 * zoom, weight: .regular, design: .serif).italic() }
 
+    /// Text printed in the plot: a name ("a", "AB", "r′") in serif italic like the original's, anything longer
+    /// ("|u| = 2", "60°") upright.
+    private func nameFont(_ text: String) -> Font {
+        let isName = text.count <= 3 && text.first?.isLetter == true && text.allSatisfy { $0.isLetter || $0.isNumber || $0 == "′" || $0 == "'" }
+        return isName ? Font.system(size: 13 * zoom, design: .serif).italic() : Font.system(size: 12 * zoom)
+    }
+
+    /// A diagram's window widened along its shorter side to the frame's proportions, so one unit is as long
+    /// across as up and a square stays square.
+    static func equalScale(_ window: FigureScene.Window, size: CGSize) -> FigureScene.Window {
+        let xSpan = window.x.upperBound - window.x.lowerBound, ySpan = window.y.upperBound - window.y.lowerBound
+        let unit = max(xSpan / Double(size.width), ySpan / Double(size.height))
+        let xPad = (unit * Double(size.width) - xSpan) / 2, yPad = (unit * Double(size.height) - ySpan) / 2
+        return FigureScene.Window(x: (window.x.lowerBound - xPad)...(window.x.upperBound + xPad),
+                                  y: (window.y.lowerBound - yPad)...(window.y.upperBound + yPad))
+    }
+
     func draw(in context: inout GraphicsContext, size: CGSize) {
         guard size.width > 20, size.height > 20 else { return }
-        let window = scene.window
+        let window = scene.showAxes ? scene.window : Self.equalScale(scene.window, size: size)
         let xSpan = window.x.upperBound - window.x.lowerBound, ySpan = window.y.upperBound - window.y.lowerBound
         let sx = size.width / xSpan, sy = size.height / ySpan
-        func px(_ x: Double) -> CGFloat { CGFloat((x - window.x.lowerBound) * sx) }
-        func py(_ y: Double) -> CGFloat { CGFloat(size.height - (y - window.y.lowerBound) * sy) }
+        // Pixels per unit along each axis, signed: right and up unless the axis is reversed.
+        let xDir: CGFloat = scene.xReversed ? -1 : 1, yDir: CGFloat = scene.yReversed ? 1 : -1
+        func px(_ x: Double) -> CGFloat {
+            let along = CGFloat((x - window.x.lowerBound) * sx)
+            return scene.xReversed ? size.width - along : along
+        }
+        func py(_ y: Double) -> CGFloat {
+            let along = CGFloat((y - window.y.lowerBound) * sy)
+            return scene.yReversed ? along : size.height - along
+        }
         func point(_ p: [Double]) -> CGPoint { CGPoint(x: px(p[0]), y: py(p[1])) }
 
         let ink = Color(hex: theme.ink)
@@ -87,30 +112,33 @@ struct FigureCanvasRenderer {
         let dim = Color(hex: theme.inkDim)
         // Nothing is drawn outside the plot (a curve leaving the window stops at its edge).
         context.clip(to: Path(CGRect(origin: .zero, size: size)))
+        if scene.tintedPlot { context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(hex: theme.accentTint))) }
 
-        // Grid: minor at half steps, major at the tick spacing.
-        var minor = Path(), major = Path()
-        for x in FigureScene.ticks(in: window.x, step: scene.xStep / 2) {
-            let isMajor = abs((x / scene.xStep).rounded() * scene.xStep - x) < scene.xStep * 1e-6
-            var path = isMajor ? major : minor
-            path.move(to: CGPoint(x: px(x), y: 0)); path.addLine(to: CGPoint(x: px(x), y: size.height))
-            if isMajor { major = path } else { minor = path }
-        }
-        for y in FigureScene.ticks(in: window.y, step: scene.yStep / 2) {
-            let isMajor = abs((y / scene.yStep).rounded() * scene.yStep - y) < scene.yStep * 1e-6
-            var path = isMajor ? major : minor
-            path.move(to: CGPoint(x: 0, y: py(y))); path.addLine(to: CGPoint(x: size.width, y: py(y)))
-            if isMajor { major = path } else { minor = path }
-        }
-        context.stroke(minor, with: .color(line.opacity(0.35)), lineWidth: 0.5)
-        context.stroke(major, with: .color(line.opacity(0.9)), lineWidth: 0.75)
-
-        // Axes through the origin when it is in view; labels ride the axis or the nearest edge.
         let xAxisY = min(max(py(0), 0), size.height), yAxisX = min(max(px(0), 0), size.width)
-        var axes = Path()
-        if window.y.contains(0) { axes.move(to: CGPoint(x: 0, y: py(0))); axes.addLine(to: CGPoint(x: size.width, y: py(0))) }
-        if window.x.contains(0) { axes.move(to: CGPoint(x: px(0), y: 0)); axes.addLine(to: CGPoint(x: px(0), y: size.height)) }
-        context.stroke(axes, with: .color(ink), lineWidth: 1.8)
+        if scene.showAxes {
+            // Grid: minor at half steps, major at the tick spacing.
+            var minor = Path(), major = Path()
+            for x in FigureScene.ticks(in: window.x, step: scene.xStep / 2) {
+                let isMajor = abs((x / scene.xStep).rounded() * scene.xStep - x) < scene.xStep * 1e-6
+                var path = isMajor ? major : minor
+                path.move(to: CGPoint(x: px(x), y: 0)); path.addLine(to: CGPoint(x: px(x), y: size.height))
+                if isMajor { major = path } else { minor = path }
+            }
+            for y in FigureScene.ticks(in: window.y, step: scene.yStep / 2) {
+                let isMajor = abs((y / scene.yStep).rounded() * scene.yStep - y) < scene.yStep * 1e-6
+                var path = isMajor ? major : minor
+                path.move(to: CGPoint(x: 0, y: py(y))); path.addLine(to: CGPoint(x: size.width, y: py(y)))
+                if isMajor { major = path } else { minor = path }
+            }
+            context.stroke(minor, with: .color(line.opacity(0.35)), lineWidth: 0.5)
+            context.stroke(major, with: .color(line.opacity(0.9)), lineWidth: 0.75)
+
+            // Axes through the origin when it is in view; labels ride the axis or the nearest edge.
+            var axes = Path()
+            if window.y.contains(0) { axes.move(to: CGPoint(x: 0, y: py(0))); axes.addLine(to: CGPoint(x: size.width, y: py(0))) }
+            if window.x.contains(0) { axes.move(to: CGPoint(x: px(0), y: 0)); axes.addLine(to: CGPoint(x: px(0), y: size.height)) }
+            context.stroke(axes, with: .color(ink), lineWidth: 1.8)
+        }
 
         // The field under the curves.
         if scene.hasField {
@@ -120,8 +148,8 @@ struct FigureCanvasRenderer {
             var segments = Path(), heads = Path()
             for arrow in scene.arrows {
                 guard let m = arrow.slope else { continue }
-                // Direction (1, m) in data space, taken to pixels (y grows downwards) and normalised.
-                var dx = CGFloat(sx), dy = CGFloat(-sy * m)
+                // Direction (1, m) in data space, taken to pixels and normalised.
+                var dx = CGFloat(sx) * xDir, dy = CGFloat(sy * m) * yDir
                 let length = (dx * dx + dy * dy).squareRoot()
                 guard length > 0, length.isFinite else { continue }
                 dx /= length; dy /= length
@@ -145,23 +173,28 @@ struct FigureCanvasRenderer {
             context.fill(heads, with: .color(field))
         }
 
-        // Curves, dots and bars.
+        // Curves, dots and bars, each in the colour of its role (`FigureScene.Mark.paletteIndex`, `inInk`).
         let palette: [String] = scene.hasField
             ? [theme.accent, theme.neg, theme.pos, theme.accentDeep]
             : [theme.accent, theme.signal, theme.neg, theme.pos, theme.accentDeep]
+        func colour(of mark: FigureScene.Mark) -> Color {
+            if let hex = mark.color { return Color(hex: hex) }
+            return mark.inInk ? ink : Color(hex: palette[mark.paletteIndex % palette.count])
+        }
         // Shaded regions first, translucent, so every curve and axis stays visible through them.
         for mark in scene.marks where mark.kind == .fill {
-            let color = Color(hex: mark.color ?? palette[mark.paletteIndex % palette.count])
             var path = Path()
             for rect in mark.pieces where rect.count == 2 {
                 let a = point(rect[0]), b = point(rect[1])
                 // Rows overlap by a hair so no seam shows between them.
                 path.addRect(CGRect(x: min(a.x, b.x), y: min(a.y, b.y) - 0.25, width: abs(b.x - a.x), height: abs(b.y - a.y) + 0.5))
             }
-            context.fill(path, with: .color(color.opacity(0.28)))
+            context.fill(path, with: .color(colour(of: mark).opacity(0.28)))
         }
+        // Names beside the marks, drawn after all of them so no later curve covers one.
+        var names: [(text: String, at: CGPoint, anchor: UnitPoint)] = []
         for mark in scene.marks where mark.kind != .fill {
-            let color = Color(hex: mark.color ?? palette[mark.paletteIndex % palette.count])
+            let color = colour(of: mark)
             switch mark.kind {
             case .fill:
                 break
@@ -184,12 +217,14 @@ struct FigureCanvasRenderer {
                     head.addLine(to: CGPoint(x: base.x + dy * w, y: base.y - dx * w))
                     head.closeSubpath()
                     context.fill(head, with: .color(color))
+                    strokeTicks(mark.ticks, from: a, to: b, color: color, in: &context)
+                    if let text = mark.label { names.append(Self.besideMiddle(text, from: a, to: b)) }
                 }
             case .arrows:
                 // Filled heads on the curve, pointing the way the parameter runs.
                 var heads = Path()
                 for a in mark.pieces.flatMap({ $0 }) where a.count >= 4 {
-                    var dx = CGFloat(a[2] * sx), dy = CGFloat(-a[3] * sy)
+                    var dx = CGFloat(a[2] * sx) * xDir, dy = CGFloat(a[3] * sy) * yDir
                     let length = (dx * dx + dy * dy).squareRoot()
                     guard length > 0, length.isFinite else { continue }
                     dx /= length; dy /= length
@@ -211,6 +246,24 @@ struct FigureCanvasRenderer {
                 }
                 let dash: [CGFloat] = mark.style == .dashed ? [12, 7.5] : mark.style == .dotted ? [2.25, 6] : []
                 context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 3.75, lineCap: .round, lineJoin: .round, dash: dash))
+                if mark.isSegment, let piece = mark.pieces.first, piece.count >= 2 {
+                    // The middle stretch of the polyline carries the ticks and the name.
+                    let k = (piece.count - 2) / 2
+                    let a = point(piece[k]), b = point(piece[k + 1])
+                    strokeTicks(mark.ticks, from: a, to: b, color: color, in: &context)
+                    if let text = mark.label { names.append(Self.besideMiddle(text, from: a, to: b)) }
+                } else if let text = mark.label,
+                          let end = mark.pieces.flatMap({ $0 }).last(where: { window.x.contains($0[0]) && window.y.contains($0[1]) }) {
+                    // A curve is named at its last visible point, on the side with room.
+                    let c = point(end), right = c.x < size.width - 40
+                    names.append((text, CGPoint(x: c.x + (right ? 7 : -7), y: max(c.y - 7, 14)), right ? .bottomLeading : .bottomTrailing))
+                }
+            case .angle:
+                guard mark.pieces.count == 3, let v = mark.pieces[0].first, let p1 = mark.pieces[1].first, let p2 = mark.pieces[2].first else { break }
+                if let name = strokeAngle(at: point(v), point(p1), point(p2), right: mark.rightAngle, span: min(size.width, size.height),
+                                          color: color, in: &context), let text = mark.label {
+                    names.append((text, name, .center))
+                }
             case .dots:
                 for (k, p) in mark.pieces.flatMap({ $0 }).enumerated() {
                     let c = point(p)
@@ -224,7 +277,7 @@ struct FigureCanvasRenderer {
                 }
             case .bars:
                 for p in mark.pieces.flatMap({ $0 }) {
-                    let left = px(p[0] - 0.4), right = px(p[0] + 0.4)
+                    let left = min(px(p[0] - 0.4), px(p[0] + 0.4)), right = max(px(p[0] - 0.4), px(p[0] + 0.4))
                     let top = min(py(p[1]), py(0)), bottom = max(py(p[1]), py(0))
                     let rect = CGRect(x: left, y: top, width: right - left, height: bottom - top)
                     context.fill(Path(rect), with: .color(color.opacity(0.55)))
@@ -232,6 +285,14 @@ struct FigureCanvasRenderer {
                 }
             }
         }
+        for name in names {
+            context.draw(Text(name.text).font(nameFont(name.text)).foregroundColor(ink), at: name.at, anchor: name.anchor)
+        }
+        // The original's own text inside the plot, at its data position.
+        for note in scene.annotations {
+            context.draw(Text(note.text).font(nameFont(note.text)).foregroundColor(ink), at: CGPoint(x: px(note.x), y: py(note.y)), anchor: .center)
+        }
+        guard scene.showAxes else { return }
 
         // Tick labels, plain like the original's, over the curves so none is hidden.
         func label(_ text: String, at position: CGPoint, anchor: UnitPoint) {
@@ -245,7 +306,8 @@ struct FigureCanvasRenderer {
             .filter { abs($0) > scene.xStep * 1e-6 }.map { ChartTick(value: $0, text: ChartGeometry.number($0).replacingOccurrences(of: "-", with: "−")) }
         var lastX = -CGFloat.infinity
         let xSlack = (window.x.upperBound - window.x.lowerBound) * 0.02, ySlack = (window.y.upperBound - window.y.lowerBound) * 0.02
-        for tick in xTicks.sorted(by: { $0.value < $1.value }) where tick.value >= window.x.lowerBound - xSlack && tick.value <= window.x.upperBound + xSlack {
+        // Left to right on screen (a reversed axis runs its values the other way).
+        for tick in xTicks.sorted(by: { px($0.value) < px($1.value) }) where tick.value >= window.x.lowerBound - xSlack && tick.value <= window.x.upperBound + xSlack {
             // A label at the very edge is kept, nudged inside the frame; crowded labels are thinned.
             let at = min(max(px(tick.value), 10), size.width - 10)
             guard at - lastX >= 26 else { continue }
@@ -258,7 +320,8 @@ struct FigureCanvasRenderer {
         let yTicks: [ChartTick] = scene.yTickLabels ?? FigureScene.ticks(in: window.y, step: scene.yStep)
             .filter { abs($0) > scene.yStep * 1e-6 }.map { ChartTick(value: $0, text: ChartGeometry.number($0).replacingOccurrences(of: "-", with: "−")) }
         var lastY = CGFloat.infinity
-        for tick in yTicks.sorted(by: { $0.value < $1.value }) where tick.value >= window.y.lowerBound - ySlack && tick.value <= window.y.upperBound + ySlack {
+        // Bottom to top on screen.
+        for tick in yTicks.sorted(by: { py($0.value) > py($1.value) }) where tick.value >= window.y.lowerBound - ySlack && tick.value <= window.y.upperBound + ySlack {
             let at = min(max(py(tick.value), 8), size.height - 8)
             guard lastY - at >= 14 else { continue }
             // On the right of the axis the top number would run into the axis name.
@@ -279,6 +342,65 @@ struct FigureCanvasRenderer {
         context.draw(Text(yName).font(axisNameFont).foregroundColor(ink),
                      at: CGPoint(x: yNameLeft ? yAxisX - 8 : min(yAxisX + 8, size.width - 12), y: xAxisY < 26 ? 30 : 10),
                      anchor: yNameLeft ? .trailing : .leading)
+    }
+
+    /// Where a straight mark's name goes: beside its middle, off to its left (as a vector's name is printed).
+    private static func besideMiddle(_ text: String, from a: CGPoint, to b: CGPoint) -> (text: String, at: CGPoint, anchor: UnitPoint) {
+        let dx = b.x - a.x, dy = b.y - a.y, length = max((dx * dx + dy * dy).squareRoot(), 1)
+        // The left normal on screen (y grows downwards).
+        let nx = dy / length, ny = -dx / length, offset: CGFloat = 13
+        return (text, CGPoint(x: (a.x + b.x) / 2 + nx * offset, y: (a.y + b.y) / 2 + ny * offset), .center)
+    }
+
+    /// `count` short marks across the middle of a→b, a few pixels apart (sides of equal length).
+    private func strokeTicks(_ count: Int, from a: CGPoint, to b: CGPoint, color: Color, in context: inout GraphicsContext) {
+        guard count > 0 else { return }
+        let dx = b.x - a.x, dy = b.y - a.y, length = (dx * dx + dy * dy).squareRoot()
+        guard length > 1 else { return }
+        let ux = dx / length, uy = dy / length, half: CGFloat = 6, gap: CGFloat = 5
+        var ticks = Path()
+        for k in 0..<count {
+            let along = (CGFloat(k) - CGFloat(count - 1) / 2) * gap
+            let c = CGPoint(x: (a.x + b.x) / 2 + ux * along, y: (a.y + b.y) / 2 + uy * along)
+            ticks.move(to: CGPoint(x: c.x - uy * half, y: c.y + ux * half))
+            ticks.addLine(to: CGPoint(x: c.x + uy * half, y: c.y - ux * half))
+        }
+        context.stroke(ticks, with: .color(color), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+    }
+
+    /// An angle mark at `vertex` between the rays to `p1` and `p2`: an arc (or a right-angle box) about 7 % of the
+    /// plot's smaller side across, kept inside the shorter ray. Returns where its name goes, on the bisector.
+    private func strokeAngle(at vertex: CGPoint, _ p1: CGPoint, _ p2: CGPoint, right: Bool, span: CGFloat, color: Color,
+                             in context: inout GraphicsContext) -> CGPoint? {
+        let d1 = CGPoint(x: p1.x - vertex.x, y: p1.y - vertex.y), d2 = CGPoint(x: p2.x - vertex.x, y: p2.y - vertex.y)
+        let l1 = (d1.x * d1.x + d1.y * d1.y).squareRoot(), l2 = (d2.x * d2.x + d2.y * d2.y).squareRoot()
+        guard l1 > 2, l2 > 2 else { return nil }
+        let u1 = CGPoint(x: d1.x / l1, y: d1.y / l1), u2 = CGPoint(x: d2.x / l2, y: d2.y / l2)
+        let radius = min(max(span * 0.07, 10), min(l1, l2) * 0.45)
+        var path = Path()
+        if right {
+            let s = radius * 0.75
+            path.move(to: CGPoint(x: vertex.x + u1.x * s, y: vertex.y + u1.y * s))
+            path.addLine(to: CGPoint(x: vertex.x + (u1.x + u2.x) * s, y: vertex.y + (u1.y + u2.y) * s))
+            path.addLine(to: CGPoint(x: vertex.x + u2.x * s, y: vertex.y + u2.y * s))
+        } else {
+            // The interior angle, swept the short way from the first ray to the second.
+            let a1 = atan2(u1.y, u1.x)
+            var sweep = atan2(u2.y, u2.x) - a1
+            if sweep > .pi { sweep -= 2 * .pi } else if sweep < -.pi { sweep += 2 * .pi }
+            for k in 0...24 {
+                let theta = a1 + sweep * CGFloat(k) / 24
+                let p = CGPoint(x: vertex.x + radius * cos(theta), y: vertex.y + radius * sin(theta))
+                if k == 0 { path.move(to: p) } else { path.addLine(to: p) }
+            }
+        }
+        context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+        // A straight angle has no bisector between its rays: the name goes off to the first ray's left.
+        var bx = u1.x + u2.x, by = u1.y + u2.y
+        let b = (bx * bx + by * by).squareRoot()
+        if b < 1e-3 { bx = u1.y; by = -u1.x } else { bx /= b; by /= b }
+        let reach = radius + 12
+        return CGPoint(x: vertex.x + bx * reach, y: vertex.y + by * reach)
     }
 }
 

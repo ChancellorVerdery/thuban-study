@@ -67,4 +67,98 @@ final class FigureSceneTests: XCTestCase {
         XCTAssertEqual(barScene.marks.first?.kind, .bars)
         XCTAssertEqual(barScene.marks.first?.color, "#FF0000")
     }
+
+    func testSegmentsAnglesAndLabels() async throws {
+        var side = ChartSeries(name: "AB", points: [[0, 0], [4, 0], [4, 3]])
+        side.kind = "segment"
+        side.label = "c"
+        side.ticks = 2
+        var corner = ChartSeries(name: "C", points: [[4, 0], [0, 0], [4, 3]])
+        corner.kind = "angle"
+        corner.rightAngle = true
+        corner.labels = ["90°"]
+        var u = ChartSeries(name: "u", points: [[0, 0], [1, 2]])
+        u.kind = "vector"
+        u.label = "u"
+        var chart = StandardChart(chartType: "line", series: [side, corner, u], xRange: [-1, 5], yRange: [-1, 4], confidence: 1)
+        chart.showAxes = false
+        chart.yReversed = true
+        chart.tintedPlot = true
+        chart.annotations = [ChartAnnotation(text: "|u| = 2", x: 1, y: 1), ChartAnnotation(text: "", x: 0, y: 0)]
+        let scene = await FigureScene.build(chart, engine: Self.engine)
+
+        XCTAssertFalse(scene.showAxes)
+        XCTAssertTrue(scene.yReversed)
+        XCTAssertFalse(scene.xReversed)
+        XCTAssertTrue(scene.tintedPlot)
+        XCTAssertEqual(scene.annotations, [ChartAnnotation(text: "|u| = 2", x: 1, y: 1)], "blank annotations are dropped")
+
+        let segment = try XCTUnwrap(scene.marks.first { $0.seriesIndex == 0 })
+        XCTAssertEqual(segment.kind, .line, "a segment is a line, so the picture check measures it")
+        XCTAssertTrue(segment.isSegment)
+        XCTAssertEqual(segment.pieces, [[[0, 0], [4, 0], [4, 3]]], "drawn through the points as given, not smoothed")
+        XCTAssertEqual(segment.label, "c")
+        XCTAssertEqual(segment.ticks, 2)
+
+        let angle = try XCTUnwrap(scene.marks.first { $0.seriesIndex == 1 })
+        XCTAssertEqual(angle.kind, .angle)
+        XCTAssertEqual(angle.pieces, [[[4, 0]], [[0, 0]], [[4, 3]]], "vertex, then a point on each ray")
+        XCTAssertTrue(angle.rightAngle)
+        XCTAssertEqual(angle.label, "90°")
+        XCTAssertTrue(angle.inInk)
+
+        let vector = try XCTUnwrap(scene.marks.first { $0.seriesIndex == 2 })
+        XCTAssertEqual(vector.kind, .vector)
+        XCTAssertEqual(vector.label, "u")
+    }
+
+    func testAShownChartKeepsItsAxesAndTheOrigin() async {
+        let chart = StandardChart(chartType: "line", series: [ChartSeries(name: "t", points: [[1, 2], [3, 4]])], confidence: 1)
+        let scene = await FigureScene.build(chart, engine: Self.engine)
+        XCTAssertTrue(scene.showAxes)
+        XCTAssertFalse(scene.yReversed || scene.xReversed || scene.tintedPlot)
+        XCTAssertLessThan(scene.window.y.lowerBound, 0, "a chart's window keeps the x-axis in view")
+        var diagram = chart
+        diagram.showAxes = false
+        let diagramScene = await FigureScene.build(diagram, engine: Self.engine)
+        XCTAssertEqual(diagramScene.window.y.lowerBound, 1, accuracy: 1e-9, "a diagram's window fits its points only")
+    }
+
+    func testColoursByRole() async throws {
+        var position = ChartSeries(name: "r")
+        position.kind = "parametric"
+        position.xt = "t"
+        position.yt = "t^2"
+        position.tRange = [-2, 2]
+        position.markAt = 1
+        position.positionVector = true
+        position.tangentVector = true
+        position.label = "C"
+        var a = ChartSeries(name: "a", points: [[0, 0], [1, 1]])
+        a.kind = "vector"
+        var p = ChartSeries(name: "P", points: [[1, 1]])
+        p.kind = "point"
+        let line = ChartSeries(name: "line", latex: "2x-1")
+        var chart = StandardChart(chartType: "function", series: [position, a, p, line], xRange: [-3, 3], yRange: [-1, 5], confidence: 1)
+        let scene = await FigureScene.build(chart, engine: Self.engine)
+
+        // Two curves take the first two colours; the three vectors the next three, never a curve's.
+        let curves = scene.marks.filter { $0.kind == .line }
+        XCTAssertEqual(curves.map(\.paletteIndex), [0, 1])
+        XCTAssertEqual(curves.first?.label, "C", "the name goes on the curve, not on its vectors")
+        let vectors = scene.marks.filter { $0.kind == .vector }
+        XCTAssertEqual(vectors.map(\.paletteIndex), [2, 3, 4])
+        XCTAssertTrue(vectors.allSatisfy { $0.label == nil })
+        let dots = scene.marks.filter { $0.kind == .dots }
+        XCTAssertEqual(dots.count, 2, "the marked point r(1) and the point series")
+        XCTAssertTrue(dots.allSatisfy(\.inInk), "marked points are drawn in ink")
+        let markedPoint = try XCTUnwrap(dots.first).pieces.flatMap { $0 }
+        XCTAssertEqual(markedPoint.first?[0] ?? 0, 1, accuracy: 1e-9)
+        XCTAssertEqual(markedPoint.first?[1] ?? 0, 1, accuracy: 1e-9)
+
+        chart.monochrome = true
+        let mono = await FigureScene.build(chart, engine: Self.engine)
+        XCTAssertTrue(mono.marks.allSatisfy { $0.paletteIndex == 0 }, "a one-colour original is redrawn in one colour")
+        XCTAssertTrue(mono.marks.filter { $0.kind == .dots }.allSatisfy(\.inInk))
+    }
 }
