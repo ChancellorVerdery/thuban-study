@@ -96,35 +96,40 @@ public enum ShapeFitter {
             medians.append(m)
             spreads.append(vs.map { abs($0 - m) }.sorted()[vs.count / 2])
         }
-        guard !medians.isEmpty else { return nil }
+        guard medians.count >= 2 else { return nil }
         let typical = spreads.sorted()[spreads.count / 2]
-        let levels = cluster(medians, noise: typical)
-        let gap: Double
-        if levels.count >= 2 {
-            let gaps = zip(levels, levels.dropFirst()).map { $1 - $0 }.sorted()
-            gap = gaps[gaps.count / 2]
-        } else {
-            gap = max(abs(levels[0]), 1e-9)
+        let levels = cluster(medians, spreads: spreads)
+        // A constant f (every curve on one level) is no fit.
+        guard levels.count >= 2 else { return nil }
+        // Each curve's spread against the distance to the nearest other level, so a family whose values span many
+        // orders of magnitude (e^{x} over a wide window) is judged curve by curve, not by its largest values.
+        var ratios: [Double] = []
+        for (m, spread) in zip(medians, spreads) {
+            let others = levels.map { abs($0 - m) }.sorted()
+            // levels[closest] is this curve's own level; the next is its neighbour.
+            let neighbour = others.count >= 2 ? others[1] : others[0]
+            guard neighbour > 0, neighbour.isFinite else { ratios.append(1); continue }
+            ratios.append(min(1, spread / neighbour))
         }
-        // A constant f (every curve on one level) or a degenerate one is no fit.
-        guard gap > 1e-9 else { return nil }
         let total = sizes.reduce(0, +)
-        return LevelFit(dispersion: typical / gap + Double(undefined) / Double(max(1, total)), levels: levels)
+        let typicalRatio = ratios.sorted()[ratios.count / 2]
+        return LevelFit(dispersion: typicalRatio + Double(undefined) / Double(max(1, total)), levels: levels)
     }
 
-    /// Distinct levels: medians closer than a few times the curves' own spread are one level (two branches of one
-    /// hyperbola), averaged.
-    static func cluster(_ values: [Double], noise: Double) -> [Double] {
-        let sorted = values.sorted()
-        guard var group = sorted.first.map({ [$0] }) else { return [] }
-        let span = (sorted.last! - sorted.first!)
-        let tolerance = max(noise * 3, span * 0.02)
+    /// Distinct levels: curves whose values lie within a few times their own spread of each other are one level
+    /// (two branches of one hyperbola), averaged. Each curve's own spread decides, so a family whose values span
+    /// orders of magnitude (e^{y}) keeps its small levels apart.
+    static func cluster(_ values: [Double], spreads: [Double]) -> [Double] {
+        let pairs = zip(values, spreads).sorted { $0.0 < $1.0 }
+        guard var group = pairs.first.map({ [$0] }) else { return [] }
+        let floor = 1e-9 * (pairs.map { abs($0.0) }.max() ?? 1)
         var result: [Double] = []
-        for v in sorted.dropFirst() {
-            if v - group.last! <= tolerance { group.append(v) }
-            else { result.append(group.reduce(0, +) / Double(group.count)); group = [v] }
+        for p in pairs.dropFirst() {
+            let last = group.last!
+            if p.0 - last.0 <= 3 * max(p.1, last.1, floor) { group.append(p) }
+            else { result.append(group.map(\.0).reduce(0, +) / Double(group.count)); group = [p] }
         }
-        result.append(group.reduce(0, +) / Double(group.count))
+        result.append(group.map(\.0).reduce(0, +) / Double(group.count))
         return result
     }
 

@@ -48,6 +48,10 @@ enum FigureDump {
                        let png = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)), let phase = await PhaseLineReader.read(png: png, caption: figure.caption) {
                         stored = phase.chart
                     }
+                    if ProcessInfo.processInfo.environment["THUBAN_FIGURE_DUMP_RECONCILE"] != nil, stored == nil,
+                       let png = try? Data(contentsOf: AppPaths.figureURL(figure.originalPath)) {
+                        stored = await FamilyRecognizer.recognise(png: png, engine: app.engine)
+                    }
                     guard var chart = stored else {
                         // A figure kept as a diagram: its original alone, so every figure of the class can be reviewed.
                         if classFilter != nil {
@@ -167,7 +171,9 @@ private struct DumpPair: View {
 @MainActor
 enum FigureReanalysisLaunch {
     static func startIfEnabled(app: AppModel) {
-        guard let name = ProcessInfo.processInfo.environment["THUBAN_REANALYSE_CLASS"], !name.isEmpty else { return }
+        // THUBAN_RECONCILE_CLASS: the same, without the agent — every stored figure re-checked against its picture.
+        let offline = ProcessInfo.processInfo.environment["THUBAN_RECONCILE_CLASS"]
+        guard let name = offline ?? ProcessInfo.processInfo.environment["THUBAN_REANALYSE_CLASS"], !name.isEmpty else { return }
         let reportPath = ProcessInfo.processInfo.environment["THUBAN_REANALYSE_REPORT"]
         let store = app.store, engine = app.engine
         let agent = FigureAgent(client: app.claudeClient, model: app.modelPolicy.pinned ?? .sonnet)
@@ -182,7 +188,17 @@ enum FigureReanalysisLaunch {
                     for document in try await store.documents(in: studyClass.id) {
                         lines.append("DOC \(document.filename)")
                         write()
-                        let outcomes = try await FigureWorkflow.reanalyse(document: document, store: store, agent: agent, engine: engine)
+                        // THUBAN_REANALYSE_ONLY=reviewing: only the figures still waiting for review (and diagrams).
+                        var only: ((Figure) -> Bool)?
+                        if ProcessInfo.processInfo.environment["THUBAN_REANALYSE_ONLY"] == "reviewing" {
+                            only = { (figure: Figure) -> Bool in
+                                if figure.status == .reviewing || figure.status == .pending { return true }
+                                return figure.kind == .diagram || figure.chart == nil
+                            }
+                        }
+                        let outcomes = offline != nil
+                            ? try await FigureWorkflow.reconcileStored(document: document, store: store, engine: engine)
+                            : try await FigureWorkflow.reanalyse(document: document, store: store, agent: agent, engine: engine, only: only)
                         for o in outcomes {
                             lines.append("#\(o.index + 1) \(o.kind.rawValue) " + (o.verification.map { ($0.passed ? "PASS " : "FAIL ") + $0.summary } ?? (o.isFigure ? "unverified" : "not a figure")))
                         }

@@ -37,6 +37,8 @@ public struct FigureScene: Sendable, Equatable {
         public var paletteIndex: Int
         /// Dots: the label printed beside each point.
         public var labels: [String]? = nil
+        /// The chart series it draws (−1: none).
+        public var seriesIndex: Int = -1
     }
 
     public var window: Window
@@ -143,7 +145,7 @@ public struct FigureScene: Sendable, Equatable {
             func mark(_ kind: Mark.Kind, _ pieces: [[[Double]]]) -> Mark {
                 // A one-colour original is redrawn in one colour.
                 Mark(kind: kind, name: series.name, pieces: pieces, style: style, color: chart.monochrome == true ? nil : series.color?.nilIfBlank,
-                     paletteIndex: chart.monochrome == true ? 0 : index)
+                     paletteIndex: chart.monochrome == true ? 0 : index, seriesIndex: index)
             }
             let latex = series.latex?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let given = (series.points ?? []).filter { $0.count >= 2 && $0[0].isFinite && $0[1].isFinite }
@@ -176,7 +178,8 @@ public struct FigureScene: Sendable, Equatable {
                 if let curve = await ChartShapes.parametric(x: x, y: y, tRange: series.tRange, arrows: series.directionArrows == true,
                                                             window: window, engine: engine) {
                     marks.append(mark(.line, curve.pieces))
-                    if !curve.arrows.isEmpty { marks.append(mark(.arrows, [curve.arrows])) }
+                    if let measured = series.arrowMarks, !measured.isEmpty { marks.append(mark(.arrows, [measured])) }
+                    else if !curve.arrows.isEmpty { marks.append(mark(.arrows, [curve.arrows])) }
                 }
                 continue
             case .restricted(let equation, let conditions):
@@ -197,7 +200,8 @@ public struct FigureScene: Sendable, Equatable {
                         }.filter { $0.count >= 2 }
                     }
                     marks.append(mark(.line, pieces))
-                    if series.directionArrows == true { marks.append(mark(.arrows, [ChartShapes.arrowMarks(along: pieces, window: window)])) }
+                    if let measured = series.arrowMarks, !measured.isEmpty { marks.append(mark(.arrows, [measured])) }
+                    else if series.directionArrows == true { marks.append(mark(.arrows, [ChartShapes.arrowMarks(along: pieces, window: window)])) }
                 }
                 continue
             }
@@ -211,7 +215,8 @@ public struct FigureScene: Sendable, Equatable {
                     else {
                         let line = ChartGeometry.smoothed(points)
                         marks.append(mark(.line, [line]))
-                        if series.directionArrows == true { marks.append(mark(.arrows, [ChartShapes.arrowMarks(along: [line], window: window)])) }
+                        if let measured = series.arrowMarks, !measured.isEmpty { marks.append(mark(.arrows, [measured])) }
+                        else if series.directionArrows == true { marks.append(mark(.arrows, [ChartShapes.arrowMarks(along: [line], window: window)])) }
                     }
                 }
                 continue

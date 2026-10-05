@@ -14,6 +14,8 @@ final class ChartShapesTests: XCTestCase {
         XCTAssertNil(ChartShapes.conditions("x^2+y^2=49, x\\le 0"), "an equation is a boundary, not a region")
         XCTAssertNil(ChartShapes.conditions("y=\\left(x+1\\right)^2"), "\\left is not \\le")
         XCTAssertNil(ChartShapes.conditions("2x+1"))
+        XCTAssertEqual(ChartShapes.conditions("y \\ne x"), ["\\left|y-x\\right|"], "the whole plane but a line")
+        XCTAssertEqual(ChartShapes.conditions("y ≠ -x")?.count, 1)
     }
 
     func testPlainTextFormulasAreNormalised() {

@@ -17,6 +17,33 @@ public enum FamilyRecognizer {
     /// A family fits when the spread along each curve is under this share of the spacing between levels.
     static let maximumDispersion = 0.08
 
+    /// A level chart recognised from a picture alone (a plot the agent called a diagram), or nil.
+    public static func recognise(png: Data, engine: MathEngine) async -> StandardChart? {
+        // Plots side by side (maps I and II): each recognised on its own, drawn as panels.
+        if let crops = PictureInk.panels(png: png) {
+            var panels: [StandardChart] = []
+            for (k, crop) in crops.enumerated() {
+                guard var panel = await recognise(single: crop, engine: engine) else { return nil }
+                panel.title = ["I", "II", "III", "IV"][safe: k] ?? "\(k + 1)"
+                panels.append(panel)
+            }
+            var chart = StandardChart(chartType: "function", provenance: StandardChart.traced, verification: ChartVerification(
+                passed: true, summary: "Verified against the picture: " + panels.enumerated().map { k, p in
+                    "panel \(p.title ?? "\(k + 1)"): " + (p.verification?.summary ?? "") }.joined(separator: " ")))
+            chart.panels = panels
+            chart.monochrome = true
+            chart.confidence = panels.map(\.confidence).min() ?? 0.8
+            return chart
+        }
+        return await recognise(single: png, engine: engine)
+    }
+
+    static func recognise(single png: Data, engine: MathEngine) async -> StandardChart? {
+        let seed = StandardChart(chartType: "function", provenance: StandardChart.traced)
+        guard let picture = await ShapeVerifier.Picture(png: png, hints: seed) else { return nil }
+        return await recognise(seed, picture: picture, engine: engine)
+    }
+
     /// A level chart for the picture's curves, or nil when no family fits (fewer than three curves, nothing
     /// within `maximumDispersion`, or the redraw fails the picture check).
     static func recognise(_ chart: StandardChart, picture: ShapeVerifier.Picture, engine: MathEngine) async -> StandardChart? {
@@ -41,12 +68,20 @@ public enum FamilyRecognizer {
             for (j, s) in tried.enumerated() {
                 let slice = Array(values[(j * perScale)..<((j + 1) * perScale)])
                 guard let fit = ShapeFitter.levelFit(slice, sizes: samples.map(\.count)) else { continue }
-                if best == nil || fit.dispersion < best!.1.dispersion { best = (s, fit) }
+                // Scales where the values underflow to a constant (dispersion ~0) only win when nothing else fits.
+                func plausible(_ d: Double) -> Double { d < 0.002 ? 1 + d : d }
+                if best == nil || plausible(fit.dispersion) < plausible(best!.1.dispersion) { best = (s, fit) }
             }
             if let best, best.1.dispersion <= maximumDispersion { ranked.append((f, best.0, best.1)) }
+            if ProcessInfo.processInfo.environment["THUBAN_FAMILY_DEBUG"] != nil, let best {
+                print("FAMILY \(f) scale \(best.0) dispersion \(best.1.dispersion) levels \(best.1.levels.map { (($0 * 1000).rounded() / 1000) })")
+            }
         }
-        ranked.sort { $0.fit.dispersion < $1.fit.dispersion }
-        for candidate in ranked.prefix(4) {
+        // A fit too perfect for drawn lines of any thickness is values underflowing to a constant (e^{x} far out):
+        // tried last, after every plausible family.
+        func rank(_ d: Double) -> Double { d < 0.002 ? 1 + d : d }
+        ranked.sort { rank($0.fit.dispersion) < rank($1.fit.dispersion) }
+        for candidate in ranked.prefix(12) {
             var result = chart
             var series = ChartSeries(name: "Level curves of \(candidate.f)", latex: candidate.f)
             series.kind = "level"
@@ -56,7 +91,8 @@ public enum FamilyRecognizer {
             result.monochrome = true
             setWindow(&result, picture: picture, maps: maps, scale: candidate.scale)
             let scene = await FigureScene.build(result, engine: engine)
-            let verdict = ShapeVerifier.verify(scene: scene, picture: picture)
+            let verdict = ShapeVerifier.verify(scene: scene, picture: picture.reading(in: maps, scale: candidate.scale))
+            if ProcessInfo.processInfo.environment["THUBAN_FAMILY_DEBUG"] != nil { print("FAMILY try \(candidate.f): \(verdict.summary)") }
             guard verdict.passed else { continue }
             result.verification = verdict
             result.confidence = max(chart.confidence, 0.8)

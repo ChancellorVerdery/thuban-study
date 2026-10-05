@@ -27,7 +27,12 @@ final class ShapeTimingReportTests: XCTestCase {
             _ = await time("fit") { await ShapeFitter.fit(chart, picture: picture, engine: engine) }
             _ = await time("recognise") { await FamilyRecognizer.recognise(chart, picture: picture, engine: engine) }
         }
+        if let picture {
+            let markers = MarkerReader.read(scene: scene, picture: picture)
+            print("TIMING markers arrows \(markers.arrows.mapValues { $0.map { $0.map { ($0 * 100).rounded() / 100 } } }) dots \(markers.dots.map { $0.map { ($0 * 100).rounded() / 100 } })")
+        }
         let checked = await time("check") { await FigureAgent.check(chart, png: png, engine: engine) }
         print("TIMING verdict \(checked.verification?.summary ?? "-")")
+        print("TIMING window \(checked.xRange ?? []) \(checked.yRange ?? []) series \(checked.series.map { "\($0.kind ?? "curve"):\($0.arrowMarks?.count ?? 0)" })")
     }
 }

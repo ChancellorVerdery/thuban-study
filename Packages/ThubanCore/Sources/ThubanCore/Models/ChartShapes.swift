@@ -25,7 +25,12 @@ public enum ChartShapes {
                   !relations.contains(.equal) else { return nil }
             for (k, relation) in relations.enumerated() {
                 let a = terms[k], b = terms[k + 1]
-                result.append(relation == .less ? "\\left(\(b)\\right)-\\left(\(a)\\right)" : "\\left(\(a)\\right)-\\left(\(b)\\right)")
+                switch relation {
+                case .less: result.append("\\left(\(b)\\right)-\\left(\(a)\\right)")
+                case .greater: result.append("\\left(\(a)\\right)-\\left(\(b)\\right)")
+                // Everywhere (|a − b| ≥ 0): the excluded line is drawn as its own dashed curve.
+                default: result.append("\\left|\(a)-\(b)\\right|")
+                }
             }
         }
         return result
@@ -107,7 +112,7 @@ public enum ChartShapes {
         return false
     }
 
-    enum Relation: Equatable { case less, greater, equal }
+    enum Relation: Equatable { case less, greater, equal, notEqual }
 
     /// Plain-text formulas as LaTeX the engine reads: sqrt(x) → \sqrt{x}, sin( → \sin(, asin → \arcsin, pi → \pi,
     /// ≤ → \le, "and" between conditions → ",".
@@ -121,6 +126,7 @@ public enum ChartShapes {
             .replacingOccurrences(of: "\\leqslant", with: "\\le ").replacingOccurrences(of: "\\geqslant", with: "\\ge ")
             .replacingOccurrences(of: "\\leq", with: "\\le ").replacingOccurrences(of: "\\geq", with: "\\ge ")
             .replacingOccurrences(of: "\\lt", with: "<").replacingOccurrences(of: "\\gt", with: ">")
+            .replacingOccurrences(of: "\\neq", with: "≠").replacingOccurrences(of: "\\ne", with: "≠").replacingOccurrences(of: "!=", with: "≠")
         // sqrt(...) → \sqrt{...}
         while let range = bareWord("sqrt", in: s), s[range.upperBound...].first == "(" {
             guard let close = matching(s, from: range.upperBound) else { break }
@@ -197,6 +203,7 @@ public enum ChartShapes {
                 else if c == "<" { relation = .less; length = 1 }
                 else if c == ">" { relation = .greater; length = 1 }
                 else if c == "=" { relation = .equal; length = 1 }
+                else if c == "≠" { relation = .notEqual; length = 1 }
                 if let relation {
                     terms.append(current.trimmingCharacters(in: .whitespaces)); current = ""
                     relations.append(relation)

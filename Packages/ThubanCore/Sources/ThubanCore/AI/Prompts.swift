@@ -399,6 +399,13 @@ public enum Prompts {
           I–VI, which function goes with which contour map), list every offered formula in `shapeCandidates` as well \
           as giving your choice; the app tests each against the picture.
         - Two or more separate plots in one image (maps I and II side by side) go in `panels`, one chart each.
+        - Anything drawn on flat x/y axes is a chart, never a diagram: vectors and segments on a grid (AB and a, with \
+          their labels as "point" series), a single plotted point, a polar sector or ring (as regions in x and y: \
+          "x^2+y^2\\le 16, y\\ge -x" for 0 ≤ r ≤ 4, −π/4 ≤ θ ≤ 3π/4), a line or curve with arrows. Only \
+          three-dimensional sketches, surfaces, physical drawings and photographs are diagrams.
+        - Read slopes, intercepts and endpoints from the picture's grid and tick labels, not from the caption or the \
+          answer you expect: a line through (5, 10) has slope 2 even if a choice says y = x. When the app reports a \
+          mismatch it lists points the picture's curves pass through; fit them.
         - Plots whose horizontal axis is t (graphs of x(t) or y(t)) set `xLabel` to "t".
         The app draws these exactly and compares them with the picture as a whole, so give the formulas, not points; \
         trace `points` only for a curve no formula can describe (measured data).

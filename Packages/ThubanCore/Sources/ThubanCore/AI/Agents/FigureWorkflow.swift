@@ -96,6 +96,18 @@ public enum FigureWorkflow {
                 figure.chart = fromPixels
                 figure.status = .reviewing
             }
+            // A plot kept as a diagram (a contour map, a family of curves): the picture may name its family.
+            if figure.chart == nil, figure.kind == .diagram || figure.kind == .chart || figure.kind == .unknown,
+               let recognised = await FamilyRecognizer.recognise(png: png, engine: engine) {
+                figure.kind = .chart
+                figure.chart = recognised
+                figure.status = .reviewing
+                figure.acceptIfConfident()
+                try await store.update(figure)
+                outcomes.append(Outcome(figureId: figure.id, index: figure.pageOrIndex, kind: .chart, isFigure: true,
+                                        verification: recognised.verification, caption: figure.caption, definition: nil))
+                continue
+            }
             guard let chart = figure.chart else { continue }
             let text = questions.filter { $0.figureIds.contains(figure.id) }.map(questionText).joined(separator: "\n\n")
             let checked = await FigureAgent.check(chart, png: png, engine: engine, questionText: text)
@@ -106,6 +118,8 @@ public enum FigureWorkflow {
                 figure.status = .keptOriginal
             } else {
                 figure.chart = checked
+                // A chart the picture now rejects goes back to review, even if it was accepted before.
+                if figure.status == .accepted, checked.verification?.passed == false { figure.status = .reviewing }
                 figure.acceptIfConfident()
             }
             try await store.update(figure)

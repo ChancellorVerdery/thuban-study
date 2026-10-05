@@ -336,6 +336,13 @@ public actor FigureAgent {
                 results[image] = analysis
                 continue
             }
+            if analysis.kind == .diagram, var recognised = await FamilyRecognizer.recognise(png: pngs[image - 1], engine: engine) {
+                recognised.notes = [analysis.caption, recognised.notes].compactMap { $0 }.joined(separator: " ")
+                analysis.kind = .chart
+                analysis.chart = recognised
+                results[image] = analysis
+                continue
+            }
             guard analysis.kind == .chart else { continue }
             if analysis.chart == nil {
                 analysis.chart = await FigureReconciler.chartFromPixels(png: pngs[image - 1], hints: context.siblingField, engine: engine)
@@ -378,9 +385,14 @@ public actor FigureAgent {
     /// defines, when those land on the drawn curve (`CurveFitter`).
     public static func check(_ chart: StandardChart, png: Data, engine: MathEngine, questionText: String = "") async -> StandardChart {
         var checked = await checkDrawing(chart, png: png, engine: engine, questionText: questionText)
+        // The picture's own arrowheads and dots on its curves (and its whole frame, when numbered).
+        if checked.verification?.passed != false || ShapeVerifier.hasShapes(checked) {
+            checked = await MarkerReader.apply(checked, png: png, engine: engine)
+        }
         // A shaded picture redrawn without its region has lost what the picture is about.
         if !checked.isPhaseLine, !checked.isSlopeField, !checked.hasPanels,
-           !checked.series.contains(where: { FigureScene.shape(of: $0).isRegion }),
+           !checked.series.contains(where: { FigureScene.shape(of: $0).isRegion && ChartShapes.conditions($0.latex ?? "") != nil }),
+           !(checked.verification?.summary.hasPrefix("Traced from the picture") ?? false),
            let share = PictureInk.shadedShare(png: png), share >= 0.15 {
             checked.verification = ChartVerification(passed: false, summary: "Mismatch with the picture: about \(Int((share * 100).rounded()))% of it is shaded, but the chart draws no shaded region. Give each shaded area as a series of kind \"region\" with its inequalities (the whole plane except a line y = x is two regions, y > x and y < x).")
             checked.confidence = min(checked.confidence, 0.5)
@@ -389,6 +401,18 @@ public actor FigureAgent {
     }
 
     static func checkDrawing(_ chart: StandardChart, png: Data, engine: MathEngine, questionText: String) async -> StandardChart {
+        let checked = await checkStated(chart, png: png, engine: engine, questionText: questionText)
+        // A family of curves whose stated formula the picture rejects: the picture may still name its family.
+        if checked.verification?.passed == false, !checked.isSlopeField, !checked.isPhaseLine, !checked.hasPanels,
+           !checked.series.contains(where: { FigureScene.shape(of: $0).isRegion }),
+           let picture = await ShapeVerifier.Picture(png: png, hints: checked), picture.curves.count >= 3,
+           let recognised = await FamilyRecognizer.recognise(checked, picture: picture, engine: engine) {
+            return recognised
+        }
+        return checked
+    }
+
+    static func checkStated(_ chart: StandardChart, png: Data, engine: MathEngine, questionText: String) async -> StandardChart {
         if chart.isPhaseLine { return chart }
         // Several plots side by side: each panel is checked against its own part of the picture.
         if chart.hasPanels, let panels = chart.panels {
@@ -434,7 +458,7 @@ public actor FigureAgent {
                 let agentFits = (agentScore.coverage ?? 0) >= ShapeVerifier.lineCoverage && (agentScore.recall ?? 0) >= ShapeVerifier.lineRecall
                 if !agentFits, var pixels = FamilyRecognizer.trace(chart, picture: picture) {
                     let scene = await FigureScene.build(pixels, engine: engine)
-                    pixels.verification = ShapeVerifier.verify(scene: scene, picture: picture)
+                    pixels.verification = ShapeVerifier.verify(scene: scene, picture: picture.reading(in: FamilyRecognizer.axisMaps(picture), scale: 1))
                     if pixels.verification?.passed == true {
                         pixels.verification = ChartVerification(passed: true, summary: "Traced from the picture: \(pixels.series.count) curve\(pixels.series.count == 1 ? "" : "s") followed pixel by pixel.")
                         pixels.confidence = max(chart.confidence, 0.75)

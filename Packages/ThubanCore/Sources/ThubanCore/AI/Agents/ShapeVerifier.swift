@@ -25,7 +25,7 @@ public enum ShapeVerifier {
     /// The picture as the comparisons see it: its pixels, its axes, the plot box and the separate curves in it.
     struct Picture {
         let bitmap: GraphReader.Bitmap
-        let reading: GraphReading
+        private(set) var reading: GraphReading
         let columns: ClosedRange<Int>
         let rows: ClosedRange<Int>
         let radius: Int
@@ -55,6 +55,15 @@ public enum ShapeVerifier {
             curves = PictureInk.curves(bitmap, columns: columns, rows: rows) { c, r in
                 abs(Double(c) - axisColumn) <= 2 || abs(Double(r) - axisRow) <= 2
             }
+        }
+
+        /// The same picture with its pixels read in other units (`FamilyRecognizer.axisMaps` × `scale`), so a chart
+        /// drawn in those units is compared where it belongs.
+        func reading(in maps: (x: GraphReading.AxisMap, y: GraphReading.AxisMap), scale: Double) -> Picture {
+            var copy = self
+            copy.reading.x = GraphReading.AxisMap(origin: maps.x.origin, scale: maps.x.scale / scale, labelCount: maps.x.labelCount, extent: maps.x.extent)
+            copy.reading.y = GraphReading.AxisMap(origin: maps.y.origin, scale: maps.y.scale / scale, labelCount: maps.y.labelCount, extent: maps.y.extent)
+            return copy
         }
 
         /// The axes are ink everywhere along them: a curve point on an axis proves nothing.

@@ -98,13 +98,33 @@ public enum PictureInk {
         for row in Swift.stride(from: rows.lowerBound, through: rows.upperBound, by: 2) {
             for column in Swift.stride(from: columns.lowerBound, through: columns.upperBound, by: 2) where bitmap.hueBin(column, row) != nil { coloured += 1 }
         }
-        let useColour = coloured >= 50
+        if coloured >= 50 {
+            let found = components(bitmap, columns: columns, rows: rows, skip: skip, minimum: minimum, useColour: true)
+            // All the colour was shading: the curves are the dark boundary lines.
+            if !found.isEmpty { return found }
+        }
+        return components(bitmap, columns: columns, rows: rows, skip: skip, minimum: minimum, useColour: false)
+    }
+
+    private static func components(_ bitmap: GraphReader.Bitmap, columns: ClosedRange<Int>, rows: ClosedRange<Int>,
+                                   skip: (Int, Int) -> Bool, minimum: Int, useColour: Bool) -> [[(Int, Int)]] {
         let w = columns.count, h = rows.count
         var mask = [Bool](repeating: false, count: w * h)
+        var hue = [Int8](repeating: -1, count: w * h)
         for row in rows { for column in columns where !skip(column, row) {
-            let ink = useColour ? bitmap.hueBin(column, row) != nil : bitmap.isInk(column, row)
-            if ink { mask[(row - rows.lowerBound) * w + (column - columns.lowerBound)] = true }
+            let k = (row - rows.lowerBound) * w + (column - columns.lowerBound)
+            if useColour {
+                if let bin = bitmap.hueBin(column, row) { mask[k] = true; hue[k] = Int8(bin) }
+            } else if bitmap.isInk(column, row) {
+                mask[k] = true
+            }
         } }
+        // Neighbours join only when their hues are within one bin (always, for dark ink).
+        func sameColour(_ a: Int, _ b: Int) -> Bool {
+            guard hue[a] >= 0, hue[b] >= 0 else { return true }
+            let d = abs(Int(hue[a]) - Int(hue[b]))
+            return min(d, 12 - d) <= 1
+        }
         var seen = [Bool](repeating: false, count: w * h)
         var result: [[(Int, Int)]] = []
         let span = max(w, h)
@@ -120,7 +140,7 @@ public enum PictureInk {
                     let cc = c + dc, rr = r + dr
                     guard cc >= 0, cc < w, rr >= 0, rr < h else { continue }
                     let n = rr * w + cc
-                    if mask[n], !seen[n] { seen[n] = true; stack.append(n) }
+                    if mask[n], !seen[n], sameColour(k, n) { seen[n] = true; stack.append(n) }
                 } }
             }
             guard pixels.count >= minimum else { continue }

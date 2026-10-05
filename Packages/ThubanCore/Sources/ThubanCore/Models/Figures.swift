@@ -39,6 +39,9 @@ public struct ChartSeries: Codable, Sendable, Equatable {
     public var yt: String?
     public var tRange: [Double]?
     public var directionArrows: Bool?
+    /// Arrowheads as the picture draws them, `[x, y, dx, dy]` (`MarkerReader`): drawn instead of evenly spaced ones,
+    /// so a curve traced out and back keeps its two opposite arrows.
+    public var arrowMarks: [[Double]]?
     /// kind "point": a label for each point as the original prints it ("A", "(8, 0)", "t = 1"); empty for none.
     public var labels: [String]?
 
