@@ -20,14 +20,20 @@ public enum ChartShapes {
     }
 
     /// The conditions with whether each is strict (< or >: its boundary is not part of the region, drawn dashed).
+    /// Polar regions may be written directly: r stands for √(x²+y²) and a chain a ≤ θ ≤ b is one angular condition.
     public static func strictConditions(_ latex: String) -> [(condition: String, strict: Bool)]? {
         let pieces = splitTopLevel(normalised(latex))
         guard !pieces.isEmpty else { return nil }
         var result: [(condition: String, strict: Bool)] = []
         for piece in pieces {
-            let (terms, relations, strict) = splitRelationsDetailed(piece)
-            guard !relations.isEmpty, terms.count == relations.count + 1, terms.allSatisfy({ !$0.isEmpty }),
+            let (written, relations, strict) = splitRelationsDetailed(piece)
+            guard !relations.isEmpty, written.count == relations.count + 1, written.allSatisfy({ !$0.isEmpty }),
                   !relations.contains(.equal) else { return nil }
+            if let angular = angularConditions(written, relations: relations, strict: strict) {
+                result += angular
+                continue
+            }
+            let terms = written.map(polarRadius)
             for (k, relation) in relations.enumerated() {
                 let a = terms[k], b = terms[k + 1]
                 switch relation {
@@ -39,6 +45,127 @@ public enum ChartShapes {
             }
         }
         return result
+    }
+
+    /// A chain a ≤ θ ≤ b (or b ≥ θ ≥ a) as the one condition x cos m + y sin m − cos h·√(x²+y²) ≥ 0, with m the
+    /// sector's middle angle and h its half-width: the cosine of the angle from m is at least cos h, which holds for
+    /// any width up to a full turn (two half-planes would only cover sectors up to π). Its zero set is the two rays,
+    /// dashed only when both ends are strict. A full turn leaves no condition. Nil when the piece is not such a
+    /// chain with constant ends.
+    static func angularConditions(_ terms: [String], relations: [Relation], strict: [Bool]) -> [(condition: String, strict: Bool)]? {
+        guard terms.count == 3, isTheta(terms[1]), relations[0] == relations[1], relations[0] == .less || relations[0] == .greater,
+              var a = radians(terms[0]), var b = radians(terms[2]) else { return nil }
+        if relations[0] == .greater { swap(&a, &b) }
+        guard b > a else { return nil }
+        if b - a >= 2 * .pi - 1e-9 { return [] }
+        let middle = (a + b) / 2, half = (b - a) / 2
+        let condition = "x\\cdot\\left(\(decimal(cos(middle)))\\right)+y\\cdot\\left(\(decimal(sin(middle)))\\right)"
+            + "-\\left(\(decimal(cos(half)))\\right)\\cdot\\sqrt{x^2+y^2}"
+        return [(condition, strict[0] && strict[1])]
+    }
+
+    /// The polar angle written as θ, \theta or \vartheta.
+    private static func isTheta(_ term: String) -> Bool {
+        ["\\theta", "\\vartheta", "θ", "ϑ"].contains(term.replacingOccurrences(of: " ", with: ""))
+    }
+
+    /// A constant in fixed notation: the engine would read the e of 6e-17 as Euler's number.
+    private static func decimal(_ value: Double) -> String { String(format: "%.12f", value) }
+
+    /// Every standalone r (not a letter of \right, \frac, \pi…) as √(x²+y²), so "1\le r<4" is a ring.
+    static func polarRadius(_ term: String) -> String {
+        var s = term
+        while let range = bareWord("r", in: s) { s.replaceSubrange(range, with: "\\left(\\sqrt{x^2+y^2}\\right)") }
+        return s
+    }
+
+    /// A constant angle in radians: "\frac{3\pi}{4}", "-\frac{\pi}{4}", "3\pi/2", "2\pi", "1.25"; nil for anything
+    /// that is not a number built from digits, π, sums, products, quotients and \frac.
+    static func radians(_ latex: String) -> Double? {
+        var parser = ConstantParser(latex)
+        return parser.value()
+    }
+
+    /// A recursive-descent reader of the constants angles are written with (strictConditions is synchronous, so it
+    /// cannot ask the engine).
+    private struct ConstantParser {
+        private let chars: [Character]
+        private var i = 0
+
+        init(_ latex: String) {
+            let s = latex.replacingOccurrences(of: "\\left", with: "").replacingOccurrences(of: "\\right", with: "")
+                .replacingOccurrences(of: "\\dfrac", with: "\\frac").replacingOccurrences(of: "\\tfrac", with: "\\frac")
+                .replacingOccurrences(of: "\\cdot", with: "*").replacingOccurrences(of: "\\times", with: "*")
+                .replacingOccurrences(of: "\\,", with: "").replacingOccurrences(of: "π", with: "\\pi")
+            chars = Array(s.filter { !$0.isWhitespace })
+        }
+
+        mutating func value() -> Double? {
+            guard let v = sum(), i == chars.count, v.isFinite else { return nil }
+            return v
+        }
+
+        private mutating func sum() -> Double? {
+            guard var v = product() else { return nil }
+            while i < chars.count, chars[i] == "+" || chars[i] == "-" {
+                let sign = chars[i]
+                i += 1
+                guard let w = product() else { return nil }
+                v = sign == "+" ? v + w : v - w
+            }
+            return v
+        }
+
+        /// Factors joined by *, / or nothing at all (3\pi, 2(\pi)).
+        private mutating func product() -> Double? {
+            guard var v = factor() else { return nil }
+            while i < chars.count {
+                if chars[i] == "*" || chars[i] == "/" {
+                    let op = chars[i]
+                    i += 1
+                    guard let w = factor() else { return nil }
+                    v = op == "*" ? v * w : v / w
+                } else if "0123456789.\\({".contains(chars[i]) {
+                    guard let w = factor() else { return nil }
+                    v *= w
+                } else {
+                    break
+                }
+            }
+            return v
+        }
+
+        private mutating func factor() -> Double? {
+            guard i < chars.count else { return nil }
+            let c = chars[i]
+            if c == "-" || c == "+" {
+                i += 1
+                return factor().map { c == "-" ? -$0 : $0 }
+            }
+            if c == "(" || c == "{" {
+                i += 1
+                guard let v = sum(), i < chars.count, chars[i] == (c == "(" ? ")" : "}") else { return nil }
+                i += 1
+                return v
+            }
+            if take("\\pi") { return .pi }
+            if take("\\frac") {
+                guard let numerator = factor(), let denominator = factor() else { return nil }
+                return numerator / denominator
+            }
+            let start = i
+            while i < chars.count, chars[i].isNumber || chars[i] == "." { i += 1 }
+            return i > start ? Double(String(chars[start..<i])) : nil
+        }
+
+        /// Consumes the command `name` when it comes next and is not the start of a longer one.
+        private mutating func take(_ name: String) -> Bool {
+            let n = Array(name)
+            guard i + n.count <= chars.count, Array(chars[i..<(i + n.count)]) == n,
+                  i + n.count == chars.count || !chars[i + n.count].isLetter else { return false }
+            i += n.count
+            return true
+        }
     }
 
     /// "x^2+y^2=49, x\le 0": one equation restricted by conditions (an arc, a ray, a piece of a curve). The

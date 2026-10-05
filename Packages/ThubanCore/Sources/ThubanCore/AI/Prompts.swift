@@ -369,8 +369,10 @@ public enum Prompts {
         Shapes that are not one curve y = f(x) each have their own series `kind` — never trace them as points when \
         the question defines them:
         - A shaded region (a domain, a region of integration, an inequality's solution set) is kind "region" with the \
-          inequalities that hold inside as `latex`, in x and y ("x^2+y^2\\le 49, x\\ge 0"; a polar region \
-          0 ≤ r ≤ 7, −π/2 ≤ θ ≤ π/2 becomes "x^2+y^2\\le 49, x\\ge 0"). One series per separately shaded piece \
+          inequalities that hold inside as `latex`, in x and y ("x^2+y^2\\le 49, x\\ge 0"). A polar region (a \
+          sector or ring) may be given directly in r and \\theta, with the angle chain a ≤ θ ≤ b in radians \
+          ("1\\le r<4, \\frac{3\\pi}{4}\\le\\theta\\le\\frac{7\\pi}{4}"); keep < for an edge that is not part of \
+          the region. One series per separately shaded piece \
           (|x + y| ≥ 1 is "x+y\\ge 1" and "x+y\\le -1"). Add the boundary lines the picture draws (dashed for a \
           strict inequality) as ordinary curves only when they are not the region's own edge.
         - A contour map (level curves of f(x, y)) is one series of kind "level": `latex` = f(x, y) and `levels` = \
@@ -404,8 +406,8 @@ public enum Prompts {
           as giving your choice; the app tests each against the picture.
         - Two or more separate plots in one image (maps I and II side by side) go in `panels`, one chart each.
         - Anything drawn on flat x/y axes is a chart, never a diagram: vectors and segments on a grid (AB and a, with \
-          their labels as "point" series), a single plotted point, a polar sector or ring (as regions in x and y: \
-          "x^2+y^2\\le 16, y\\ge -x" for 0 ≤ r ≤ 4, −π/4 ≤ θ ≤ 3π/4), a line or curve with arrows. Only \
+          their labels as "point" series), a single plotted point, a polar sector or ring (as a region: \
+          "r\\le 4, -\\frac{\\pi}{4}\\le\\theta\\le\\frac{3\\pi}{4}"), a line or curve with arrows. Only \
           three-dimensional sketches, surfaces, physical drawings and photographs are diagrams.
         - Read slopes, intercepts and endpoints from the picture's grid and tick labels, not from the caption or the \
           answer you expect: a line through (5, 10) has slope 2 even if a choice says y = x. When the app reports a \
