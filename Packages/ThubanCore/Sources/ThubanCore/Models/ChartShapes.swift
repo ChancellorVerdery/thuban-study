@@ -16,20 +16,25 @@ public enum ChartShapes {
     /// ["(49)-(x^2+y^2)", "(x)-(0)"]; chains ("-1\le x+y\le 1") give one condition per link. Nil when any piece is
     /// not an inequality (an equation is a boundary, not a region).
     public static func conditions(_ latex: String) -> [String]? {
+        strictConditions(latex)?.map(\.condition)
+    }
+
+    /// The conditions with whether each is strict (< or >: its boundary is not part of the region, drawn dashed).
+    public static func strictConditions(_ latex: String) -> [(condition: String, strict: Bool)]? {
         let pieces = splitTopLevel(normalised(latex))
         guard !pieces.isEmpty else { return nil }
-        var result: [String] = []
+        var result: [(condition: String, strict: Bool)] = []
         for piece in pieces {
-            let (terms, relations) = splitRelations(piece)
+            let (terms, relations, strict) = splitRelationsDetailed(piece)
             guard !relations.isEmpty, terms.count == relations.count + 1, terms.allSatisfy({ !$0.isEmpty }),
                   !relations.contains(.equal) else { return nil }
             for (k, relation) in relations.enumerated() {
                 let a = terms[k], b = terms[k + 1]
                 switch relation {
-                case .less: result.append("\\left(\(b)\\right)-\\left(\(a)\\right)")
-                case .greater: result.append("\\left(\(a)\\right)-\\left(\(b)\\right)")
+                case .less: result.append(("\\left(\(b)\\right)-\\left(\(a)\\right)", strict[k]))
+                case .greater: result.append(("\\left(\(a)\\right)-\\left(\(b)\\right)", strict[k]))
                 // Everywhere (|a − b| ≥ 0): the excluded line is drawn as its own dashed curve.
-                default: result.append("\\left|\(a)-\(b)\\right|")
+                default: result.append(("\\left|\(a)-\(b)\\right|", true))
                 }
             }
         }
@@ -185,8 +190,14 @@ public enum ChartShapes {
 
     /// A piece split at its top-level relation signs: "-1\le x+y\le 1" → (["-1", "x+y", "1"], [.less, .less]).
     static func splitRelations(_ piece: String) -> ([String], [Relation]) {
+        let (terms, relations, _) = splitRelationsDetailed(piece)
+        return (terms, relations)
+    }
+
+    /// `splitRelations` with whether each relation is strict (< > ≠ rather than ≤ ≥ =).
+    static func splitRelationsDetailed(_ piece: String) -> ([String], [Relation], [Bool]) {
         let chars = Array(piece)
-        var terms: [String] = [], relations: [Relation] = [], current = "", depth = 0, i = 0
+        var terms: [String] = [], relations: [Relation] = [], strictness: [Bool] = [], current = "", depth = 0, i = 0
         func command(_ name: String) -> Bool {
             let n = Array(name)
             guard i + n.count <= chars.count, Array(chars[i..<(i + n.count)]) == n else { return false }
@@ -207,6 +218,7 @@ public enum ChartShapes {
                 if let relation {
                     terms.append(current.trimmingCharacters(in: .whitespaces)); current = ""
                     relations.append(relation)
+                    strictness.append(length == 1 && (c == "<" || c == ">" || c == "≠"))
                     i += length
                     continue
                 }
@@ -215,7 +227,7 @@ public enum ChartShapes {
             i += 1
         }
         terms.append(current.trimmingCharacters(in: .whitespaces))
-        return (terms, relations)
+        return (terms, relations, strictness)
     }
 
     // MARK: Grids
@@ -233,8 +245,9 @@ public enum ChartShapes {
 
     /// A shaded region: the inside as rectangles (one per run of inside grid cells along each row,
     /// `[[x0, y0], [x1, y1]]`) and its boundary as polylines. Nil when the conditions cannot be evaluated.
-    public static func region(_ latex: String, window: FigureScene.Window, engine: MathEngine) async -> (fill: [[[Double]]], boundary: [[[Double]]])? {
-        guard let conditions = conditions(latex), !conditions.isEmpty else { return nil }
+    public static func region(_ latex: String, window: FigureScene.Window, engine: MathEngine) async -> (fill: [[[Double]]], boundary: [[[Double]]], dashed: [[[Double]]])? {
+        guard let detailed = strictConditions(latex), !detailed.isEmpty else { return nil }
+        let conditions = detailed.map(\.condition)
         let n = regionGrid
         let points = gridPoints(window, n: n)
         guard let rows = try? await engine.values(of: conditions, variables: ["x", "y"], at: points) else { return nil }
@@ -268,8 +281,33 @@ public enum ChartShapes {
                 }
             }
         }
-        let boundary = contours(margin, n: n, level: 0, window: window)
-        return (fill, boundary)
+        // Each condition's own edge, kept where the rest of the region holds: solid where the edge belongs to the
+        // region (≤, ≥), dashed where it does not (<, >).
+        var solid: [[[Double]]] = [], dashed: [[[Double]]] = []
+        let tolerance = 1e-3 * max(xSpan, ySpan)
+        for (k, row) in evaluated.enumerated() {
+            let edge = contours(row, n: n, level: 0, window: window)
+            guard !edge.isEmpty else { continue }
+            var kept: [[[Double]]] = edge
+            if evaluated.count > 1 {
+                let others = (0..<conditions.count).filter { $0 != k }.map { conditions[$0] }
+                let flat = edge.flatMap { $0 }
+                guard let values = try? await engine.values(of: others, variables: ["x", "y"], at: flat) else { continue }
+                kept = []
+                var index = 0
+                for piece in edge {
+                    var current: [[Double]] = []
+                    for p in piece {
+                        let inside = values.allSatisfy { row in (row?[index]).flatMap { $0 }.map { $0 >= -tolerance } ?? false }
+                        index += 1
+                        if inside { current.append(p) } else { if current.count >= 2 { kept.append(current) }; current = [] }
+                    }
+                    if current.count >= 2 { kept.append(current) }
+                }
+            }
+            if detailed[k].strict { dashed += kept } else { solid += kept }
+        }
+        return (fill, solid, dashed)
     }
 
     /// Level curves `f(x, y) = c` for each level, as polylines (one list per level, in the order given).

@@ -386,8 +386,14 @@ public actor FigureAgent {
     public static func check(_ chart: StandardChart, png: Data, engine: MathEngine, questionText: String = "") async -> StandardChart {
         var checked = await checkDrawing(chart, png: png, engine: engine, questionText: questionText)
         // The picture's own arrowheads and dots on its curves (and its whole frame, when numbered).
-        if checked.verification?.passed != false || ShapeVerifier.hasShapes(checked) {
-            checked = await MarkerReader.apply(checked, png: png, engine: engine)
+        let marked = await MarkerReader.apply(checked, png: png, engine: engine)
+        if marked != checked {
+            checked = marked
+            // Vectors, points or the window moved: judge the drawing again.
+            if Self.isShapeChart(checked) {
+                checked.verification = await ShapeVerifier.verify(checked, png: png, engine: engine)
+                if checked.verification?.passed == true { checked.confidence = max(checked.confidence, 0.75) }
+            }
         }
         // A shaded picture redrawn without its region has lost what the picture is about.
         if !checked.isPhaseLine, !checked.isSlopeField, !checked.hasPanels,
@@ -401,7 +407,34 @@ public actor FigureAgent {
     }
 
     static func checkDrawing(_ chart: StandardChart, png: Data, engine: MathEngine, questionText: String) async -> StandardChart {
-        let checked = await checkStated(chart, png: png, engine: engine, questionText: questionText)
+        var checked = await checkStated(chart, png: png, engine: engine, questionText: questionText)
+        // Curves traced from the pixels by the reconciler (a median per column) are only right for plain graphs of x:
+        // they must cover the picture's curves both ways, or the component tracer (curve by curve, in order, labels
+        // left out) takes over; failing both, the chart waits for review.
+        if !checked.isSlopeField, let summary = checked.verification?.summary,
+           summary.contains("traced from the pixels") || summary.contains("traced from the picture"),
+           let picture = await ShapeVerifier.Picture(png: png, hints: checked) {
+            let scene = await FigureScene.build(checked, engine: engine)
+            let score = ShapeVerifier.lineScore(scene, picture: picture)
+            let fits = (score.coverage ?? 0) >= 0.9 && (score.recall ?? 0) >= 0.85
+            if !fits {
+                if var pixels = FamilyRecognizer.trace(checked, picture: picture) {
+                    let mapped = picture.reading(in: FamilyRecognizer.axisMaps(picture), scale: 1)
+                    let traced = await FigureScene.build(pixels, engine: engine)
+                    let verdict = ShapeVerifier.verify(scene: traced, picture: mapped)
+                    if verdict.passed, ShapeVerifier.fitScore(traced, picture: mapped) > ShapeVerifier.fitScore(scene, picture: picture) {
+                        pixels.verification = ChartVerification(passed: true, summary: "Traced from the picture: \(pixels.series.count) curve\(pixels.series.count == 1 ? "" : "s") followed pixel by pixel.")
+                        pixels.confidence = max(checked.confidence, 0.75)
+                        return pixels
+                    }
+                }
+                checked.verification = ShapeVerifier.verify(scene: scene, picture: picture)
+                if checked.verification?.passed == true {
+                    checked.verification = ChartVerification(passed: false, summary: "Mismatch with the picture: the traced curves do not follow the picture's curves closely enough.")
+                }
+                checked.confidence = min(checked.confidence, 0.5)
+            }
+        }
         // A family of curves whose stated formula the picture rejects: the picture may still name its family.
         if checked.verification?.passed == false, !checked.isSlopeField, !checked.isPhaseLine, !checked.hasPanels,
            !checked.series.contains(where: { FigureScene.shape(of: $0).isRegion }),

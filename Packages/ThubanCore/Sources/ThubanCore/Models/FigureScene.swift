@@ -166,6 +166,11 @@ public struct FigureScene: Sendable, Equatable {
                 if let region = await ChartShapes.region(conditions, window: window, engine: engine) {
                     if !region.fill.isEmpty { marks.append(mark(.fill, region.fill)) }
                     if !region.boundary.isEmpty { marks.append(mark(.line, region.boundary)) }
+                    if !region.dashed.isEmpty {
+                        var edge = mark(.line, region.dashed)
+                        edge.style = .dashed
+                        marks.append(edge)
+                    }
                 }
                 continue
             case .level(let function, let levels):

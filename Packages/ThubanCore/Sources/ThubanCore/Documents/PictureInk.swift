@@ -93,21 +93,21 @@ public enum PictureInk {
     /// picture has enough of it, else dark ink), off the axes, at least `minimum` pixels and not area-like (a
     /// shaded region or a block of text). Pixels as (column, row).
     static func curves(_ bitmap: GraphReader.Bitmap, columns: ClosedRange<Int>, rows: ClosedRange<Int>,
-                       skip: (Int, Int) -> Bool, minimum: Int = 25) -> [[(Int, Int)]] {
+                       skip: (Int, Int) -> Bool, minimum: Int = 25, minimumExtent: Int? = nil) -> [[(Int, Int)]] {
         var coloured = 0
         for row in Swift.stride(from: rows.lowerBound, through: rows.upperBound, by: 2) {
             for column in Swift.stride(from: columns.lowerBound, through: columns.upperBound, by: 2) where bitmap.hueBin(column, row) != nil { coloured += 1 }
         }
         if coloured >= 50 {
-            let found = components(bitmap, columns: columns, rows: rows, skip: skip, minimum: minimum, useColour: true)
+            let found = components(bitmap, columns: columns, rows: rows, skip: skip, minimum: minimum, minimumExtent: minimumExtent, useColour: true)
             // All the colour was shading: the curves are the dark boundary lines.
             if !found.isEmpty { return found }
         }
-        return components(bitmap, columns: columns, rows: rows, skip: skip, minimum: minimum, useColour: false)
+        return components(bitmap, columns: columns, rows: rows, skip: skip, minimum: minimum, minimumExtent: minimumExtent, useColour: false)
     }
 
     private static func components(_ bitmap: GraphReader.Bitmap, columns: ClosedRange<Int>, rows: ClosedRange<Int>,
-                                   skip: (Int, Int) -> Bool, minimum: Int, useColour: Bool) -> [[(Int, Int)]] {
+                                   skip: (Int, Int) -> Bool, minimum: Int, minimumExtent: Int?, useColour: Bool) -> [[(Int, Int)]] {
         let w = columns.count, h = rows.count
         var mask = [Bool](repeating: false, count: w * h)
         var hue = [Int8](repeating: -1, count: w * h)
@@ -146,7 +146,7 @@ public enum PictureInk {
             guard pixels.count >= minimum else { continue }
             let boxW = maxC - minC + 1, boxH = maxR - minR + 1
             // Too small to be a curve (a label), or filling its box (shading, a blob of text).
-            guard max(boxW, boxH) >= span / 25 else { continue }
+            guard max(boxW, boxH) >= (minimumExtent ?? span / 25) else { continue }
             let fill = Double(pixels.count) / Double(boxW * boxH)
             guard fill < 0.35 || min(boxW, boxH) < 6 else { continue }
             result.append(pixels)
