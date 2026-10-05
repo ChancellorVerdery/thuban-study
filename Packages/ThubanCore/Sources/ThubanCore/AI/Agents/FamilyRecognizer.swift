@@ -221,7 +221,7 @@ public enum FamilyRecognizer {
         guard !curves.isEmpty else { return nil }
         let maps = axisMaps(picture)
         // Pieces whose ends meet (a curve cut where it crosses an axis) are one curve again.
-        var lines = curves.flatMap { polylines($0) }.filter { $0.count >= 2 }
+        var lines = curves.flatMap { SkeletonTracer.paths(of: $0) }.filter { $0.count >= 2 }
         var joined = true
         while joined {
             joined = false
@@ -251,50 +251,10 @@ public enum FamilyRecognizer {
         result.chartType = "line"
         result.provenance = StandardChart.traced
         result.monochrome = PictureInk.isMonochrome(picture.bitmap)
+        // Numbers growing down the side (depth in a lake profile): the axis runs downward, as printed.
+        if picture.reading.y.scale > 0 { result.yReversed = true }
         result.shapeCandidates = nil
         if !picture.reading.isCalibratedFromLabels { setWindow(&result, picture: picture, maps: maps, scale: 1) }
         return result
-    }
-
-    /// One curve's pixels as ordered polylines (pixel coordinates): a function of x when each column holds one run
-    /// of it, a function of y when each row does, else its upper and lower halves as functions of x (a loop).
-    static func polylines(_ pixels: [(Int, Int)]) -> [[(Double, Double)]] {
-        func runs(_ values: [Int]) -> [[Int]] {
-            var out: [[Int]] = []
-            for v in values.sorted() {
-                if let last = out.last?.last, v - last <= 2 { out[out.count - 1].append(v) } else { out.append([v]) }
-            }
-            return out
-        }
-        func asFunction(_ pixels: [(Int, Int)], ofX: Bool) -> [(Double, Double)]? {
-            var groups: [Int: [Int]] = [:]
-            for (c, r) in pixels { if ofX { groups[c, default: []].append(r) } else { groups[r, default: []].append(c) } }
-            var single = 0
-            var line: [(Double, Double)] = []
-            for key in groups.keys.sorted() {
-                let rs = runs(groups[key]!)
-                if rs.count == 1 { single += 1 }
-                // The run nearest the previous point continues the curve.
-                let previous = line.last.map { ofX ? $0.1 : $0.0 }
-                let chosen = rs.min { a, b in
-                    let ma = Double(a.reduce(0, +)) / Double(a.count), mb = Double(b.reduce(0, +)) / Double(b.count)
-                    return abs(ma - (previous ?? ma)) < abs(mb - (previous ?? mb))
-                }!
-                // A blob in the run (an arrowhead, a dot) would pull the middle off the curve: take the pixel nearest
-                // where the curve was going instead.
-                var mean = Double(chosen.reduce(0, +)) / Double(chosen.count)
-                if chosen.count > 6, let previous { mean = Double(chosen.min { abs(Double($0) - previous) < abs(Double($1) - previous) }!) }
-                line.append(ofX ? (Double(key), mean) : (mean, Double(key)))
-            }
-            return Double(single) >= Double(groups.count) * 0.9 ? line : nil
-        }
-        if let line = asFunction(pixels, ofX: true) { return [line] }
-        if let line = asFunction(pixels, ofX: false) { return [line] }
-        let middle = Double(pixels.reduce(0) { $0 + $1.1 }) / Double(pixels.count)
-        let upper = pixels.filter { Double($0.1) <= middle }, lower = pixels.filter { Double($0.1) > middle }
-        return [upper, lower].compactMap { half in
-            guard half.count >= 10 else { return nil }
-            return asFunction(half, ofX: true) ?? asFunction(half, ofX: false)
-        }
     }
 }

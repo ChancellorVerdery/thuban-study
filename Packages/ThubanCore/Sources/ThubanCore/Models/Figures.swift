@@ -210,6 +210,8 @@ public struct StandardChart: Codable, Sendable, Equatable {
     /// approximate the original, so the original image is shown instead.
     public var isOnlyTraced: Bool {
         guard !isSlopeField, !isPhaseLine, !hasPanels, !series.isEmpty else { return false }
+        // Followed curve by curve from the pixels and confirmed against the picture: as faithful as the original.
+        if verification?.passed == true, verification?.summary.hasPrefix("Traced from the picture") == true { return false }
         return series.allSatisfy { s in
             (s.latex ?? "").isEmpty && s.xt == nil && [.curve].contains(s.seriesKind) && (s.points?.count ?? 0) >= 2
         } && (provenance == StandardChart.traced || verification?.summary.contains("raced from the pi") == true)

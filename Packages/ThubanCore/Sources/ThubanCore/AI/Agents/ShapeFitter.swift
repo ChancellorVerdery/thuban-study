@@ -36,6 +36,7 @@ public enum ShapeFitter {
             if best == nil || score > best!.score + 1e-9 { best = (option, score) }
         }
         var result = best?.chart ?? chart
+        if let ranged = await ParametricFitter.fitRange(result, picture: picture, engine: engine) { result = ranged }
         if let marked = await fitMarkedPoint(result, picture: picture, engine: engine) { result = marked }
         if let chosen = best?.chart, chosen != chart, !candidates.isEmpty, let shape = chosen.series.first(where: { FigureScene.shape(of: $0) != .curve }) {
             let note = "Chose \(shape.name) from the question's \(candidates.count + 1) options: it matches the picture best."

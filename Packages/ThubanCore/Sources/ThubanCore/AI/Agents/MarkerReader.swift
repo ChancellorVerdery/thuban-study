@@ -443,6 +443,8 @@ public enum MarkerReader {
                     if picture.isInk(cc, rr) { sx += Double(cc); sy += Double(rr); n += 1 }
                 } }
                 guard n > 0 else { continue }
+                // The stated point when the dot is where it says (a printed "(8, 0)" pulls the ink's centre aside).
+                guard hypot(sx / n - c, sy / n - r) > 6 else { continue }
                 let d = reading.data(column: sx / n, row: sy / n)
                 points[k] = [(d.x * 100).rounded() / 100, (d.y * 100).rounded() / 100]
             }

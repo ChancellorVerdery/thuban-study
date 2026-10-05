@@ -39,7 +39,33 @@ public enum ShapeVerifier {
             self.init(bitmap: bitmap, reading: reading)
         }
 
-        init?(bitmap: GraphReader.Bitmap, reading: GraphReading) {
+        /// A diagram without axes (vectors in the plane, a triangle of vectors): the drawing's own coordinates laid
+        /// on the picture by matching their extents to the extent of its ink (text left out), at equal scale on both
+        /// axes. Nil when the picture or the drawing is empty.
+        static func diagram(png: Data, chart: StandardChart, engine: MathEngine) async -> Picture? {
+            guard let image = ImageCodec.image(from: png), let bitmap = GraphReader.Bitmap(image: image) else { return nil }
+            let scene = await FigureScene.build(chart, engine: engine)
+            let drawn = scene.marks.filter { [.line, .vector, .dots].contains($0.kind) }.flatMap(\.pieces).flatMap { $0 }.filter { $0.count >= 2 }
+            guard let minX = drawn.map({ $0[0] }).min(), let maxX = drawn.map({ $0[0] }).max(),
+                  let minY = drawn.map({ $0[1] }).min(), let maxY = drawn.map({ $0[1] }).max(), maxX > minX || maxY > minY else { return nil }
+            let words = await PictureText.words(in: png)
+            func inText(_ c: Int, _ r: Int) -> Bool { words.contains { $0.rect.insetBy(dx: -2, dy: -2).contains(CGPoint(x: c, y: r)) } }
+            var c0 = Int.max, c1 = Int.min, r0 = Int.max, r1 = Int.min
+            for r in Swift.stride(from: 0, to: bitmap.height, by: 1) { for c in Swift.stride(from: 0, to: bitmap.width, by: 1) {
+                guard bitmap.isInk(c, r) || bitmap.hueBin(c, r) != nil, !inText(c, r) else { continue }
+                c0 = min(c0, c); c1 = max(c1, c); r0 = min(r0, r); r1 = max(r1, r)
+            } }
+            guard c1 > c0 || r1 > r0 else { return nil }
+            let spanX = maxX - minX, spanY = maxY - minY
+            let scales = [spanX > 0 ? Double(c1 - c0) / spanX : nil, spanY > 0 ? Double(r1 - r0) / spanY : nil].compactMap { $0 }
+            let k = scales.reduce(0, +) / Double(scales.count)
+            let cx = Double(c0 + c1) / 2, cy = Double(r0 + r1) / 2
+            let x = GraphReading.AxisMap(origin: cx - k * (minX + maxX) / 2, scale: k, labelCount: 0, extent: 0...Double(bitmap.width - 1))
+            let y = GraphReading.AxisMap(origin: cy + k * (minY + maxY) / 2, scale: -k, labelCount: 0, extent: 0...Double(bitmap.height - 1))
+            return Picture(bitmap: bitmap, reading: GraphReading(width: bitmap.width, height: bitmap.height, x: x, y: y, curves: []), axes: false)
+        }
+
+        init?(bitmap: GraphReader.Bitmap, reading: GraphReading, axes: Bool = true) {
             let columns = max(0, Int(reading.x.extent.lowerBound))...min(bitmap.width - 1, Int(reading.x.extent.upperBound))
             let r0 = Int(min(reading.y.extent.lowerBound, reading.y.extent.upperBound)), r1 = Int(max(reading.y.extent.lowerBound, reading.y.extent.upperBound))
             guard columns.count > 20, r1 - r0 > 20 else { return nil }
@@ -49,7 +75,8 @@ public enum ShapeVerifier {
             self.columns = columns
             self.rows = rows
             radius = max(3, Int((Double(min(columns.count, rows.count)) * 0.015).rounded()))
-            let axisColumn = reading.x.pixel(0), axisRow = reading.y.pixel(0)
+            // A diagram has no axes: nothing is set aside as one.
+            let axisColumn = axes ? reading.x.pixel(0) : -1e9, axisRow = axes ? reading.y.pixel(0) : -1e9
             self.axisColumn = axisColumn
             self.axisRow = axisRow
             curves = PictureInk.curves(bitmap, columns: columns, rows: rows) { c, r in
@@ -143,7 +170,10 @@ public enum ShapeVerifier {
     }
 
     public static func verify(_ chart: StandardChart, png: Data, engine: MathEngine) async -> ChartVerification? {
-        guard let picture = await Picture(png: png, hints: chart) else {
+        let found: Picture?
+        if chart.axesHidden { found = await Picture.diagram(png: png, chart: chart, engine: engine) }
+        else { found = await Picture(png: png, hints: chart) }
+        guard let picture = found else {
             return ChartVerification(passed: false, summary: "Unverified: the picture's axes could not be read, so the shading and curves could not be compared with it.")
         }
         let scene = await FigureScene.build(chart, engine: engine)

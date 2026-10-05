@@ -135,7 +135,7 @@ public enum GraphReader {
         guard row.count >= 3, column.count >= 3,
               let x = leastSquares(row.map { ($0.value, $0.column) }),
               let y = leastSquares(column.map { ($0.value, $0.row) }),
-              x.scale > 0, y.scale < 0 else { return nil }
+              x.scale > 0, y.scale != 0 else { return nil }
         // Every label must agree with its fit to within a few pixels (a misread number spoils the scale).
         guard row.allSatisfy({ abs(x.origin + x.scale * $0.value - $0.column) <= 6 }),
               column.allSatisfy({ abs(y.origin + y.scale * $0.value - $0.row) <= 6 }) else { return nil }

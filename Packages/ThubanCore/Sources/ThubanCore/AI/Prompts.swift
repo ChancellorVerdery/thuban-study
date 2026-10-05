@@ -405,6 +405,18 @@ public enum Prompts {
           I–VI, which function goes with which contour map), list every offered formula in `shapeCandidates` as well \
           as giving your choice; the app tests each against the picture.
         - Two or more separate plots in one image (maps I and II side by side) go in `panels`, one chart each.
+        - Vectors drawn on plain paper without axes (u, v and w along the sides of a triangle; |v| = 5 and |u| = 2 \
+          with a 60° angle between them; the sides and diagonals of a square or parallelogram ABCD) are a chart \
+          with `showAxes` false, never a diagram: lay the drawing out in any consistent units (a square of side 4, \
+          a triangle with its true angles), each arrow a "vector" series with its `label`, each plain side or \
+          diagonal a "segment" series, each angle mark an "angle" series (`rightAngle` for a square mark, the printed \
+          "60°" as its label), equal-length tick marks as `ticks`, and every other printed text (|v| = 5, a point's \
+          letter) as `annotations` or point `labels`.
+        - Every dot the picture marks is a "point" series at its true coordinates, with the label printed beside it \
+          (A(−1, 4), (8, 0)); a vector's printed name is its `label`.
+        - A plot of measured data (isotherms of a lake, a recorded curve) keeps its curves as traced `points`; give \
+          each curve its printed value as `label`, set `yReversed` when depth grows downward, and `tintedPlot` when \
+          the whole plot area is a coloured panel.
         - Anything drawn on flat x/y axes is a chart, never a diagram: vectors and segments on a grid (AB and a, with \
           their labels as "point" series), a single plotted point, a polar sector or ring (as a region: \
           "r\\le 4, -\\frac{\\pi}{4}\\le\\theta\\le\\frac{3\\pi}{4}"), a line or curve with arrows. Only \

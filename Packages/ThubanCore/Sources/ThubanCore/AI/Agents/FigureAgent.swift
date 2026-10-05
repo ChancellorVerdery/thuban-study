@@ -73,6 +73,14 @@ public actor FigureAgent {
             "yTicks": ["type": "array", "items": ["type": "number"], "description": "Every numeric label printed along the y-axis, top to bottom, exactly as printed (e.g. [1.7, 0.5, -2.2])."],
             "xStep": ["type": "number", "description": "Spacing of the x-axis ticks/gridlines in the original (e.g. 1, 0.5, 5)."],
             "yStep": ["type": "number", "description": "Spacing of the y-axis ticks/gridlines in the original."],
+            "showAxes": ["type": "boolean", "description": "false for a drawing without axes (vectors u, v, w drawn on plain paper, a triangle or square of vectors): the series' coordinates are then in any consistent units you choose."],
+            "yReversed": ["type": "boolean", "description": "true when the vertical axis's numbers grow downward (depth below the surface)."],
+            "tintedPlot": ["type": "boolean", "description": "true when the whole plot area is tinted as a background (not a region of the answer)."],
+            "annotations": [
+                "type": "array",
+                "items": ["type": "object", "properties": ["text": ["type": "string"], "x": ["type": "number"], "y": ["type": "number"]], "required": ["text", "x", "y"]],
+                "description": "Text printed inside the plot that is not a tick number or axis name (\"|u| = 2\", \"60°\", a curve's level \"16\"), at its position.",
+            ],
             "title": ["type": "string", "description": "A panel's label as printed (\"I\", \"II\", \"Figure A\")."],
             "notes": ["type": "string", "description": "Everything else needed to reproduce the picture: marked points and labels, where each curve enters and leaves the window, dashed or dotted parts, asymptotes, shading, which quadrants are shown."],
             "xLabel": ["type": "string"],
@@ -90,13 +98,16 @@ public actor FigureAgent {
                         ],
                         "latex": ["type": "string", "description": "Stated curves: the function of x (or relation) exactly as the question gives it. Preferred over points whenever the question defines the curve. For kind \"region\": the inequalities that hold inside, comma-separated, in x and y (\"x^2+y^2\\\\le 49, x\\\\ge 0\", \"-1\\\\le x+y\\\\le 1\"), or for a polar sector or ring directly in r and \\\\theta (\"1\\\\le r<4, \\\\frac{3\\\\pi}{4}\\\\le\\\\theta\\\\le\\\\frac{7\\\\pi}{4}\"). For kind \"level\": the function f(x, y) whose level curves are drawn (\"x^2+y^2\", \"y e^{x}\")."],
                         "kind": [
-                            "type": "string", "enum": ["curve", "region", "level", "parametric", "point", "vector"],
+                            "type": "string", "enum": ["curve", "region", "level", "parametric", "point", "vector", "segment", "angle"],
                             "description": "What the series is (default \"curve\": a function of x, a relation, or traced points). \"region\": a shaded area, one series per shaded piece, with its inequalities in `latex` (x and y, or r and \\\\theta for a polar region). \"level\": a contour map — the level curves f(x, y) = c of `latex`, one for each c in `levels`, drawn as one series instead of one series per curve. \"parametric\": the curve x = `xt`, y = `yt` for t in `tRange`. \"point\": marked dots at `points` (with `labels`). \"vector\": one arrow from `points[0]` (tail) to `points[1]` (head) — a position vector, tangent vector, or directed segment AB.",
                         ],
                         "levels": ["type": "array", "items": ["type": "number"], "description": "kind \"level\" only: every value c whose level curve the picture draws (as labelled, or as you can read them), e.g. [-2, -1, 0, 1, 2]."],
                         "xt": ["type": "string", "description": "kind \"parametric\" only: x as a function of t in LaTeX, e.g. \"\\\\cos(5t)\"."],
                         "yt": ["type": "string", "description": "kind \"parametric\" only: y as a function of t in LaTeX."],
                         "tRange": ["type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2, "description": "kind \"parametric\" only: [tStart, tEnd] as the question gives it (default [0, 2π])."],
+                        "label": ["type": "string", "description": "The name the original prints beside this series (a vector's \"a\" or \"u\", a level curve's \"16\")."],
+                        "rightAngle": ["type": "boolean", "description": "kind \"angle\" only: the original marks a right angle (a small square)."],
+                        "ticks": ["type": "integer", "description": "kind \"segment\"/\"vector\": how many equal-length tick marks cross it in the original (0 for none)."],
                         "labels": ["type": "array", "items": ["type": "string"], "description": "kind \"point\" only: the label printed beside each point, in order (\"A\", \"(8, 0)\"); \"\" for none."],
                         "domain": ["type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2, "description": "A curve drawn only over part of the window: [xMin, xMax] of the drawn stretch (a segment from x = 0 to 16, one arm x ≤ 0)."],
                         "markAt": ["type": "number", "description": "kind \"parametric\" only: the parameter value t₀ of a point the picture marks (\"the point where t = 1\"). The app draws the dot r(t₀)."],
@@ -397,7 +408,17 @@ public actor FigureAgent {
             return checked
         }
         // The picture's own arrowheads and dots on its curves (and its whole frame, when numbered).
-        let marked = await MarkerReader.apply(checked, png: png, engine: engine)
+        var marked = await MarkerReader.apply(checked, png: png, engine: engine)
+        // The labels the picture prints: point names and coordinates, vector names, curve levels, other text.
+        let labelled: ShapeVerifier.Picture? = marked.axesHidden
+            ? await ShapeVerifier.Picture.diagram(png: png, chart: marked, engine: engine)
+            : await ShapeVerifier.Picture(png: png, hints: marked)
+        if !marked.isSlopeField, !marked.isPhaseLine, !marked.hasPanels, let picture = labelled {
+            let words = await PictureText.words(in: png)
+            if words.count <= 40 {
+                marked = PictureText.attach(marked, words: words, reading: picture.reading, columns: picture.columns, rows: picture.rows)
+            }
+        }
         if marked != checked {
             checked = marked
             // Vectors, points or the window moved: judge the drawing again.
