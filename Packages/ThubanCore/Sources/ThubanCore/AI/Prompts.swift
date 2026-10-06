@@ -341,6 +341,10 @@ public enum Prompts {
         4. When no definition in the question fits the picture — the question never gives the formula (a hand-drawn f, \
            a data plot, "the graph of f is shown"), or every candidate fails your check — set `provenance` to "traced", \
            leave `definition` empty, and read 12–40 `points` along the curve in order; the app connects them smoothly. \
+           Before tracing, try the simple shapes a textbook draws against your readings — a line or segment, a \
+           parabola, a circle or ellipse (or part of one), a sine wave, a power |x|^p, one of the question's other \
+           x(t), y(t) — and state the one that fits (as `latex`, or `xt`/`yt` with its `tRange`) instead: a traced \
+           curve is shown only as the original picture. \
            A slope field with no stated equation is the one exception: infer the simplest f(x, y) consistent with the \
            arrows, give it as `slope`, and say in the caption that it was inferred.
 
