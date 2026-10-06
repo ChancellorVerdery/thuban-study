@@ -66,6 +66,11 @@ public struct ChartSeries: Codable, Sendable, Equatable {
     /// Arrowheads as the picture draws them, `[x, y, dx, dy]` (`MarkerReader`): drawn instead of evenly spaced ones,
     /// so a curve traced out and back keeps its two opposite arrows.
     public var arrowMarks: [[Double]]?
+    /// The hue (degrees) the original draws this series in, read from the picture (`MarkerReader`); the redraw
+    /// takes the theme colour nearest it, so a red vector stays the theme's red and a blue one its blue.
+    public var hue: Double?
+    /// The hue of the vectors a curve carries (its r(t₀) and r′(t₀)), which the original often draws in another colour.
+    public var vectorHue: Double?
     /// kind "point": a label for each point as the original prints it ("A", "(8, 0)", "t = 1"); empty for none.
     public var labels: [String]?
 

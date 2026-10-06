@@ -177,8 +177,25 @@ struct FigureCanvasRenderer {
         let palette: [String] = scene.hasField
             ? [theme.accent, theme.neg, theme.pos, theme.accentDeep]
             : [theme.accent, theme.signal, theme.neg, theme.pos, theme.accentDeep]
+        /// A hex colour's hue in degrees (nil for a grey).
+        func hue(of hex: String) -> Double? {
+            let digits = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+            guard digits.count >= 6, let value = UInt32(digits.prefix(6), radix: 16) else { return nil }
+            let r = Double((value >> 16) & 0xFF), g = Double((value >> 8) & 0xFF), b = Double(value & 0xFF)
+            let hi = max(r, g, b), lo = min(r, g, b)
+            guard hi - lo > 25 else { return nil }
+            var h = hi == r ? 60 * ((g - b) / (hi - lo)) : hi == g ? 60 * (2 + (b - r) / (hi - lo)) : 60 * (4 + (r - g) / (hi - lo))
+            if h < 0 { h += 360 }
+            return h
+        }
         func colour(of mark: FigureScene.Mark) -> Color {
             if let hex = mark.color { return Color(hex: hex) }
+            // The theme colour nearest the original's (a red vector in the theme's red).
+            if let wanted = mark.hue, !mark.inInk,
+               let nearest = palette.compactMap({ hex in hue(of: hex).map { (hex, min(abs($0 - wanted), 360 - abs($0 - wanted))) } }).min(by: { $0.1 < $1.1 }),
+               nearest.1 <= 45 {
+                return Color(hex: nearest.0)
+            }
             return mark.inInk ? ink : Color(hex: palette[mark.paletteIndex % palette.count])
         }
         // Shaded regions first, translucent, so every curve and axis stays visible through them.

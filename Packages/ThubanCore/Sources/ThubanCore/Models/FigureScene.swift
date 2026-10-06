@@ -50,6 +50,8 @@ public struct FigureScene: Sendable, Equatable {
         public var ticks = 0
         /// Angles: a right-angle box instead of an arc.
         public var rightAngle = false
+        /// The original's hue for this mark (degrees), when read: the theme colour nearest it is used.
+        public var hue: Double? = nil
     }
 
     public var window: Window
@@ -182,6 +184,10 @@ public struct FigureScene: Sendable, Equatable {
                 var mark = Mark(kind: kind, name: series.name, pieces: pieces, style: style, color: chart.monochrome == true ? nil : series.color?.nilIfBlank,
                                 paletteIndex: chart.monochrome == true ? 0 : colour, seriesIndex: index)
                 mark.ticks = max(0, series.ticks ?? 0)
+                if chart.monochrome != true, kind == .line || kind == .vector {
+                    // A curve's own vectors take their own colour (red r′(t₀) on a blue curve).
+                    mark.hue = kind == .vector && series.seriesKind != .vector ? series.vectorHue : series.hue
+                }
                 return mark
             }
             let latex = series.latex?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

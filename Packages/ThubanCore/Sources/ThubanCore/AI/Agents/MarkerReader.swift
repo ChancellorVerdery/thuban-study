@@ -54,7 +54,17 @@ public enum MarkerReader {
             || FigureScene.shape(of: result.series[$0]).isRegion }
         if !shaped.isEmpty, let x = result.xRange, let y = result.yRange, x.count == 2, y.count == 2 {
             let first = await FigureScene.build(result, engine: engine)
-            let points = first.marks.filter { ($0.kind == .line || $0.kind == .fill) && shaped.contains($0.seriesIndex) }.flatMap(\.pieces).flatMap { $0 }
+            // A region counts only by its curved edges (an arc): a half-plane's fill and straight edges run to the
+            // window's edges by nature and need no room.
+            func curved(_ piece: [[Double]]) -> Bool {
+                guard let a = piece.first, let b = piece.last, piece.count >= 3 else { return false }
+                let length = hypot(b[0] - a[0], b[1] - a[1])
+                guard length > 0 else { return true }
+                return piece.contains { abs(($0[0] - a[0]) * (b[1] - a[1]) - ($0[1] - a[1]) * (b[0] - a[0])) / length > length * 0.02 }
+            }
+            let points = first.marks.filter { $0.kind == .line && shaped.contains($0.seriesIndex) }.flatMap { mark in
+                FigureScene.shape(of: result.series[mark.seriesIndex]).isRegion ? mark.pieces.filter(curved) : mark.pieces
+            }.flatMap { $0 }
             if let minX = points.map({ $0[0] }).min(), let maxX = points.map({ $0[0] }).max(),
                let minY = points.map({ $0[1] }).min(), let maxY = points.map({ $0[1] }).max() {
                 let w = x[1] - x[0], h = y[1] - y[0]
@@ -76,6 +86,30 @@ public enum MarkerReader {
             && (result.series[index].seriesKind == .parametric || chart.series[safe: index]?.directionArrows == true) {
             result.series[index].arrowMarks = arrows
             result.series[index].directionArrows = true
+        }
+        // The colour each curve and vector is drawn in: the hue most of its coloured ink has (none for black).
+        var hues: [Int: [Int]] = [:]
+        for mark in scene.marks where (mark.kind == .line || mark.kind == .vector) && mark.seriesIndex >= 0 {
+            for piece in mark.pieces { for (a, b) in zip(piece, piece.dropFirst()) {
+                let ax = picture.reading.x.pixel(a[0]), ay = picture.reading.y.pixel(a[1])
+                let bx = picture.reading.x.pixel(b[0]), by = picture.reading.y.pixel(b[1])
+                let steps = max(1, Int(hypot(bx - ax, by - ay).rounded()))
+                for i in 0..<steps {
+                    let c = Int((ax + (bx - ax) * Double(i) / Double(steps)).rounded()), r = Int((ay + (by - ay) * Double(i) / Double(steps)).rounded())
+                    guard picture.columns.contains(c), picture.rows.contains(r) else { continue }
+                    // Keyed by series and by whether it is the series' own vectors (2k + 1) or its curve (2k).
+                    let key = mark.seriesIndex * 2 + (mark.kind == .vector && result.series[safe: mark.seriesIndex]?.seriesKind != .vector ? 1 : 0)
+                    var bins = hues[key] ?? [Int](repeating: 0, count: 13)
+                    if let bin = picture.bitmap.hueBin(c, r) { bins[bin] += 1 } else if picture.bitmap.isInk(c, r) { bins[12] += 1 }
+                    hues[key] = bins
+                }
+            } }
+        }
+        for (key, bins) in hues where result.series.indices.contains(key / 2) {
+            let best = (0..<12).max { bins[$0] < bins[$1] }!
+            let coloured = bins[0..<12].reduce(0, +)
+            let hue = coloured >= 12 && bins[best] * 2 >= coloured && coloured > bins[12] ? Double(best) * 30 + 15 : nil
+            if key % 2 == 0 { result.series[key / 2].hue = hue } else { result.series[key / 2].vectorHue = hue }
         }
         let dots = await onRoundParameters(markers.dots, chart: result, picture: picture, engine: engine)
         return addingDots(dots, to: result, picture: picture)

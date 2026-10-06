@@ -25,7 +25,7 @@ final class FixtureSweepReportTests: XCTestCase {
             let checked = await FigureAgent.check(chart, png: png, engine: engine)
             let marks = checked.series.filter { $0.seriesKind == .vector || $0.seriesKind == .point }.map { "\($0.kind ?? ""):\($0.points ?? [])" }
             let curves = checked.series.compactMap(\.latex)
-            say("SWEEP \(base) \(checked.verification?.passed == true ? "PASS" : "FAIL") | \(checked.verification?.summary ?? "-") | marks \(marks) | curves \(curves)")
+            say("SWEEP \(base) \(checked.verification?.passed == true ? "PASS" : "FAIL") | \(checked.verification?.summary ?? "-") | marks \(marks) | curves \(curves) | hues \(checked.series.map { "\($0.hue.map { Int($0) } ?? -1)/\($0.vectorHue.map { Int($0) } ?? -1)" })")
         }
     }
 }

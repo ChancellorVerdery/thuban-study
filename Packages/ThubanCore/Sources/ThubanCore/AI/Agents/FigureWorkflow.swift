@@ -123,6 +123,9 @@ public enum FigureWorkflow {
                 // Traced data (no formula) that still misses the picture after every repair: the original image is
                 // the faithful one, so it is kept.
                 if checked.isTraced, checked.verification?.passed == false, figure.status == .reviewing { figure.status = .keptOriginal }
+                // A trace (kept as the original for being one) that the check turned into an exact formula the
+                // picture confirms is redrawn after all.
+                if figure.status == .keptOriginal, chart.isTraced, checked.isStated, checked.verification?.passed == true { figure.status = .reviewing }
                 figure.acceptIfConfident()
             }
             try await store.update(figure)
