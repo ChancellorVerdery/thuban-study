@@ -25,6 +25,8 @@ public enum MarkerReader {
               let picture = await ShapeVerifier.Picture(png: png, hints: chart) else { return chart }
         var result = chart
         result.series.removeAll { $0.seriesKind == .point && $0.name == "Marked points" }
+        // Arrowheads too are read afresh (one an earlier pass took from a vector's head would stay forever).
+        for k in result.series.indices { result.series[k].arrowMarks = nil }
         // Vectors and plotted points where the picture draws them.
         // Vectors are refitted only when the stated ones miss the picture (exact ones, computed from r(t), stay).
         if result.series.contains(where: { $0.seriesKind == .vector }) {
