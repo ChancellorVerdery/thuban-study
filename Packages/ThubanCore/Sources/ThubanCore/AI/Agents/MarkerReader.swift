@@ -66,7 +66,8 @@ public enum MarkerReader {
             }
         }
         let scene = await FigureScene.build(result, engine: engine)
-        let markers = read(scene: scene, picture: picture)
+        let regions = Set(result.series.indices.filter { FigureScene.shape(of: result.series[$0]).isRegion })
+        let markers = read(scene: scene, picture: picture, regions: regions)
         // Arrows only on curves that are traced out (parametric) or that the picture shows with arrows: a plain graph
         // has none, and a blob on it (a label, a crossing) is not one.
         for (index, arrows) in markers.arrows where result.series.indices.contains(index) && !arrows.isEmpty
@@ -157,7 +158,12 @@ public enum MarkerReader {
                         if cc + x >= 0, rr + y >= 0, cc + x < bitmap.width, rr + y < bitmap.height, bitmap.hueBin(cc + x, rr + y) != nil { ringColour += 1 }
                     }
                 } }
-                found = Double(on) / Double(total) >= 0.85 && Double(ringOn) / Double(ringTotal) <= 0.3 && Double(ringColour) / Double(ringTotal) >= 0.08
+                // Dark 2 px out in all eight directions: a dot, not a line through the spot.
+                let round = [(2, 0), (-2, 0), (0, 2), (0, -2), (2, 2), (2, -2), (-2, 2), (-2, -2)].allSatisfy { step in
+                    dark(cc + (step.0 != 0 && step.1 != 0 ? step.0 / 2 : step.0), rr + (step.0 != 0 && step.1 != 0 ? step.1 / 2 : step.1))
+                        && (step.0 == 0 || step.1 == 0 || dark(cc + step.0 * 3 / 4, rr + step.1 * 3 / 4))
+                }
+                found = round && Double(on) / Double(total) >= 0.85 && Double(ringOn) / Double(ringTotal) <= 0.3 && (0.08...0.45).contains(Double(ringColour) / Double(ringTotal))
             } }
             if found { result.append([clean(point.0), clean(point.1)]) }
         }
@@ -586,7 +592,8 @@ public enum MarkerReader {
         return (min(x0, x1)...max(x0, x1), min(y0, y1)...max(y0, y1))
     }
 
-    static func read(scene: FigureScene, picture: ShapeVerifier.Picture) -> Markers {
+    /// `regions`: the series that are shaded regions; their edges end at corners, never at marked points.
+    static func read(scene: FigureScene, picture: ShapeVerifier.Picture, regions: Set<Int> = []) -> Markers {
         var markers = Markers()
         let bitmap = picture.bitmap
         for mark in scene.marks where (mark.kind == .line || mark.kind == .vector) && mark.seriesIndex >= 0 {
@@ -646,6 +653,9 @@ public enum MarkerReader {
                 let onInk = widths.filter { $0 > 0 }.sorted()
                 guard onInk.count >= 20 else { continue }
                 let line = onInk[onInk.count / 2]
+                // Ink this wide is not a drawn line but the shading on both sides of a region's edge: nothing on it
+                // can be told apart as a dot or an arrowhead.
+                guard line <= max(10, Double(min(picture.columns.count, picture.rows.count)) * 0.025) else { continue }
                 // A small dot on a thin line is barely twice its width: wide enough is 1.7× and 3 px more.
                 let threshold = max(line * 1.7, line + 3)
                 if ProcessInfo.processInfo.environment["THUBAN_MARKER_DEBUG"] != nil {
@@ -703,7 +713,7 @@ public enum MarkerReader {
                         let sign = forward > backward ? 1.0 : -1.0
                         let ahead = picture.reading.data(column: s.x + s.tx * 4 * sign, row: s.y + s.ty * 4 * sign)
                         markers.arrows[mark.seriesIndex, default: []].append([data.x, data.y, ahead.x - data.x, ahead.y - data.y])
-                    } else if peak <= line * 4 + 6, mark.kind != .vector, atEnd || !coloured {
+                    } else if peak <= line * 4 + 6, mark.kind != .vector, atEnd || !coloured, !(atEnd && regions.contains(mark.seriesIndex)) {
                         // In mid-curve on a coloured curve a round blob of its own colour is a small arrowhead seen
                         // head-on, not a dot (marked points there are dark; read below). Its centre is the mean of its ink.
                         if atEnd, !picture.columns.contains(c - 10) || !picture.columns.contains(c + 10)
@@ -823,7 +833,7 @@ public enum MarkerReader {
                     picture.columns.contains(Int(p.x) - 10) && picture.columns.contains(Int(p.x) + 10)
                         && picture.rows.contains(Int(p.y) - 10) && picture.rows.contains(Int(p.y) + 10)
                 }
-                for s in closed ? [] : [first, last] where awayFromFrame(s) {
+                for s in closed || regions.contains(mark.seriesIndex) ? [] : [first, last] where awayFromFrame(s) {
                     let disc = line * 1.1
                     var best = 0.0, at = (s.x, s.y)
                     for dy in Swift.stride(from: -6.0, through: 6.0, by: 1) { for dx in Swift.stride(from: -6.0, through: 6.0, by: 1) {

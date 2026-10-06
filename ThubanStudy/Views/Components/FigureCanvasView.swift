@@ -218,7 +218,15 @@ struct FigureCanvasRenderer {
                     head.closeSubpath()
                     context.fill(head, with: .color(color))
                     strokeTicks(mark.ticks, from: a, to: b, color: color, in: &context)
-                    if let text = mark.label { names.append(Self.besideMiddle(text, from: a, to: b)) }
+                    // On a plot with axes the name sits just past the head (the textbook's "a" at the tip); in a
+                    // diagram beside the middle.
+                    if let text = mark.label {
+                        if scene.showAxes {
+                            names.append((text, CGPoint(x: b.x + dx * 10, y: b.y + dy * 10), dx >= 0 ? .leading : .trailing))
+                        } else {
+                            names.append(Self.besideMiddle(text, from: a, to: b))
+                        }
+                    }
                 }
             case .arrows:
                 // Filled heads on the curve, pointing the way the parameter runs.

@@ -114,10 +114,13 @@ public enum ShapeFitter {
     /// of the way, a solid one nearly all of it.
     static func fitStrictEdges(_ chart: StandardChart, picture: ShapeVerifier.Picture, engine: MathEngine) async -> StandardChart? {
         let reading = picture.reading, bitmap = picture.bitmap
-        func darkNear(_ c: Int, _ r: Int) -> Bool {
-            for dy in -1...1 { for dx in -1...1 where c + dx >= 0 && r + dy >= 0 && c + dx < bitmap.width && r + dy < bitmap.height {
-                if bitmap.isInk(c + dx, r + dy) { return true }
-            } }
+        /// Dark ink across the edge within 3 px (the edge may sit a little off the picture's), never along it (that
+        /// would bridge a dash's gap).
+        func darkNear(_ x: Double, _ y: Double, _ nx: Double, _ ny: Double) -> Bool {
+            for d in -3...3 {
+                let c = Int((x + nx * Double(d)).rounded()), r = Int((y + ny * Double(d)).rounded())
+                if c >= 0, r >= 0, c < bitmap.width, r < bitmap.height, bitmap.isInk(c, r) { return true }
+            }
             return false
         }
         /// Agreement of the region's drawn edges with the picture, weighted by length (nil when nothing to judge).
@@ -126,20 +129,27 @@ public enum ShapeFitter {
             var agree = 0.0, total = 0.0
             for mark in scene.marks where mark.kind == .line && mark.seriesIndex == k {
                 for piece in mark.pieces {
-                    var on = 0, seen = 0
+                    var on = 0, seen = 0, gaps = 0, wasOn = true
                     for (a, b) in zip(piece, piece.dropFirst()) {
                         let ax = reading.x.pixel(a[0]), ay = reading.y.pixel(a[1]), bx = reading.x.pixel(b[0]), by = reading.y.pixel(b[1])
-                        let steps = max(1, Int(hypot(bx - ax, by - ay).rounded()))
+                        let length = hypot(bx - ax, by - ay)
+                        let steps = max(1, Int(length.rounded()))
+                        let nx = length > 0 ? -(by - ay) / length : 0, ny = length > 0 ? (bx - ax) / length : 0
                         for i in 0..<steps {
-                            let c = Int((ax + (bx - ax) * Double(i) / Double(steps)).rounded()), r = Int((ay + (by - ay) * Double(i) / Double(steps)).rounded())
+                            let x = ax + (bx - ax) * Double(i) / Double(steps), y = ay + (by - ay) * Double(i) / Double(steps)
+                            let c = Int(x.rounded()), r = Int(y.rounded())
                             guard picture.columns.contains(c), picture.rows.contains(r), !picture.nearAxis(c, r) else { continue }
                             seen += 1
-                            if darkNear(c, r) { on += 1 }
+                            let dark = darkNear(x, y, nx, ny)
+                            if dark { on += 1 } else if wasOn { gaps += 1 }
+                            wasOn = dark
                         }
                     }
                     guard seen >= 20 else { continue }
                     let share = Double(on) / Double(seen)
-                    let fits = mark.style == .dashed ? (0.2...0.82).contains(share) : share >= 0.85
+                    // Dashed: on and off ink by turns, many times over (a solid edge drawn a little off the
+                    // picture's has a few long gaps, not a rhythm of them).
+                    let fits = mark.style == .dashed ? (0.2...0.82).contains(share) && gaps >= max(5, seen / 40) : share >= 0.85
                     total += Double(seen)
                     if fits { agree += Double(seen) }
                 }
@@ -159,13 +169,20 @@ public enum ShapeFitter {
             let terms = latex.split(separator: ",").map(String.init)
             let open = terms.indices.filter { nonStrict.firstMatch(in: terms[$0], range: NSRange(terms[$0].startIndex..., in: terms[$0])) != nil }
             guard !open.isEmpty, open.count <= 4, let base = await agreement(result, series: k), base < 0.98 else { continue }
+            // One condition at a time, kept only when it alone makes the edges agree clearly better (trying every
+            // combination lets noise pick an edge the picture draws solid).
             var best = (latex: latex, score: base)
-            for mask in 1..<(1 << open.count) {
+            var currentTerms = terms
+            // An angle's edges (radial rays) are measured poorly through the origin's axes: left as stated.
+            for index in open where !terms[index].contains("theta") && !terms[index].contains("θ") {
                 var option = result
-                var changedTerms = terms
-                for (bit, index) in open.enumerated() where mask & (1 << bit) != 0 { changedTerms[index] = strict(terms[index]) }
+                var changedTerms = currentTerms
+                changedTerms[index] = strict(terms[index])
                 option.series[k].latex = changedTerms.joined(separator: ",")
-                if let score = await agreement(option, series: k), score > best.score + 0.15 { best = (option.series[k].latex!, score) }
+                if let score = await agreement(option, series: k), score > best.score + 0.15 {
+                    best = (option.series[k].latex!, score)
+                    currentTerms = changedTerms
+                }
             }
             if best.latex != latex { result.series[k].latex = best.latex; changed = true }
         }

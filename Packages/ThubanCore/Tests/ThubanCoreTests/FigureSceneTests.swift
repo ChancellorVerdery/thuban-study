@@ -142,12 +142,13 @@ final class FigureSceneTests: XCTestCase {
         var chart = StandardChart(chartType: "function", series: [position, a, p, line], xRange: [-3, 3], yRange: [-1, 5], confidence: 1)
         let scene = await FigureScene.build(chart, engine: Self.engine)
 
-        // Two curves take the first two colours; the three vectors the next three, never a curve's.
+        // Two curves take the first two colours; the vectors the next ones, never a curve's: the curve's position
+        // and tangent vectors share one (like the original's red pair), the separate vector a has its own.
         let curves = scene.marks.filter { $0.kind == .line }
         XCTAssertEqual(curves.map(\.paletteIndex), [0, 1])
         XCTAssertEqual(curves.first?.label, "C", "the name goes on the curve, not on its vectors")
         let vectors = scene.marks.filter { $0.kind == .vector }
-        XCTAssertEqual(vectors.map(\.paletteIndex), [2, 3, 4])
+        XCTAssertEqual(vectors.map(\.paletteIndex), [2, 2, 3])
         XCTAssertTrue(vectors.allSatisfy { $0.label == nil })
         let dots = scene.marks.filter { $0.kind == .dots }
         XCTAssertEqual(dots.count, 2, "the marked point r(1) and the point series")

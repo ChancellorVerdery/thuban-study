@@ -164,13 +164,19 @@ public struct FigureScene: Sendable, Equatable {
         var marks: [Mark] = []
         let curveColours = curvePaletteIndices(chart.series)
         var nextVectorColour = curveColours.compactMap { $0 }.count
+        var vectorColours: [Int: Int] = [:]
         for (index, series) in chart.series.enumerated() {
             let style = LineStyle(rawValue: (series.style ?? "solid").lowercased()) ?? .solid
             func mark(_ kind: Mark.Kind, _ pieces: [[[Double]]]) -> Mark {
                 var colour = curveColours[index] ?? 0
+                // Vectors take the next colour after the curves; the vectors of one series (a curve's position and
+                // tangent vectors r(t₀), r′(t₀)) share one, like the original's red pair.
                 if kind == .vector {
-                    colour = nextVectorColour
-                    nextVectorColour += 1
+                    if let shared = vectorColours[index] { colour = shared } else {
+                        colour = nextVectorColour
+                        vectorColours[index] = colour
+                        nextVectorColour += 1
+                    }
                 }
                 // A one-colour original is redrawn in one colour.
                 var mark = Mark(kind: kind, name: series.name, pieces: pieces, style: style, color: chart.monochrome == true ? nil : series.color?.nilIfBlank,

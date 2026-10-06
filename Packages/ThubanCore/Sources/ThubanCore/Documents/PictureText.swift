@@ -162,7 +162,49 @@ public enum PictureText {
             used.insert(word.text)
         }
         chart.annotations = annotations.isEmpty ? chart.annotations : annotations
-        return atPrintedCoordinates(chart)
+        return withoutRepeats(atPrintedCoordinates(chart), words: words)
+    }
+
+    /// Text printed once is drawn once: a vector's name that is really two points' coordinates ("A(-1,4), B(4,5)")
+    /// or a phrase the picture never prints ("A to B") is dropped, and printed text that a point or vector already
+    /// carries is not repeated as a free annotation.
+    static func withoutRepeats(_ chart: StandardChart, words: [Word]) -> StandardChart {
+        var chart = chart
+        func plain(_ text: String) -> String {
+            text.lowercased().replacingOccurrences(of: "−", with: "-").filter { !$0.isWhitespace }
+        }
+        let printed = Set(words.map { plain($0.text) })
+        for k in chart.series.indices where [.vector, .segment].contains(chart.series[k].seriesKind) {
+            guard let label = chart.series[k].label, !label.isEmpty else { continue }
+            if printedCoordinates(label) != nil || (label.count > 2 && !printed.contains(plain(label))) { chart.series[k].label = nil }
+        }
+        // Printed coordinates that name a drawn dot ("A(-1, 4)" beside the dot at (−1, 4)) become that dot's label,
+        // set beside it, instead of free text the dot could cover.
+        if var notes = chart.annotations {
+            notes.removeAll { note in
+                guard let at = printedCoordinates(note.text) else { return false }
+                for k in chart.series.indices where chart.series[k].seriesKind == .point {
+                    guard let p = chart.series[k].points?.firstIndex(where: { $0.count >= 2 && abs($0[0] - at[0]) < 1e-6 && abs($0[1] - at[1]) < 1e-6 }) else { continue }
+                    var labels = chart.series[k].labels ?? []
+                    labels += Array(repeating: "", count: max(0, (chart.series[k].points?.count ?? 0) - labels.count))
+                    if labels[p].isEmpty || printedCoordinates(labels[p]) == nil { labels[p] = note.text }
+                    chart.series[k].labels = labels
+                    return true
+                }
+                return false
+            }
+            chart.annotations = notes.isEmpty ? nil : notes
+        }
+        var carried = Set<String>()
+        for series in chart.series {
+            if let label = series.label, !label.isEmpty { carried.insert(plain(label)) }
+            for label in series.labels ?? [] where !label.isEmpty { carried.insert(plain(label)) }
+        }
+        if let notes = chart.annotations {
+            let kept = notes.filter { !carried.contains(plain($0.text)) }
+            chart.annotations = kept.isEmpty ? nil : kept
+        }
+        return chart
     }
 
     /// The coordinates a label prints ("B(4, 5)", "A(−1, 4)", "(8, 0)"), if it prints any.
@@ -276,6 +318,8 @@ public enum PictureText {
         for pair in pairs.sorted(by: { $0.distance < $1.distance }) {
             let text = words[pair.word].text
             guard !claimed.contains(pair.word), !labelled.contains([pair.series, pair.point]), !used.contains(text) else { continue }
+            // A bare number beside a point on a plot with axes is a tick number read again, not the point's name.
+            if !chart.axesHidden, Double(text.replacingOccurrences(of: "−", with: "-").trimmingCharacters(in: .whitespaces)) != nil { continue }
             let count = chart.series[pair.series].points?.count ?? 0
             var labels = chart.series[pair.series].labels ?? []
             labels += Array(repeating: "", count: max(0, count - labels.count))
