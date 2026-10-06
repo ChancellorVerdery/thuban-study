@@ -209,8 +209,10 @@ public struct StandardChart: Codable, Sendable, Equatable {
     /// Every curve is a trace of the picture (points, no formula, no recognised family): a redraw can only
     /// approximate the original, so the original image is shown instead.
     public var isOnlyTraced: Bool {
-        guard !isSlopeField, !isPhaseLine, !hasPanels, !series.isEmpty else { return false }
-        return series.allSatisfy { s in
+        // Marked points on a traced curve don't make it any less a trace.
+        let drawn = series.filter { $0.seriesKind != .point }
+        guard !isSlopeField, !isPhaseLine, !hasPanels, !drawn.isEmpty else { return false }
+        return drawn.allSatisfy { s in
             (s.latex ?? "").isEmpty && s.xt == nil && [.curve].contains(s.seriesKind) && (s.points?.count ?? 0) >= 2
         } && (provenance == StandardChart.traced || verification?.summary.contains("raced from the pi") == true)
     }

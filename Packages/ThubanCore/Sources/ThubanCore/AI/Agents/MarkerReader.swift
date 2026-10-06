@@ -217,6 +217,9 @@ public enum MarkerReader {
         for dot in found {
             let at = pixel(dot)
             guard !known.contains(where: { hypot($0.0 - at.0, $0.1 - at.1) < 10 }) else { continue }
+            // At the plot's very edge a blob is where the window cuts the curve (an arrowhead running out of it).
+            guard Double(picture.columns.lowerBound) + 18 < at.0, at.0 < Double(picture.columns.upperBound) - 18,
+                  Double(picture.rows.lowerBound) + 18 < at.1, at.1 < Double(picture.rows.upperBound) - 18 else { continue }
             known.append(at)
             fresh.append(dot)
         }

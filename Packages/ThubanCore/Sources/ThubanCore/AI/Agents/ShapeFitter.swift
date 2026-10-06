@@ -195,6 +195,145 @@ public enum ShapeFitter {
         return changed ? result : nil
     }
 
+    /// A traced curve that is plainly a line or a parabola (y = a x² + b x + c, or sideways x = a y² + b y + c): the
+    /// read points give a rough guess, the picture's own ink near the guess gives the formula, which must follow
+    /// that ink within about a pixel. Written with simple fractions where they fit as well, and drawn over the
+    /// stretch the ink covers, it is then drawn exactly, as a formula rather than a trace.
+    static func fitTracedShapes(_ chart: StandardChart, picture: ShapeVerifier.Picture) -> StandardChart? {
+        let reading = picture.reading
+        var result = chart, changed = false
+        /// Least squares for v = Σ c_k u^k (k = 0…degree); nil when singular.
+        func polynomial(_ us: [Double], _ vs: [Double], degree: Int) -> [Double]? {
+            let n = degree + 1
+            var a = [[Double]](repeating: [Double](repeating: 0, count: n + 1), count: n)
+            for (u, v) in zip(us, vs) {
+                var powers = [Double](repeating: 1, count: 2 * n)
+                for k in 1..<(2 * n) { powers[k] = powers[k - 1] * u }
+                for i in 0..<n { for j in 0..<n { a[i][j] += powers[i + j] }; a[i][n] += powers[i] * v }
+            }
+            for col in 0..<n {
+                guard let pivot = (col..<n).max(by: { abs(a[$0][col]) < abs(a[$1][col]) }), abs(a[pivot][col]) > 1e-12 else { return nil }
+                a.swapAt(col, pivot)
+                for row in 0..<n where row != col {
+                    let f = a[row][col] / a[col][col]
+                    for k in col...n { a[row][k] -= f * a[col][k] }
+                }
+            }
+            return (0..<n).map { a[$0][n] / a[$0][$0] }
+        }
+        func value(_ c: [Double], _ u: Double) -> Double { c.enumerated().reduce(0.0) { $0 + $1.element * pow(u, Double($1.offset)) } }
+        let ink: [(x: Double, y: Double, c: Double, r: Double)] = picture.curves.flatMap { $0 }.map { p in
+            let d = reading.data(column: Double(p.0), row: Double(p.1))
+            return (d.x, d.y, Double(p.0), Double(p.1))
+        }
+        let xSpan = reading.x.range.upperBound - reading.x.range.lowerBound, ySpan = reading.y.range.upperBound - reading.y.range.lowerBound
+        for k in chart.series.indices where chart.series[k].seriesKind == .curve && (chart.series[k].latex ?? "").isEmpty {
+            guard let points = chart.series[k].points?.filter({ $0.count >= 2 }), points.count >= 6 else { continue }
+            var found: (latex: String, domain: [Double]?)?
+            for sideways in [false, true] where found == nil {
+                let us = points.map { sideways ? $0[1] : $0[0] }, vs = points.map { sideways ? $0[0] : $0[1] }
+                guard let lo = us.min(), let hi = us.max(), hi - lo > (sideways ? ySpan : xSpan) * 0.1 else { continue }
+                // Pixel distance of a value from the model, along the dependent axis.
+                func off(_ model: Double, _ v: Double) -> Double {
+                    sideways ? abs(reading.x.pixel(model) - reading.x.pixel(v)) : abs(reading.y.pixel(model) - reading.y.pixel(v))
+                }
+                for degree in [1, 2] where found == nil {
+                    guard let guess = polynomial(us, vs, degree: degree) else { continue }
+                    let rough = zip(us, vs).map { off(value(guess, $0), $1) }.sorted()
+                    if ProcessInfo.processInfo.environment["THUBAN_MARKER_DEBUG"] != nil { print("SHAPE side \(sideways) deg \(degree) rough90 \(rough[Int(Double(rough.count) * 0.9)])") }
+                    guard rough[Int(Double(rough.count) * 0.9)] <= 15 else { continue }
+                    // The picture's ink along the guess, over the stretch the trace covers (a little more each way).
+                    let pad = (hi - lo) * 0.08
+                    let near = ink.filter { p in
+                        let u = sideways ? p.y : p.x, v = sideways ? p.x : p.y
+                        return u >= lo - pad && u <= hi + pad && off(value(guess, u), v) <= 8
+                    }
+                    if ProcessInfo.processInfo.environment["THUBAN_MARKER_DEBUG"] != nil { print("SHAPE near \(near.count) ink \(ink.count)") }
+                    guard near.count >= 40 else { continue }
+                    var nu = near.map { sideways ? $0.y : $0.x }, nv = near.map { sideways ? $0.x : $0.y }
+                    guard var fitted = polynomial(nu, nv, degree: degree) else { continue }
+                    // Arrowheads and labels sit to one side of the curve and pull a plain fit: twice, only the ink
+                    // within 2 px of the last fit is kept and fitted again.
+                    for _ in 0..<2 {
+                        let keep = nu.indices.filter { off(value(fitted, nu[$0]), nv[$0]) <= 2 }
+                        guard keep.count >= 40, let again = polynomial(keep.map { nu[$0] }, keep.map { nv[$0] }, degree: degree) else { break }
+                        nu = keep.map { nu[$0] }; nv = keep.map { nv[$0] }; fitted = again
+                    }
+                    /// Median and 90th-percentile pixel offset of the ink from a model (the ink is a band a few
+                    /// pixels wide, with dots and arrowheads on it).
+                    func misfit(_ c: [Double]) -> (Double, Double) {
+                        // A line is judged across itself (a steep line's vertical offsets overstate the miss).
+                        var across = 1.0
+                        if degree == 1 {
+                            let u0 = nu.min() ?? 0, u1 = nu.max() ?? 1
+                            let du = sideways ? reading.y.pixel(u1) - reading.y.pixel(u0) : reading.x.pixel(u1) - reading.x.pixel(u0)
+                            let dv = sideways ? reading.x.pixel(value(c, u1)) - reading.x.pixel(value(c, u0)) : reading.y.pixel(value(c, u1)) - reading.y.pixel(value(c, u0))
+                            across = abs(du) / max(1e-9, hypot(du, dv))
+                        }
+                        let offs = zip(nu, nv).map { off(value(c, $0), $1) * across }.sorted()
+                        return (offs[offs.count / 2], offs[Int(Double(offs.count) * 0.9)])
+                    }
+                    func good(_ c: [Double]) -> Bool { let m = misfit(c); return m.0 <= 1.5 && m.1 <= 4.5 }
+                    if ProcessInfo.processInfo.environment["THUBAN_MARKER_DEBUG"] != nil { print("SHAPE misfit \(misfit(fitted))") }
+                    guard good(fitted) else { continue }
+                    // Each coefficient, highest power first, to the simplest fraction that keeps the fit within a
+                    // quarter pixel of the best, the lower ones refitted around it each time.
+                    let best = misfit(fitted).0
+                    var use = fitted
+                    func higher(_ c: [Double], from power: Int, _ u: Double) -> Double {
+                        var sum = 0.0
+                        for k in power..<c.count { sum += c[k] * pow(u, Double(k)) }
+                        return sum
+                    }
+                    for power in fitted.indices.reversed() {
+                        // Every fraction with a small denominator, the lower powers refitted around it; the simplest
+                        // of those fitting about as well as the best of them.
+                        var options: [(q: Int, c: [Double], miss: Double)] = []
+                        for q in 1...12 {
+                            var trial = use
+                            trial[power] = (use[power] * Double(q)).rounded() / Double(q)
+                            if power > 0 {
+                                let rest = zip(nu, nv).map { u, v in v - higher(trial, from: power, u) }
+                                if let refit = polynomial(nu, rest, degree: power - 1) { for k in 0..<power { trial[k] = refit[k] } }
+                            }
+                            if good(trial) { options.append((q, trial, misfit(trial).0)) }
+                        }
+                        // A line through the grid's points has its constant in steps of 1/q for a slope p/q: the
+                        // best-fitting such constant (7.8 = 39/5 for slope 8/5, not the plainer but wrong 8).
+                        if degree == 1, power == 0 {
+                            let slopeDenominator = fraction(use[1], tolerance: 1e-9).1
+                            options = options.filter { slopeDenominator % $0.q == 0 }
+                            if let pick = options.min(by: { $0.miss < $1.miss }), pick.miss <= best + 0.25 { use = pick.c; continue }
+                        }
+                        if let least = options.map(\.miss).min(), least <= best + 0.25,
+                           let pick = options.first(where: { $0.miss <= least + 0.08 }) {
+                            use = pick.c
+                        } else {
+                            use[power] = (use[power] * 100).rounded() / 100
+                        }
+                    }
+                    let coefficients = use
+                    guard degree == 1 || abs(coefficients[2]) > 1e-6 else { continue }
+                    var terms: [String] = []
+                    for (power, c) in coefficients.enumerated().reversed() where abs(c) > 1e-9 {
+                        let (p, q) = fraction(c, tolerance: 1e-9)
+                        terms.append(term(p, q, suffix: power == 0 ? "" : (sideways ? "y" : "x") + (power == 2 ? "^2" : ""), leading: terms.isEmpty))
+                    }
+                    let inkLo = (nu.min() ?? lo), inkHi = (nu.max() ?? hi)
+                    found = ((sideways ? "x=" : "y=") + (terms.isEmpty ? "0" : terms.joined()),
+                             sideways ? nil : [(inkLo * 1000).rounded() / 1000, (inkHi * 1000).rounded() / 1000])
+                }
+            }
+            guard let shape = found else { continue }
+            result.series[k].latex = shape.latex
+            result.series[k].domain = shape.domain
+            result.series[k].points = nil
+            changed = true
+        }
+        if changed, !result.series.contains(where: { $0.seriesKind == .curve && ($0.latex ?? "").isEmpty }) { result.provenance = StandardChart.stated }
+        return changed ? result : nil
+    }
+
     /// The simplest fraction p/q (q ≤ 12) within `tolerance` of v, else v to two decimals as hundredths.
     static func fraction(_ v: Double, tolerance: Double) -> (Int, Int) {
         for q in 1...12 {

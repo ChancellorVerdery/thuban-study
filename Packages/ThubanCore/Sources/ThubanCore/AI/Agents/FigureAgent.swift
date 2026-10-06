@@ -413,6 +413,17 @@ public actor FigureAgent {
             checked.confidence = min(checked.confidence, 0.4)
             return checked
         }
+        // A traced line or parabola is drawn as its formula, when the picture's ink follows one closely.
+        if checked.series.contains(where: { $0.seriesKind == .curve && ($0.latex ?? "").isEmpty && ($0.points?.count ?? 0) >= 6 }),
+           let picture = await ShapeVerifier.Picture(png: png, hints: checked),
+           var formed = ShapeFitter.fitTracedShapes(checked, picture: picture) {
+            let verdict = ShapeVerifier.verify(scene: await FigureScene.build(formed, engine: engine), picture: picture)
+            if verdict.passed {
+                formed.verification = verdict
+                formed.confidence = max(formed.confidence, 0.75)
+                checked = formed
+            }
+        }
         // The picture's own arrowheads and dots on its curves (and its whole frame, when numbered).
         var marked = await MarkerReader.apply(checked, png: png, engine: engine)
         // Text an earlier pass carried onto a plot with axes that is not plainly a label (a tick number read again,
