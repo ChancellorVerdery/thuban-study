@@ -297,8 +297,10 @@ struct FigureCanvasRenderer {
                     let c = point(p)
                     context.fill(Path(ellipseIn: CGRect(x: c.x - 5.25, y: c.y - 5.25, width: 10.5, height: 10.5)), with: .color(color))
                     if let text = mark.labels?[safe: k], !text.isEmpty {
-                        // Beside the dot, on the side with room.
-                        let right = c.x < size.width - 60
+                        // Beside the dot, on the side away from the y-axis (clear of it and of a vector leaving the
+                        // point toward the middle), unless that side has no room.
+                        let awayRight = !scene.showAxes || window.x.lowerBound >= 0 || p[0] >= 0
+                        let right = awayRight ? c.x < size.width - 60 : c.x < 70
                         context.draw(Text(text).font(Font.system(size: 12 * zoom, design: .serif).italic()).foregroundColor(ink),
                                      at: CGPoint(x: c.x + (right ? 9 : -9), y: c.y - 9), anchor: right ? .bottomLeading : .bottomTrailing)
                     }

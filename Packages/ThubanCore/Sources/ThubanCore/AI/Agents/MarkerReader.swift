@@ -640,9 +640,18 @@ public enum MarkerReader {
             for piece in mark.pieces {
                 // The curve's own colour, when it has one: then black axes, ticks and labels are not ink at all.
                 var bins = [Int](repeating: 0, count: 12), plain = 0, inside = 0
-                for p in piece {
-                    let c = Int(picture.reading.x.pixel(p[0]).rounded()), r = Int(picture.reading.y.pixel(p[1]).rounded())
-                    guard picture.columns.contains(c), picture.rows.contains(r) else { continue }
+                // Every pixel along it (a vector is only its two ends, which can sit on a dot or an axis).
+                var along: [(Double, Double)] = []
+                for (a, b) in zip(piece, piece.dropFirst()) {
+                    let ax = picture.reading.x.pixel(a[0]), ay = picture.reading.y.pixel(a[1])
+                    let bx = picture.reading.x.pixel(b[0]), by = picture.reading.y.pixel(b[1])
+                    let steps = min(4000, max(1, Int(hypot(bx - ax, by - ay).rounded())))
+                    for i in 0..<steps { along.append((ax + (bx - ax) * Double(i) / Double(steps), ay + (by - ay) * Double(i) / Double(steps))) }
+                }
+                if let last = piece.last { along.append((picture.reading.x.pixel(last[0]), picture.reading.y.pixel(last[1]))) }
+                for (x, y) in along {
+                    let c = Int(x.rounded()), r = Int(y.rounded())
+                    guard picture.columns.contains(c), picture.rows.contains(r), !picture.nearAxis(c, r) else { continue }
                     inside += 1
                     if let bin = bitmap.hueBin(c, r) { bins[bin] += 1 } else if bitmap.isInk(c, r) { plain += 1 }
                 }
@@ -650,7 +659,7 @@ public enum MarkerReader {
                 let coloured = bins[colourBin] > plain
                 // A dark curve (a dashed line over shading among them): only dark ink is the curve, not the fill
                 // or grid around it.
-                let darkOnly = !coloured && plain * 4 >= inside
+                let darkOnly = !coloured && plain > 0 && plain * 4 >= inside
                 func ink(_ c: Int, _ r: Int) -> Bool {
                     guard picture.columns.contains(c), picture.rows.contains(r) else { return false }
                     if coloured {
@@ -691,8 +700,8 @@ public enum MarkerReader {
                     return Double(width)
                 }
                 let onInk = widths.filter { $0 > 0 }.sorted()
-                guard onInk.count >= 20 else { continue }
-                let line = onInk[onInk.count / 2]
+                guard onInk.count >= 20 || mark.kind == .vector else { continue }
+                let line = onInk.isEmpty ? 4 : onInk[onInk.count / 2]
                 // Ink this wide is not a drawn line but the shading on both sides of a region's edge: nothing on it
                 // can be told apart as a dot or an arrowhead.
                 guard line <= max(10, Double(min(picture.columns.count, picture.rows.count)) * 0.025) else { continue }
@@ -836,20 +845,23 @@ public enum MarkerReader {
                         return n
                     }
                     var shift = 0.0, most = -1
-                    for o in -8...8 {
+                    for o in -12...12 {
                         let n = hits(Double(o))
                         if n > most || (n == most && abs(Double(o)) < abs(shift)) { most = n; shift = Double(o) }
                     }
                     let shaftWidths = body.map { across($0.x + nx * shift, $0.y + ny * shift) }.filter { $0 > 0 }.sorted()
+                    if ProcessInfo.processInfo.environment["THUBAN_MARKER_DEBUG"] != nil {
+                        print("MARKER vector shift \(shift) hits \(most) of \(body.count) shaft samples \(shaftWidths.count) tail px \(picture.reading.x.pixel(tail[0])),\(picture.reading.y.pixel(tail[1])) head px \(picture.reading.x.pixel(head[0])),\(picture.reading.y.pixel(head[1])) probe \((-3...3).map { d -> String in let c = Int(picture.reading.x.pixel(tail[0])) + d, r = Int(picture.reading.y.pixel(tail[1])); return "\(bitmap.isBackground(c, r) ? "b" : "")\(bitmap.isGrid(c, r) ? "g" : "")\(bitmap.hueBin(c, r).map(String.init) ?? "-")\(ink(c, r) ? "I" : "")" }) coloured \(coloured) dark \(darkOnly) size \(picture.bitmap.width)x\(picture.bitmap.height) cols \(picture.columns) rows \(picture.rows)")
+                    }
                     guard shaftWidths.count >= 10 else { continue }
                     let shaft = shaftWidths[shaftWidths.count / 2]
                     let a = (picture.reading.x.pixel(tail[0]) + nx * shift, picture.reading.y.pixel(tail[1]) + ny * shift)
                     let b = (picture.reading.x.pixel(head[0]) + nx * shift, picture.reading.y.pixel(head[1]) + ny * shift)
                     for (end, at, outward) in [(tail, a, -1.0), (head, b, 1.0)] {
                         // Where the ink really ends: from a little inside, outward until two pixels of paper.
-                        var reach = -8.0, gap = 0
-                        var d = -8.0
-                        while d <= 10 {
+                        var reach = -16.0, gap = 0
+                        var d = -16.0
+                        while d <= 16 {
                             if onInk(at.0 + tx * d * outward, at.1 + ty * d * outward) { reach = d; gap = 0 } else { gap += 1; if gap > 2, d > 0 { break } }
                             d += 1
                         }

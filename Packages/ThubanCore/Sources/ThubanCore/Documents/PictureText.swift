@@ -195,6 +195,23 @@ public enum PictureText {
             }
             chart.annotations = notes.isEmpty ? nil : notes
         }
+        // A point's or vector's name looks like one: a letter (A, a, P), a letter with prime or digit (P₁, r′),
+        // coordinates with or without a name ("A(-1, 4)", "(8, 0)") or an equation ("t = 1", "|u| = 2"). Misreadings
+        // carried from earlier passes ("F20", "N H", "AB" where none is printed) are dropped.
+        func looksLikeName(_ text: String) -> Bool {
+            let t = text.trimmingCharacters(in: .whitespaces)
+            if t.contains("=") || printedCoordinates(t) != nil { return true }
+            return t.range(of: #"^[A-Za-zα-ω][0-9′'₀-₉]?$"#, options: .regularExpression) != nil
+        }
+        for k in chart.series.indices {
+            if let labels = chart.series[k].labels, chart.series[k].seriesKind == .point || chart.series[k].seriesKind == .vector {
+                chart.series[k].labels = labels.map { $0.isEmpty || looksLikeName($0) ? $0 : "" }
+            }
+            if [.vector, .point, .segment].contains(chart.series[k].seriesKind), let label = chart.series[k].label, !label.isEmpty,
+               !looksLikeName(label), !printed.contains(plain(label)) {
+                chart.series[k].label = nil
+            }
+        }
         var carried = Set<String>()
         for series in chart.series {
             if let label = series.label, !label.isEmpty { carried.insert(plain(label)) }
