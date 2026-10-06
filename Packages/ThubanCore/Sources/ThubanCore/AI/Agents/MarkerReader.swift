@@ -634,6 +634,7 @@ public enum MarkerReader {
 
     /// `regions`: the series that are shaded regions; their edges end at corners, never at marked points.
     static func read(scene: FigureScene, picture: ShapeVerifier.Picture, regions: Set<Int> = []) -> Markers {
+        var vectorDots: [[Double]] = []
         var markers = Markers()
         let bitmap = picture.bitmap
         for mark in scene.marks where (mark.kind == .line || mark.kind == .vector) && mark.seriesIndex >= 0 {
@@ -876,7 +877,7 @@ public enum MarkerReader {
                         if ProcessInfo.processInfo.environment["THUBAN_MARKER_DEBUG"] != nil {
                             print("MARKER vector end \(end) shift \(shift) reach \(reach) widest \(widest) shaft \(shaft)")
                         }
-                        if widest >= max(shaft + 2, shaft * 1.35), widest <= max(shaft * 2.4, shaft + 6) { markers.dots.append(end) }
+                        if widest >= max(shaft + 2, shaft * 1.35), widest <= max(shaft * 2.4, shaft + 6) { markers.dots.append(end); vectorDots.append(end) }
                     }
                     continue
                 }
@@ -905,6 +906,16 @@ public enum MarkerReader {
                 }
             }
         }
+        // Where a vector starts or ends on a curve (r(t₀) and its tangent), the vector's own arrowhead and the joint
+        // are the vector's, not an arrow or a dot of the curve.
+        let vectorEnds = scene.marks.filter { $0.kind == .vector }.flatMap(\.pieces).flatMap { piece in [piece.first, piece.last].compactMap { $0 } }
+            .map { (picture.reading.x.pixel($0[0]), picture.reading.y.pixel($0[1])) }
+        func nearVectorEnd(_ p: [Double]) -> Bool {
+            let c = picture.reading.x.pixel(p[0]), r = picture.reading.y.pixel(p[1])
+            return vectorEnds.contains { hypot($0.0 - c, $0.1 - r) < 12 }
+        }
+        markers.dots.removeAll { dot in nearVectorEnd(dot) && !vectorDots.contains(where: { $0 == dot }) }
+        for (index, arrows) in markers.arrows { markers.arrows[index] = arrows.filter { !nearVectorEnd($0) } }
         // One dot per spot (the walk and the end test can both find it).
         var unique: [[Double]] = []
         let xSpan = picture.reading.x.range.upperBound - picture.reading.x.range.lowerBound

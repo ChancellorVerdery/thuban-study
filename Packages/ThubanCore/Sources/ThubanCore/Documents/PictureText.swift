@@ -294,6 +294,22 @@ public enum PictureText {
                 chart.series[s].points?[k] = scaled
             }
         }
+        // On a drawing that prints its points' coordinates, a dot read at a vector end it does not label (the tail
+        // of a) is not one of its points.
+        if !printedAll.isEmpty {
+            let ends = chart.series.filter { $0.seriesKind == .vector }.flatMap { $0.points ?? [] }
+            for s in chart.series.indices where chart.series[s].seriesKind == .point && chart.series[s].name == "Marked points" {
+                let points = chart.series[s].points ?? []
+                let keep = points.indices.filter { k in
+                    let p = points[k]
+                    let atEnd = ends.contains { $0.count >= 2 && abs($0[0] - p[0]) < 1e-6 && abs($0[1] - p[1]) < 1e-6 }
+                    return !atEnd || printedAll.contains { abs($0[0] - p[0]) < 1e-6 && abs($0[1] - p[1]) < 1e-6 }
+                }
+                chart.series[s].points = keep.map { points[$0] }
+                if let labels = chart.series[s].labels { chart.series[s].labels = keep.map { labels[safe: $0] ?? "" } }
+            }
+            chart.series.removeAll { $0.seriesKind == .point && $0.name == "Marked points" && ($0.points ?? []).isEmpty }
+        }
         // Labelled ends are drawn alike: when one carries a dot, a labelled end whose dot sits on an axis (and so
         // was not read) gets its dot too.
         if let dots = chart.series.firstIndex(where: { $0.seriesKind == .point }),
