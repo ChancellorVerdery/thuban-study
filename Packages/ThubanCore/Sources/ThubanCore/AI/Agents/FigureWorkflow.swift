@@ -125,7 +125,11 @@ public enum FigureWorkflow {
                 if checked.isTraced, checked.verification?.passed == false, figure.status == .reviewing { figure.status = .keptOriginal }
                 // A trace (kept as the original for being one) that the check turned into an exact formula the
                 // picture confirms is redrawn after all.
-                if figure.status == .keptOriginal, chart.isTraced, checked.isStated, checked.verification?.passed == true { figure.status = .reviewing }
+                // (Only one the check fitted: the student may have chosen to keep an original.)
+                if figure.status == .keptOriginal, checked.isStated, checked.verification?.passed == true,
+                   checked.notes?.contains(FigureAgent.fittedFromTrace) == true, chart.notes?.contains(FigureAgent.fittedFromTrace) != true {
+                    figure.status = .reviewing
+                }
                 figure.acceptIfConfident()
             }
             try await store.update(figure)

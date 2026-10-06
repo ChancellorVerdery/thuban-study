@@ -44,8 +44,9 @@ public enum MarkerReader {
         // A numbered plot shows its whole frame: a window cut to the curve's own extent clips it at the edges.
         if picture.reading.isCalibratedFromLabels {
             let box = frame(picture)
-            if let x = result.xRange, x.count == 2 { result.xRange = [min(x[0], box.x.lowerBound), max(x[1], box.x.upperBound)] }
-            if let y = result.yRange, y.count == 2 { result.yRange = [min(y[0], box.y.lowerBound), max(y[1], box.y.upperBound)] }
+            // The frame itself, not the frame and whatever an earlier pass widened the window to (it only ever grew).
+            if let x = result.xRange, x.count == 2, box.x.upperBound > box.x.lowerBound { result.xRange = [box.x.lowerBound, box.x.upperBound] }
+            if let y = result.yRange, y.count == 2, box.y.upperBound > box.y.lowerBound { result.yRange = [box.y.lowerBound, box.y.upperBound] }
         }
         // A loop or traced curve that touches the window's edge exactly (a radius-9 circle in a ±9 window) is clipped
         // there, arrows and all: give that side a little room.

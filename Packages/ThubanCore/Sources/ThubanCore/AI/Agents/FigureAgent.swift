@@ -421,6 +421,7 @@ public actor FigureAgent {
             if verdict.passed {
                 formed.verification = verdict
                 formed.confidence = max(formed.confidence, 0.75)
+                formed.notes = [formed.notes, FigureAgent.fittedFromTrace].compactMap { $0 }.joined(separator: " ")
                 checked = formed
             }
         }
@@ -465,6 +466,9 @@ public actor FigureAgent {
         }
         return checked
     }
+
+    /// Noted on a chart whose traced curve the check turned into an exact formula.
+    public static let fittedFromTrace = "Fitted from the traced curve."
 
     static func checkDrawing(_ chart: StandardChart, png: Data, engine: MathEngine, questionText: String) async -> StandardChart {
         var checked = await checkStated(chart, png: png, engine: engine, questionText: questionText)
