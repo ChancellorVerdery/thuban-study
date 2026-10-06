@@ -167,7 +167,10 @@ public enum ShapeFitter {
         for k in chart.series.indices where FigureScene.shape(of: chart.series[k]).isRegion {
             guard let latex = chart.series[k].latex else { continue }
             let terms = latex.split(separator: ",").map(String.init)
-            let open = terms.indices.filter { nonStrict.firstMatch(in: terms[$0], range: NSRange(terms[$0].startIndex..., in: terms[$0])) != nil }
+            // Either way: a non-strict condition the picture draws dashed, or a strict one (an earlier misreading)
+            // the picture draws solid.
+            let open = terms.indices.filter { nonStrict.firstMatch(in: terms[$0], range: NSRange(terms[$0].startIndex..., in: terms[$0])) != nil
+                || terms[$0].contains("<") || terms[$0].contains(">") }
             guard !open.isEmpty, open.count <= 4, let base = await agreement(result, series: k), base < 0.98 else { continue }
             // One condition at a time, kept only when it alone makes the edges agree clearly better (trying every
             // combination lets noise pick an edge the picture draws solid).
@@ -177,7 +180,10 @@ public enum ShapeFitter {
             for index in open where !terms[index].contains("theta") && !terms[index].contains("θ") {
                 var option = result
                 var changedTerms = currentTerms
-                changedTerms[index] = strict(terms[index])
+                let isStrict = nonStrict.firstMatch(in: terms[index], range: NSRange(terms[index].startIndex..., in: terms[index])) == nil
+                changedTerms[index] = isStrict
+                    ? terms[index].replacingOccurrences(of: "<", with: "\\le ").replacingOccurrences(of: ">", with: "\\ge ")
+                    : strict(terms[index])
                 option.series[k].latex = changedTerms.joined(separator: ",")
                 if let score = await agreement(option, series: k), score > best.score + 0.15 {
                     best = (option.series[k].latex!, score)

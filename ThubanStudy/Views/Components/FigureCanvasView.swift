@@ -222,7 +222,10 @@ struct FigureCanvasRenderer {
                     // diagram beside the middle.
                     if let text = mark.label {
                         if scene.showAxes {
-                            names.append((text, CGPoint(x: b.x + dx * 10, y: b.y + dy * 10), dx >= 0 ? .leading : .trailing))
+                            // At the end away from the origin (a vector drawn into the origin is named at its tail).
+                            let intoOrigin = abs(piece[1][0]) < 1e-9 && abs(piece[1][1]) < 1e-9
+                            let end = intoOrigin ? a : b, out: CGFloat = intoOrigin ? -1 : 1
+                            names.append((text, CGPoint(x: end.x + dx * 10 * out, y: end.y + dy * 10 * out), dx * out >= 0 ? .leading : .trailing))
                         } else {
                             names.append(Self.besideMiddle(text, from: a, to: b))
                         }
@@ -310,7 +313,14 @@ struct FigureCanvasRenderer {
             context.draw(Text(text).font(font).foregroundColor(dim), at: position, anchor: anchor)
         }
         let xLabelY = min(xAxisY + 3, size.height - 13)
-        let xTicks: [ChartTick] = scene.xTickLabels ?? FigureScene.ticks(in: window.x, step: scene.xStep)
+        // Crowded numbers are thinned evenly (every 2nd, 5th or 10th tick), never one by one, so the labels keep
+        // one step like the original's.
+        func every(_ step: Double, pixels: CGFloat, room: CGFloat) -> Double {
+            for k in [1.0, 2, 5, 10, 20] where pixels * CGFloat(k) >= room { return step * k }
+            return step * 50
+        }
+        let xLabelStep = every(scene.xStep, pixels: abs(px(scene.xStep) - px(0)), room: 26)
+        let xTicks: [ChartTick] = scene.xTickLabels ?? FigureScene.ticks(in: window.x, step: xLabelStep)
             .filter { abs($0) > scene.xStep * 1e-6 }.map { ChartTick(value: $0, text: ChartGeometry.number($0).replacingOccurrences(of: "-", with: "−")) }
         var lastX = -CGFloat.infinity
         let xSlack = (window.x.upperBound - window.x.lowerBound) * 0.02, ySlack = (window.y.upperBound - window.y.lowerBound) * 0.02
@@ -325,7 +335,8 @@ struct FigureCanvasRenderer {
         // Too little room left of the axis for a number ("0.8" would be cut to ".8"): numbers go on its right.
         let yLabelsRight = yAxisX < 34
         let yLabelX = yLabelsRight ? yAxisX + 5 : yAxisX - 4
-        let yTicks: [ChartTick] = scene.yTickLabels ?? FigureScene.ticks(in: window.y, step: scene.yStep)
+        let yLabelStep = every(scene.yStep, pixels: abs(py(scene.yStep) - py(0)), room: 16)
+        let yTicks: [ChartTick] = scene.yTickLabels ?? FigureScene.ticks(in: window.y, step: yLabelStep)
             .filter { abs($0) > scene.yStep * 1e-6 }.map { ChartTick(value: $0, text: ChartGeometry.number($0).replacingOccurrences(of: "-", with: "−")) }
         var lastY = CGFloat.infinity
         // Bottom to top on screen.

@@ -49,10 +49,12 @@ public enum MarkerReader {
         }
         // A loop or traced curve that touches the window's edge exactly (a radius-9 circle in a ±9 window) is clipped
         // there, arrows and all: give that side a little room.
-        let shaped = result.series.indices.filter { result.series[$0].seriesKind == .parametric || (result.series[$0].latex ?? "").isEmpty }
+        // A shaded region's edge (a sector's arc of radius 4 in a ±4 window) likewise.
+        let shaped = result.series.indices.filter { result.series[$0].seriesKind == .parametric || (result.series[$0].latex ?? "").isEmpty
+            || FigureScene.shape(of: result.series[$0]).isRegion }
         if !shaped.isEmpty, let x = result.xRange, let y = result.yRange, x.count == 2, y.count == 2 {
             let first = await FigureScene.build(result, engine: engine)
-            let points = first.marks.filter { $0.kind == .line && shaped.contains($0.seriesIndex) }.flatMap(\.pieces).flatMap { $0 }
+            let points = first.marks.filter { ($0.kind == .line || $0.kind == .fill) && shaped.contains($0.seriesIndex) }.flatMap(\.pieces).flatMap { $0 }
             if let minX = points.map({ $0[0] }).min(), let maxX = points.map({ $0[0] }).max(),
                let minY = points.map({ $0[1] }).min(), let maxY = points.map({ $0[1] }).max() {
                 let w = x[1] - x[0], h = y[1] - y[0]

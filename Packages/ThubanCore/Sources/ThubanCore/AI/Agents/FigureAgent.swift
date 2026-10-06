@@ -439,6 +439,11 @@ public actor FigureAgent {
                 if checked.verification?.passed == true { checked.confidence = max(checked.confidence, 0.75) }
             }
         }
+        // Axes the original leaves unnumbered stay unnumbered in the redraw.
+        if checked.verification?.summary.contains("axes not labelled") == true, !checked.axesHidden {
+            if checked.xAxisLabels == nil { checked.xAxisLabels = [] }
+            if checked.yAxisLabels == nil { checked.yAxisLabels = [] }
+        }
         // A shaded picture redrawn without its region has lost what the picture is about.
         if !checked.isPhaseLine, !checked.isSlopeField, !checked.hasPanels,
            !checked.series.contains(where: { FigureScene.shape(of: $0).isRegion && ChartShapes.conditions($0.latex ?? "") != nil }),
