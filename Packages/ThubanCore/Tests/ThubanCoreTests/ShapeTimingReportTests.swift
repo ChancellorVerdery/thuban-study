@@ -34,7 +34,7 @@ final class ShapeTimingReportTests: XCTestCase {
         let checked = await time("check") { await FigureAgent.check(chart, png: png, engine: engine) }
         print("TIMING verdict \(checked.verification?.summary ?? "-")")
         print("TIMING param \(checked.series.filter { $0.seriesKind == .parametric }.map { "\($0.xt ?? ""),\($0.yt ?? "") t0=\($0.markAt ?? .nan)" })")
-        print("TIMING marks \(checked.series.filter { $0.seriesKind == .vector || $0.seriesKind == .point }.map { "\($0.kind ?? ""):\($0.points ?? [])" })")
+        print("TIMING marks \(checked.series.filter { $0.seriesKind == .vector || $0.seriesKind == .point }.map { "\($0.kind ?? ""):\($0.points ?? [])\($0.labels.map { " \($0)" } ?? "")\($0.label.map { " '\($0)'" } ?? "")" }) notes \(checked.annotations?.map(\.text) ?? [])")
         print("TIMING window \(checked.xRange ?? []) \(checked.yRange ?? []) series \(checked.series.map { "\($0.kind ?? "curve"):\($0.arrowMarks?.count ?? 0)" })")
     }
 }

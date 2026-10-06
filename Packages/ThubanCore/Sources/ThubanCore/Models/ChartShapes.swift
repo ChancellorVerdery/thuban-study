@@ -482,7 +482,7 @@ public enum ChartShapes {
         let range = tRange.flatMap { $0.count == 2 && $0[0].isFinite && $0[1].isFinite && $0[0] != $0[1] ? $0 : nil } ?? [0, 2 * Double.pi]
         let count = parametricSamples
         let ts = (0...count).map { range[0] + (range[1] - range[0]) * Double($0) / Double(count) }
-        guard let rows = try? await engine.values(of: [normalised(xt), normalised(yt)], variables: ["t"], at: ts.map { [$0] }),
+        guard let rows = try? await engine.values(of: [parameterInT(xt), parameterInT(yt)], variables: ["t"], at: ts.map { [$0] }),
               rows.count == 2, let xs = rows[0], let ys = rows[1] else { return nil }
         let xSpan = window.x.upperBound - window.x.lowerBound, ySpan = window.y.upperBound - window.y.lowerBound
         var pieces: [[[Double]]] = [], current: [[Double]] = []
@@ -501,6 +501,13 @@ public enum ChartShapes {
         if current.count >= 2 { pieces.append(current) }
         guard !pieces.isEmpty else { return nil }
         return (pieces, arrows ? arrowMarks(along: pieces, window: window) : [])
+    }
+
+    /// A parametric coordinate written in θ (x = 4\sin 8θ) as the same formula in t, the one parameter the curves
+    /// are sampled in.
+    static func parameterInT(_ latex: String) -> String {
+        normalised(latex).replacingOccurrences(of: "\\vartheta", with: "t").replacingOccurrences(of: "\\theta", with: "t")
+            .replacingOccurrences(of: "θ", with: "t")
     }
 
     /// Arrows spaced along polylines (by length on screen, inside the window): two to six, depending on how long

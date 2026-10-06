@@ -150,13 +150,101 @@ public enum PictureText {
         let box = CGRect(x: Double(columns.lowerBound), y: Double(rows.lowerBound),
                          width: Double(columns.upperBound - columns.lowerBound), height: Double(rows.upperBound - rows.lowerBound))
         var annotations = chart.annotations ?? []
+        // On a plot with axes only text that is plainly a label ("|u| = 2", "60°", "(8, 0)") stands on its own:
+        // stray readings of tick numbers, arrowheads or dots ("F20", "Л", "11") are dropped.
+        func plainlyLabel(_ text: String) -> Bool {
+            chart.axesHidden || text.contains { "=°|(".contains($0) }
+        }
         for word in free where box.contains(CGPoint(x: word.rect.midX, y: word.rect.midY))
-            && !axisNames.contains(word.text.lowercased()) && !used.contains(word.text) {
+            && !axisNames.contains(word.text.lowercased()) && !used.contains(word.text) && plainlyLabel(word.text) {
             let centre = reading.data(column: word.rect.midX, row: word.rect.midY)
             annotations.append(ChartAnnotation(text: word.text, x: centre.x, y: centre.y))
             used.insert(word.text)
         }
         chart.annotations = annotations.isEmpty ? chart.annotations : annotations
+        return atPrintedCoordinates(chart)
+    }
+
+    /// The coordinates a label prints ("B(4, 5)", "A(−1, 4)", "(8, 0)"), if it prints any.
+    static func printedCoordinates(_ label: String) -> [Double]? {
+        let text = label.replacingOccurrences(of: "−", with: "-").replacingOccurrences(of: "–", with: "-")
+        guard let match = text.range(of: #"\(\s*-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?\s*\)"#, options: .regularExpression) else { return nil }
+        let parts = text[match].dropFirst().dropLast().split(separator: ",").map { Double($0.trimmingCharacters(in: .whitespaces)) }
+        guard parts.count == 2, let x = parts[0], let y = parts[1] else { return nil }
+        return [x, y]
+    }
+
+    /// Each labelled point at the coordinates its label prints (a scale fitted to unlabelled axes puts B(4, 5) at
+    /// (3.33, 4)), and every point or vector end that sat on it moved with it. A label is a point's or a vector end's
+    /// own, or printed text beside the nearest of them. Only a near miss is corrected: a label more than a quarter
+    /// of the window away belongs to another point.
+    static func atPrintedCoordinates(_ chart: StandardChart) -> StandardChart {
+        var chart = chart
+        let xSpan = abs((chart.xRange?.last ?? 10) - (chart.xRange?.first ?? -10)), ySpan = abs((chart.yRange?.last ?? 10) - (chart.yRange?.first ?? -10))
+        var ends: [[Double]] = []
+        for series in chart.series where [.point, .vector, .segment].contains(series.seriesKind) {
+            ends += (series.points ?? []).filter { $0.count >= 2 }
+        }
+        var moves: [([Double], [Double])] = [], printedAll: [[Double]] = []
+        func move(_ from: [Double], _ to: [Double]) {
+            printedAll.append(to)
+            guard from[0] != to[0] || from[1] != to[1], abs(from[0] - to[0]) <= xSpan / 4, abs(from[1] - to[1]) <= ySpan / 4,
+                  !moves.contains(where: { $0.0 == from }) else { return }
+            moves.append((from, to))
+        }
+        for series in chart.series where [.point, .vector, .segment].contains(series.seriesKind) {
+            for (k, label) in (series.labels ?? []).enumerated() {
+                if let printed = printedCoordinates(label), let point = series.points?[safe: k], point.count >= 2 { move(point, printed) }
+            }
+        }
+        for note in chart.annotations ?? [] {
+            guard let printed = printedCoordinates(note.text) else { continue }
+            let nearest = ends.min { hypot(($0[0] - note.x) / xSpan, ($0[1] - note.y) / ySpan) < hypot(($1[0] - note.x) / xSpan, ($1[1] - note.y) / ySpan) }
+            if let nearest, hypot((nearest[0] - note.x) / xSpan, (nearest[1] - note.y) / ySpan) <= 0.15 { move(nearest, printed) }
+        }
+        guard !printedAll.isEmpty else { return chart }
+        // The whole drawing read at one wrong scale (every labelled point short by the same factor, the window and
+        // the unlabelled vectors with them): scaled about the origin where the axes cross, before the labels snap.
+        func factor(_ axis: Int) -> Double? {
+            let pairs = moves.filter { abs($0.0[axis]) > 1e-9 }
+            guard pairs.count >= 2 else { return nil }
+            let k = pairs.reduce(0.0) { $0 + $1.0[axis] * $1.1[axis] } / pairs.reduce(0.0) { $0 + $1.0[axis] * $1.0[axis] }
+            return k.isFinite ? k : nil
+        }
+        var kx = 1.0, ky = 1.0
+        if let fx = factor(0) ?? factor(1), let fy = factor(1) ?? factor(0), (0.6...1.7).contains(fx), (0.6...1.7).contains(fy),
+           abs(fx - 1) > 0.05 || abs(fy - 1) > 0.05,
+           moves.allSatisfy({ abs($0.0[0] * fx - $0.1[0]) <= 0.5 && abs($0.0[1] * fy - $0.1[1]) <= 0.5 }) {
+            kx = fx; ky = fy
+            if let r = chart.xRange { chart.xRange = r.map { $0 * kx } }
+            if let r = chart.yRange { chart.yRange = r.map { $0 * ky } }
+            chart.annotations = chart.annotations?.map { ChartAnnotation(text: $0.text, x: $0.x * kx, y: $0.y * ky) }
+        }
+        // Printed coordinates all whole: the drawing's other ends are on whole numbers too.
+        let whole = printedAll.allSatisfy { $0[0] == $0[0].rounded() && $0[1] == $0[1].rounded() }
+        for s in chart.series.indices where [.point, .vector, .segment].contains(chart.series[s].seriesKind) {
+            for (k, end) in (chart.series[s].points ?? []).enumerated() where end.count >= 2 {
+                if let found = moves.first(where: { abs($0.0[0] - end[0]) < 1e-6 && abs($0.0[1] - end[1]) < 1e-6 }) {
+                    chart.series[s].points?[k] = found.1
+                    continue
+                }
+                var scaled = [end[0] * kx, end[1] * ky]
+                if whole, abs(scaled[0] - scaled[0].rounded()) <= 0.3, abs(scaled[1] - scaled[1].rounded()) <= 0.3 {
+                    scaled = [scaled[0].rounded() + 0, scaled[1].rounded() + 0]
+                }
+                chart.series[s].points?[k] = scaled
+            }
+        }
+        // Labelled ends are drawn alike: when one carries a dot, a labelled end whose dot sits on an axis (and so
+        // was not read) gets its dot too.
+        if let dots = chart.series.firstIndex(where: { $0.seriesKind == .point }),
+           printedAll.contains(where: { p in chart.series[dots].points?.contains(where: { $0.count >= 2 && $0[0] == p[0] && $0[1] == p[1] }) == true }) {
+            let ends = chart.series.filter { $0.seriesKind == .vector }.flatMap { $0.points ?? [] }
+            for p in printedAll where ends.contains(where: { $0.count >= 2 && $0[0] == p[0] && $0[1] == p[1] })
+                && !chart.series.contains(where: { $0.seriesKind == .point && ($0.points ?? []).contains { $0.count >= 2 && $0[0] == p[0] && $0[1] == p[1] } }) {
+                chart.series[dots].points = (chart.series[dots].points ?? []) + [p]
+            }
+        }
         return chart
     }
 

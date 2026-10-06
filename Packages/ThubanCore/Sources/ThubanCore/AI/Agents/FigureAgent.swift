@@ -398,6 +398,12 @@ public actor FigureAgent {
     /// Curves the picture only gives as traced points are then replaced by the exact curves the question's text
     /// defines, when those land on the drawn curve (`CurveFitter`).
     public static func check(_ chart: StandardChart, png: Data, engine: MathEngine, questionText: String = "") async -> StandardChart {
+        // A curve written in θ (x = 4\sin 8θ) is the same curve in t, the parameter every fit samples.
+        var chart = chart
+        for k in chart.series.indices where chart.series[k].seriesKind == .parametric {
+            chart.series[k].xt = chart.series[k].xt.map(ChartShapes.parameterInT)
+            chart.series[k].yt = chart.series[k].yt.map(ChartShapes.parameterInT)
+        }
         var checked = await checkDrawing(chart, png: png, engine: engine, questionText: questionText)
         // Curves traced from a picture that is mostly shaded (a tinted data plot, isotherms on a filled panel) are
         // not to be trusted: the original image stays.
@@ -409,6 +415,12 @@ public actor FigureAgent {
         }
         // The picture's own arrowheads and dots on its curves (and its whole frame, when numbered).
         var marked = await MarkerReader.apply(checked, png: png, engine: engine)
+        // Text an earlier pass carried onto a plot with axes that is not plainly a label (a tick number read again,
+        // "−10F", "LLLL") would print over the axes' own numbers: dropped, and read afresh below.
+        if !marked.axesHidden, let notes = marked.annotations {
+            let kept = notes.filter { note in note.text.contains { "=°|(".contains($0) } }
+            marked.annotations = kept.isEmpty ? nil : kept
+        }
         // The labels the picture prints: point names and coordinates, vector names, curve levels, other text.
         let labelled: ShapeVerifier.Picture? = marked.axesHidden
             ? await ShapeVerifier.Picture.diagram(png: png, chart: marked, engine: engine)

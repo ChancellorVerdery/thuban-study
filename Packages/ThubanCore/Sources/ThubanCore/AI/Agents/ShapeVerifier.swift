@@ -263,14 +263,17 @@ public enum ShapeVerifier {
                 // The densest small disc within reach of where the point should be.
                 var best = 0.0
                 let reach = picture.radius + 2
-                for dr in Swift.stride(from: -reach, through: reach, by: 2) { for dc in Swift.stride(from: -reach, through: reach, by: 2) {
-                    var on = 0, total = 0
-                    // A solid disc a line through the spot cannot fill (a drawn dot, not a curve passing by).
-                    for y in -4...4 { for x in -4...4 where x * x + y * y <= 16 {
-                        total += 1
-                        if picture.isInk(c + dc + x, r + dr + y) { on += 1 }
-                    } }
-                    best = max(best, Double(on) / Double(total))
+                for dr in Swift.stride(from: -reach, through: reach, by: 1) { for dc in Swift.stride(from: -reach, through: reach, by: 1) {
+                    // A solid disc a line through the spot cannot fill (a drawn dot, not a curve passing by); a small
+                    // dot fills one of radius 3, still twice an ordinary line's width.
+                    for radius in [4, 3] {
+                        var on = 0, total = 0
+                        for y in -radius...radius { for x in -radius...radius where x * x + y * y <= radius * radius {
+                            total += 1
+                            if picture.isInk(c + dc + x, r + dr + y) { on += 1 }
+                        } }
+                        best = max(best, Double(on) / Double(total))
+                    }
                 } }
                 if best >= 0.88 { found += 1 }
             }

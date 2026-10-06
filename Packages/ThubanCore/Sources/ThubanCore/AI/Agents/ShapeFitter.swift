@@ -36,6 +36,8 @@ public enum ShapeFitter {
             if best == nil || score > best!.score + 1e-9 { best = (option, score) }
         }
         var result = best?.chart ?? chart
+        if let straightened = await fitStraightLines(result, picture: picture, engine: engine) { result = straightened }
+        if let edged = await fitStrictEdges(result, picture: picture, engine: engine) { result = edged }
         if let ranged = await ParametricFitter.fitRange(result, picture: picture, engine: engine) { result = ranged }
         if let marked = await fitMarkedPoint(result, picture: picture, engine: engine) { result = marked }
         if let chosen = best?.chart, chosen != chart, !candidates.isEmpty, let shape = chosen.series.first(where: { FigureScene.shape(of: $0) != .curve }) {
@@ -44,6 +46,153 @@ public enum ShapeFitter {
         }
         return result
     }
+
+    /// A straight line drawn a little off the picture's line (a slope or intercept read a few pixels wrong, still
+    /// within the check's tolerance, so marked dots on the line are missed): moved onto the picture's own straight
+    /// line beside it, its slope and intercept written as simple fractions, and a stated domain widened to the ink.
+    static func fitStraightLines(_ chart: StandardChart, picture: ShapeVerifier.Picture, engine: MathEngine) async -> StandardChart? {
+        let scene = await FigureScene.build(chart, engine: engine)
+        let reading = picture.reading
+        typealias Line = (mx: Double, my: Double, ux: Double, uy: Double, off: Double)
+        func pca(_ points: [(Double, Double)]) -> Line? {
+            guard points.count >= 2 else { return nil }
+            let n = Double(points.count)
+            let mx = points.reduce(0.0) { $0 + $1.0 } / n, my = points.reduce(0.0) { $0 + $1.1 } / n
+            var sxx = 0.0, syy = 0.0, sxy = 0.0
+            for (x, y) in points { sxx += (x - mx) * (x - mx); syy += (y - my) * (y - my); sxy += (x - mx) * (y - my) }
+            let angle = 0.5 * atan2(2 * sxy, sxx - syy)
+            let ux = cos(angle), uy = sin(angle)
+            let offs = points.map { abs(-($0.0 - mx) * uy + ($0.1 - my) * ux) }.sorted()
+            return (mx, my, ux, uy, offs[offs.count / 2])
+        }
+        var result = chart, changed = false
+        for k in chart.series.indices where chart.series[k].seriesKind == .curve && (chart.series[k].latex ?? "").isEmpty == false {
+            let drawn = scene.marks.filter { $0.kind == .line && $0.seriesIndex == k }.flatMap(\.pieces).flatMap { $0 }
+                .map { (reading.x.pixel($0[0]), reading.y.pixel($0[1])) }
+            guard drawn.count >= 2, let stated = pca(drawn), stated.off <= 0.75, abs(stated.ux) > 0.05 else { continue }
+            let xs = drawn.map(\.0), ys = drawn.map(\.1)
+            guard hypot(xs.max()! - xs.min()!, ys.max()! - ys.min()!) >= 40 else { continue }
+            // The picture's straight pieces along the stated line (an axis splits one line into several).
+            var ink: [(Double, Double)] = []
+            for curve in picture.curves where curve.count >= 20 {
+                let points = curve.map { (Double($0.0), Double($0.1)) }
+                guard let line = pca(points), line.off <= 1.5 else { continue }
+                let cross = abs(line.ux * stated.uy - line.uy * stated.ux)
+                let apart = abs(-(line.mx - stated.mx) * stated.uy + (line.my - stated.my) * stated.ux)
+                if cross <= 0.09, apart <= 20 { ink += points }
+            }
+            guard ink.count >= 40, let found = pca(ink), found.off <= 1.5 else { continue }
+            let apart = abs(-(found.mx - stated.mx) * stated.uy + (found.my - stated.my) * stated.ux)
+            let turned = abs(found.ux * stated.uy - found.uy * stated.ux)
+            guard apart > 1.5 || turned > 0.02, abs(found.ux) > 0.05 else { continue }
+            let a = reading.data(column: found.mx - found.ux * 100, row: found.my - found.uy * 100)
+            let b = reading.data(column: found.mx + found.ux * 100, row: found.my + found.uy * 100)
+            guard abs(b.x - a.x) > 1e-9 else { continue }
+            let slope = (b.y - a.y) / (b.x - a.x), intercept = a.y - slope * a.x
+            let (mn, md) = fraction(slope, tolerance: 0.015 * max(1, abs(slope)))
+            let ySpan = reading.y.range.upperBound - reading.y.range.lowerBound
+            let bd = Double(md)
+            let bn = Int((intercept * bd).rounded())
+            let snapped = abs(Double(bn) / bd - intercept) <= ySpan * 0.006 ? (bn, md) : fraction(intercept, tolerance: ySpan * 0.004)
+            var option = result
+            option.series[k].latex = "y=" + term(mn, md, suffix: "x", leading: true) + term(snapped.0, snapped.1, suffix: "", leading: false)
+            if option.series[k].domain != nil {
+                let lo = ink.map { reading.data(column: $0.0, row: $0.1).x }.min()!, hi = ink.map { reading.data(column: $0.0, row: $0.1).x }.max()!
+                option.series[k].domain = [(lo * 100).rounded() / 100, (hi * 100).rounded() / 100]
+            }
+            let before = ShapeVerifier.lineScore(await FigureScene.build(result, engine: engine), picture: picture).coverage ?? 0
+            let after = ShapeVerifier.lineScore(await FigureScene.build(option, engine: engine), picture: picture).coverage ?? 0
+            guard after >= before - 0.02 else { continue }
+            result = option; changed = true
+        }
+        return changed ? result : nil
+    }
+
+    /// A shaded region whose picture draws an edge dashed (a sector's outer arc for r < 4) but whose stated
+    /// condition includes it (r ≤ 4): each non-strict condition tried as strict, the version whose solid and dashed
+    /// edges agree best with the picture's dark ink along them kept. A dashed edge is on ink a quarter to four fifths
+    /// of the way, a solid one nearly all of it.
+    static func fitStrictEdges(_ chart: StandardChart, picture: ShapeVerifier.Picture, engine: MathEngine) async -> StandardChart? {
+        let reading = picture.reading, bitmap = picture.bitmap
+        func darkNear(_ c: Int, _ r: Int) -> Bool {
+            for dy in -1...1 { for dx in -1...1 where c + dx >= 0 && r + dy >= 0 && c + dx < bitmap.width && r + dy < bitmap.height {
+                if bitmap.isInk(c + dx, r + dy) { return true }
+            } }
+            return false
+        }
+        /// Agreement of the region's drawn edges with the picture, weighted by length (nil when nothing to judge).
+        func agreement(_ option: StandardChart, series k: Int) async -> Double? {
+            let scene = await FigureScene.build(option, engine: engine)
+            var agree = 0.0, total = 0.0
+            for mark in scene.marks where mark.kind == .line && mark.seriesIndex == k {
+                for piece in mark.pieces {
+                    var on = 0, seen = 0
+                    for (a, b) in zip(piece, piece.dropFirst()) {
+                        let ax = reading.x.pixel(a[0]), ay = reading.y.pixel(a[1]), bx = reading.x.pixel(b[0]), by = reading.y.pixel(b[1])
+                        let steps = max(1, Int(hypot(bx - ax, by - ay).rounded()))
+                        for i in 0..<steps {
+                            let c = Int((ax + (bx - ax) * Double(i) / Double(steps)).rounded()), r = Int((ay + (by - ay) * Double(i) / Double(steps)).rounded())
+                            guard picture.columns.contains(c), picture.rows.contains(r), !picture.nearAxis(c, r) else { continue }
+                            seen += 1
+                            if darkNear(c, r) { on += 1 }
+                        }
+                    }
+                    guard seen >= 20 else { continue }
+                    let share = Double(on) / Double(seen)
+                    let fits = mark.style == .dashed ? (0.2...0.82).contains(share) : share >= 0.85
+                    total += Double(seen)
+                    if fits { agree += Double(seen) }
+                }
+            }
+            return total > 0 ? agree / total : nil
+        }
+        let nonStrict = try! NSRegularExpression(pattern: #"\\(le|ge)(q)?(?![a-z])|≤|≥"#)
+        func strict(_ term: String) -> String {
+            var out = term
+            for (from, to) in [("\\leq", "<"), ("\\geq", ">"), ("≤", "<"), ("≥", ">")] { out = out.replacingOccurrences(of: from, with: to) }
+            out = out.replacingOccurrences(of: #"\\le(?![a-z])"#, with: "<", options: .regularExpression)
+            return out.replacingOccurrences(of: #"\\ge(?![a-z])"#, with: ">", options: .regularExpression)
+        }
+        var result = chart, changed = false
+        for k in chart.series.indices where FigureScene.shape(of: chart.series[k]).isRegion {
+            guard let latex = chart.series[k].latex else { continue }
+            let terms = latex.split(separator: ",").map(String.init)
+            let open = terms.indices.filter { nonStrict.firstMatch(in: terms[$0], range: NSRange(terms[$0].startIndex..., in: terms[$0])) != nil }
+            guard !open.isEmpty, open.count <= 4, let base = await agreement(result, series: k), base < 0.98 else { continue }
+            var best = (latex: latex, score: base)
+            for mask in 1..<(1 << open.count) {
+                var option = result
+                var changedTerms = terms
+                for (bit, index) in open.enumerated() where mask & (1 << bit) != 0 { changedTerms[index] = strict(terms[index]) }
+                option.series[k].latex = changedTerms.joined(separator: ",")
+                if let score = await agreement(option, series: k), score > best.score + 0.15 { best = (option.series[k].latex!, score) }
+            }
+            if best.latex != latex { result.series[k].latex = best.latex; changed = true }
+        }
+        return changed ? result : nil
+    }
+
+    /// The simplest fraction p/q (q ≤ 12) within `tolerance` of v, else v to two decimals as hundredths.
+    static func fraction(_ v: Double, tolerance: Double) -> (Int, Int) {
+        for q in 1...12 {
+            let p = (v * Double(q)).rounded()
+            if abs(p / Double(q) - v) <= tolerance { return (Int(p), q) }
+        }
+        return (Int((v * 100).rounded()), 100)
+    }
+
+    /// p/q as a LaTeX term: "\\frac{8}{5}x", "-\\frac{39}{5}", "+3"; nothing for a zero intercept.
+    static func term(_ p: Int, _ q: Int, suffix: String, leading: Bool) -> String {
+        let g = gcd(abs(p), q), n = p / max(1, g), d = q / max(1, g)
+        if n == 0 { return leading ? "0" : "" }
+        let sign = n < 0 ? "-" : (leading ? "" : "+")
+        let body: String
+        if d == 1 { body = (abs(n) == 1 && !suffix.isEmpty) ? "" : "\(abs(n))" }
+        else { body = "\\frac{\(abs(n))}{\(d)}" }
+        return sign + body + suffix
+    }
+
+    private static func gcd(_ a: Int, _ b: Int) -> Int { b == 0 ? a : gcd(b, a % b) }
 
     /// A parametric curve with a marked r(t0) and its vectors that misses the picture (answer choices share one
     /// caption but each marks its own point, or draws the curve turned): t0 tried at the common values and the curve

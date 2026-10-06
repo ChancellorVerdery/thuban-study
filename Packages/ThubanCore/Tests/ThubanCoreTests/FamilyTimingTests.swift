@@ -10,6 +10,8 @@ final class FamilyTimingTests: XCTestCase {
             let y: Double = Double(k / 40) / 5 - 4.983
             return [x, y]
         }
+        // The engine's one-time start (loading its script) is not a family's cost.
+        _ = try await engine.values(of: ["x+y"], variables: ["x", "y"], at: [[0, 0]])
         for f in FamilyRecognizer.library {
             let start = Date()
             let rows = try await engine.values(of: [f], variables: ["x", "y"], at: points)

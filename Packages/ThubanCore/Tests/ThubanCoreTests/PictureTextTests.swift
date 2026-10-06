@@ -100,7 +100,8 @@ final class PictureTextTests: XCTestCase {
         let stray = PictureText.Word(text: "16", rect: CGRect(x: 420, y: 120, width: 20, height: 18))
         XCTAssertTrue(PictureText.isTickNumber(tick, reading: reading))
         XCTAssertFalse(PictureText.isTickNumber(stray, reading: reading))
+        // On a plot with axes a bare number standing alone is a misread, not a label: neither is kept.
         let attached = PictureText.attach(chart, words: [tick, stray], reading: reading, columns: 20...580, rows: 20...580)
-        XCTAssertEqual(attached.annotations?.map(\.text), ["16"])
+        XCTAssertNil(attached.annotations)
     }
 }

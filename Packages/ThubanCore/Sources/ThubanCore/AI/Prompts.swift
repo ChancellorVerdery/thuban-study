@@ -371,8 +371,9 @@ public enum Prompts {
         - A shaded region (a domain, a region of integration, an inequality's solution set) is kind "region" with the \
           inequalities that hold inside as `latex`, in x and y ("x^2+y^2\\le 49, x\\ge 0"). A polar region (a \
           sector or ring) may be given directly in r and \\theta, with the angle chain a ≤ θ ≤ b in radians \
-          ("1\\le r<4, \\frac{3\\pi}{4}\\le\\theta\\le\\frac{7\\pi}{4}"); keep < for an edge that is not part of \
-          the region. One series per separately shaded piece \
+          ("1\\le r<4, \\frac{3\\pi}{4}\\le\\theta\\le\\frac{7\\pi}{4}"); an edge the picture draws dashed is not \
+          part of the region and is always strict (< or >, never ≤ or ≥: a sector with a dashed outer arc is "r<4"). \
+          One series per separately shaded piece \
           (|x + y| ≥ 1 is "x+y\\ge 1" and "x+y\\le -1"). Add the boundary lines the picture draws (dashed for a \
           strict inequality) as ordinary curves only when they are not the region's own edge.
         - A contour map (level curves of f(x, y)) is one series of kind "level": `latex` = f(x, y) and `levels` = \
