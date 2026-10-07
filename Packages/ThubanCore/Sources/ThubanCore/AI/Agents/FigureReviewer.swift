@@ -74,6 +74,11 @@ public actor FigureReviewer {
 
     Coordinates you report must be read from the original's grid and tick labels, not guessed from the redraw.
 
+    The picture is the truth. The question text may belong to a neighbouring problem, or the figure may be a wrong \
+    answer choice: when the picture cannot come from the question's formulas (its points do not fit them, even \
+    reflected, swapped or shifted), ignore them and work the formula out from the picture itself (the measured \
+    points); if no simple formula fits, give the curve as smooth traced `points` (12–40, in order).
+
     The app draws every figure in its own house style — its colours, light gridlines, line widths, fonts, a '0' at \
     the origin — so never report those. When the original prints no tick numbers on an axis, give `xTicks: []` / \
     `yTicks: []` and the redraw prints none.
@@ -109,7 +114,7 @@ public actor FigureReviewer {
         let question = questionText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !question.isEmpty { text.append("The question this figure belongs to:\n\(question.prefix(5000))") }
         if let measured, !measured.isEmpty {
-            text.append("Points the original's curves pass through, measured from its pixels at its tick labels (each curve's points in order along it; a curve may be split where it crosses an axis or a label; axes and grid excluded). Fit your formulas to these:\n\(measured.prefix(6000))")
+            text.append("Points the original's curves pass through, measured from its pixels at its tick labels (each curve's points in order along it; a curve may be split where it crosses an axis or a label; axes and grid excluded). These are every drawn line, so vectors, arrows and segments are among them: match each to what it is in the original before fitting. Fit your formulas to these:\n\(measured.prefix(6000))")
         }
         if !notes.isEmpty { text.append("From the previous round (fix these):\n" + notes.map { "- " + $0 }.joined(separator: "\n")) }
         content.append(.text(text.joined(separator: "\n\n")))
@@ -125,6 +130,12 @@ public actor FigureReviewer {
             throw ThubanError.parse("The figure reviewer gave no verdict.")
         }
         let input = call.input
+        // THUBAN_SELFREVIEW_LOG=<dir>: every verdict as the reviewer gave it, for debugging the loop.
+        if let dir = ProcessInfo.processInfo.environment["THUBAN_SELFREVIEW_LOG"], !dir.isEmpty,
+           let data = try? input.data() {
+            let name = "review-\(Int(Date().timeIntervalSince1970 * 1000)).json"
+            try? data.write(to: URL(fileURLWithPath: dir).appendingPathComponent(name))
+        }
         var proposed: StandardChart?
         var unreadable: String?
         if let raw = input["chart"], let data = try? raw.data() {
@@ -152,6 +163,8 @@ public actor FigureReviewer {
         var chart = chart
         chart.verification = nil
         chart.shapeCandidates = nil
+        // `arrows` belongs to slope fields only; elsewhere it misleads.
+        if !chart.isSlopeField { chart.arrows = false }
         return chart
     }
 }

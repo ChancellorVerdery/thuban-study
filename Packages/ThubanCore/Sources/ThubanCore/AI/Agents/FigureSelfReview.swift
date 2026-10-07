@@ -28,9 +28,62 @@ extension FigureWorkflow {
             let step = max(1, curve.count / 15)
             let points = Swift.stride(from: 0, to: curve.count, by: step).map { curve[$0] }
             let data = points.map { picture.reading.data(column: Double($0.0), row: Double($0.1)) }
-            return "curve \(k + 1): " + data.map { "(\(number($0.x)), \(number($0.y)))" }.joined(separator: " ")
+            var line = "curve \(k + 1): " + data.map { "(\(number($0.x)), \(number($0.y)))" }.joined(separator: " ")
+            if let fit = bestFit(curve, picture: picture) { line += "\n  fits \(fit)" }
+            return line
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// The simplest of y = a + b x (+ c x²) and x = a + b y (+ c y²) that a measured curve follows, by least squares
+    /// over all its pixels, with its median miss in pixels — only when that is within 1.5 px (a real fit).
+    static func bestFit(_ curve: [(Int, Int)], picture: ShapeVerifier.Picture) -> String? {
+        let reading = picture.reading
+        let data = curve.map { reading.data(column: Double($0.0), row: Double($0.1)) }
+        func solve(_ us: [Double], _ vs: [Double], degree: Int) -> [Double]? {
+            let n = degree + 1
+            var a = [[Double]](repeating: [Double](repeating: 0, count: n + 1), count: n)
+            for (u, v) in zip(us, vs) {
+                var p = [Double](repeating: 1, count: 2 * n)
+                for k in 1..<(2 * n) { p[k] = p[k - 1] * u }
+                for i in 0..<n { for j in 0..<n { a[i][j] += p[i + j] }; a[i][n] += p[i] * v }
+            }
+            for col in 0..<n {
+                guard let pivot = (col..<n).max(by: { abs(a[$0][col]) < abs(a[$1][col]) }), abs(a[pivot][col]) > 1e-12 else { return nil }
+                a.swapAt(col, pivot)
+                for row in 0..<n where row != col {
+                    let f = a[row][col] / a[col][col]
+                    for k in col...n { a[row][k] -= f * a[col][k] }
+                }
+            }
+            return (0..<n).map { a[$0][n] / a[$0][$0] }
+        }
+        var best: (String, Double)?
+        for sideways in [false, true] {
+            let us = data.map { sideways ? $0.y : $0.x }, vs = data.map { sideways ? $0.x : $0.y }
+            guard let lo = us.min(), let hi = us.max(), hi > lo else { continue }
+            for degree in [1, 2] {
+                guard let c = solve(us, vs, degree: degree) else { continue }
+                let misses = zip(us, vs).map { u, v -> Double in
+                    let model = c.enumerated().reduce(0.0) { $0 + $1.element * pow(u, Double($1.offset)) }
+                    return sideways ? abs(reading.x.pixel(model) - reading.x.pixel(v)) : abs(reading.y.pixel(model) - reading.y.pixel(v))
+                }.sorted()
+                let median = misses[misses.count / 2]
+                guard median <= 1.5 else { continue }
+                let (dep, ind) = sideways ? ("x", "y") : ("y", "x")
+                var text = "\(dep) = \(String(format: "%.4g", c[0])) + \(String(format: "%.4g", c[1]))\(ind)"
+                if degree == 2 {
+                    // Vertex form too: the shape a textbook writes.
+                    let vertex = -c[1] / (2 * c[2]), top = c[0] - c[1] * c[1] / (4 * c[2])
+                    text += " + \(String(format: "%.4g", c[2]))\(ind)² = \(String(format: "%.4g", c[2]))(\(ind) − \(String(format: "%.4g", vertex)))² + \(String(format: "%.4g", top))"
+                }
+                text += " for \(ind) from \(String(format: "%.3g", lo)) to \(String(format: "%.3g", hi)) (median miss \(String(format: "%.1f", median)) px)"
+                // The first that fits is the simplest (line before parabola).
+                if best == nil || (degree == 1 && median < best!.1) { best = (text, median) }
+                break
+            }
+        }
+        return best?.0
     }
 
     /// Each figure's redraw is drawn (`render`), shown to the reviewer beside its original, corrected when the

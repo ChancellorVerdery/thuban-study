@@ -76,9 +76,11 @@ enum FigureSelfReviewLaunch {
                         lines.append("DOC \(document.filename)")
                         _ = try await FigureWorkflow.selfReview(
                             document: document, store: store, reviewer: reviewer, engine: engine, render: render, force: force,
+                            // fig:<id prefix>: that one figure only.
+                            only: only.hasPrefix("fig:") ? { $0.id.raw.hasPrefix(String(only.dropFirst(4))) } : nil,
                             report: { figure, result, problems in
                                 lines.append("#\(figure.pageOrIndex + 1) \(figure.id.raw.prefix(8)) \(result.rawValue)"
-                                             + (problems.isEmpty ? "" : " | " + problems.joined(separator: " / ").prefix(400)))
+                                             + (problems.isEmpty ? "" : " | " + problems.joined(separator: " / ").prefix(1500)))
                             })
                     }
                 }

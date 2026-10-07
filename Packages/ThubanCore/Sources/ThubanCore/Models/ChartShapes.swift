@@ -506,8 +506,16 @@ public enum ChartShapes {
     /// A parametric coordinate written in θ (x = 4\sin 8θ) as the same formula in t, the one parameter the curves
     /// are sampled in.
     static func parameterInT(_ latex: String) -> String {
-        normalised(latex).replacingOccurrences(of: "\\vartheta", with: "t").replacingOccurrences(of: "\\theta", with: "t")
+        let text = normalised(latex).replacingOccurrences(of: "\\vartheta", with: "t").replacingOccurrences(of: "\\theta", with: "t")
             .replacingOccurrences(of: "θ", with: "t")
+        // A lone letter parameter other than t (x = 4^s − 3s, g(u)): the same curve in t. Letters inside commands
+        // (\sin, \sqrt) and words are left alone.
+        let lone = { (letter: String) in "(?<![\\\\A-Za-z])\(letter)(?![A-Za-z])" }
+        guard text.range(of: lone("t"), options: .regularExpression) == nil else { return text }
+        for letter in ["s", "u"] where text.range(of: lone(letter), options: .regularExpression) != nil {
+            return text.replacingOccurrences(of: lone(letter), with: "t", options: .regularExpression)
+        }
+        return text
     }
 
     /// Arrows spaced along polylines (by length on screen, inside the window): two to six, depending on how long
