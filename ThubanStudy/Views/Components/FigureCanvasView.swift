@@ -114,7 +114,8 @@ struct FigureCanvasRenderer {
         context.clip(to: Path(CGRect(origin: .zero, size: size)))
         if scene.tintedPlot { context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(hex: theme.accentTint))) }
 
-        let xAxisY = min(max(py(0), 0), size.height), yAxisX = min(max(px(0), 0), size.width)
+        // A depth axis (values growing downward, 0 at the top) has its horizontal axis along the bottom, as plotted.
+        let xAxisY = scene.yReversed ? size.height : min(max(py(0), 0), size.height), yAxisX = min(max(px(0), 0), size.width)
         if scene.showAxes {
             // Grid: minor at half steps, major at the tick spacing.
             var minor = Path(), major = Path()

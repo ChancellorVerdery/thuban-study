@@ -153,7 +153,7 @@ public enum PictureText {
         // On a plot with axes only text that is plainly a label ("|u| = 2", "60°", "(8, 0)") stands on its own:
         // stray readings of tick numbers, arrowheads or dots ("F20", "Л", "11") are dropped.
         func plainlyLabel(_ text: String) -> Bool {
-            chart.axesHidden || text.contains { "=°|(".contains($0) }
+            chart.axesHidden || isPlainLabel(text)
         }
         for word in free where box.contains(CGPoint(x: word.rect.midX, y: word.rect.midY))
             && !axisNames.contains(word.text.lowercased()) && !used.contains(word.text) && plainlyLabel(word.text) {
@@ -222,6 +222,12 @@ public enum PictureText {
             chart.annotations = kept.isEmpty ? nil : kept
         }
         return chart
+    }
+
+    /// Text that is plainly a label on a plot with axes: an equation ("|u| = 2"), an angle ("60°"), coordinates
+    /// ("(8, 0)") or a magnitude with both bars — not a tick number read with a stray bar ("35|").
+    public static func isPlainLabel(_ text: String) -> Bool {
+        text.contains { "=°(".contains($0) } || text.filter { $0 == "|" }.count >= 2
     }
 
     /// The coordinates a label prints ("B(4, 5)", "A(−1, 4)", "(8, 0)"), if it prints any.

@@ -289,6 +289,18 @@ final class ImportPipeline {
                 _ = try? await FigureWorkflow.reconcileStored(document: document, store: store, engine: app.engine) { carried.contains($0.id) }
                 carriedFigures[document.id] = nil
             }
+            // Every redraw is then shown to a reviewer beside its original and corrected until it matches, in the
+            // background: a figure is shown redrawn only once confirmed, its original until then.
+            if charts > 0, app.isConnected {
+                let reviewed = document, engine = app.engine, theme = app.theme
+                let reviewer = FigureReviewer(client: app.claudeClient, model: .opus)
+                Task.detached(priority: .utility) { [weak self] in
+                    _ = try? await FigureWorkflow.selfReview(
+                        document: reviewed, store: store, reviewer: reviewer, engine: engine,
+                        render: { chart, original in await FigureRedrawImage.png(chart: chart, original: original, engine: engine, theme: theme) })
+                    await self?.session.loadQuestions()
+                }
+            }
             if dropped > 0 || !figureWarnings.isEmpty {
                 let remaining = max(0, content.figures.count - dropped)
                 warnings.append(contentsOf: figureWarnings)

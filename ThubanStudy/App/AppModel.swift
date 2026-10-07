@@ -189,6 +189,7 @@ final class AppModel {
         SmokeHarness.startIfEnabled(app: self)
         FigureDump.startIfEnabled(app: self)
         FigureReanalysisLaunch.startIfEnabled(app: self)
+        FigureSelfReviewLaunch.startIfEnabled(app: self)
         RegenerateHarness.startIfEnabled(app: self)
         ImportHarness.startIfEnabled(app: self)
     }

@@ -94,7 +94,7 @@ public actor FigureAgent {
                         "points": [
                             "type": "array",
                             "items": ["type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2],
-                            "description": "Traced curves: [[x, y], …] read off the axes along the curve, 12–40 of them, in order; the app draws a smooth curve through them (dots only for scatter charts). Never one point per arrow of a field.",
+                            "description": "Traced curves: [[x, y], …] read off the axes along the curve, 12–40 of them, in order; the app draws a smooth curve through them (dots only for scatter charts). Never one point per arrow of a field. Kind \"point\": the dots. Kind \"vector\" / \"segment\": [tail, head] / [end, end]. Kind \"angle\": exactly three points [vertex, a point on one side, a point on the other side].",
                         ],
                         "latex": ["type": "string", "description": "Stated curves: the function of x (or relation) exactly as the question gives it. Preferred over points whenever the question defines the curve. For kind \"region\": the inequalities that hold inside, comma-separated, in x and y (\"x^2+y^2\\\\le 49, x\\\\ge 0\", \"-1\\\\le x+y\\\\le 1\"), or for a polar sector or ring directly in r and \\\\theta (\"1\\\\le r<4, \\\\frac{3\\\\pi}{4}\\\\le\\\\theta\\\\le\\\\frac{7\\\\pi}{4}\"). For kind \"level\": the function f(x, y) whose level curves are drawn (\"x^2+y^2\", \"y e^{x}\")."],
                         "kind": [
@@ -430,7 +430,7 @@ public actor FigureAgent {
         // Text an earlier pass carried onto a plot with axes that is not plainly a label (a tick number read again,
         // "−10F", "LLLL") would print over the axes' own numbers: dropped, and read afresh below.
         if !marked.axesHidden, let notes = marked.annotations {
-            let kept = notes.filter { note in note.text.contains { "=°|(".contains($0) } }
+            let kept = notes.filter { PictureText.isPlainLabel($0.text) }
             marked.annotations = kept.isEmpty ? nil : kept
         }
         // The labels the picture prints: point names and coordinates, vector names, curve levels, other text.

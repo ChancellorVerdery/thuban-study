@@ -109,6 +109,8 @@ public enum FigureWorkflow {
                 continue
             }
             guard let chart = figure.chart else { continue }
+            // Confirmed side by side with its original: left exactly as it is.
+            if figure.status == .accepted, chart.notes?.contains(confirmedNote) == true { continue }
             let text = questions.filter { $0.figureIds.contains(figure.id) }.map(questionText).joined(separator: "\n\n")
             let checked = await FigureAgent.check(chart, png: png, engine: engine, questionText: text)
             if FigureAgent.isThin(checked) {
