@@ -79,6 +79,18 @@ public actor FigureReviewer {
     reflected, swapped or shifted), ignore them and work the formula out from the picture itself (the measured \
     points); if no simple formula fits, give the curve as smooth traced `points` (12–40, in order).
 
+    Many textbook parametric sketches are tilted parabolas or cubics: x(t) and y(t) each a polynomial of degree 2 \
+    (or 3) in t over a range such as −2 ≤ t ≤ 2, with the end dots at the ends of the range. Solve for them: give \
+    the end dots the end values of t (and any other marked dot its t), write x = a t² + b t + c and \
+    y = d t² + e t + f, and solve the linear equations from three or more such points (for example x = 2t − t², \
+    y = 2 − t − t² runs from (−8, 0) at t = −2 through (0, 2) at t = 0 to (0, −4) at t = 2). Check the result \
+    against the measured points before giving it.
+
+    A wrong answer choice is often the question's own curve transformed: mirrored across a vertical or horizontal \
+    line (x → c − x or y → c − y, not only about an axis), reflected in y = x (x and y swapped), shifted, or run \
+    backwards. Match its marked dots with the question curve's points at the same t (they correspond one to one) \
+    to find which: equal y with x-values that add to the same c means x → c − x.
+
     The app draws every figure in its own house style — its colours, light gridlines, line widths, fonts, a '0' at \
     the origin — so never report those. When the original prints no tick numbers on an axis, give `xTicks: []` / \
     `yTicks: []` and the redraw prints none.

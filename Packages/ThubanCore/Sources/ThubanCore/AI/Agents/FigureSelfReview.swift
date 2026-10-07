@@ -92,7 +92,7 @@ extension FigureWorkflow {
     public static func selfReview(
         document: ImportedDocument, store: Store, reviewer: FigureReviewer, engine: MathEngine,
         render: @escaping @Sendable (StandardChart, Data) async -> Data?,
-        rounds: Int = 3, force: Bool = false, only: ((Figure) -> Bool)? = nil,
+        rounds: Int = 4, force: Bool = false, only: ((Figure) -> Bool)? = nil,
         report: (@Sendable (Figure, ReviewResult, [String]) -> Void)? = nil
     ) async throws -> [Outcome] {
         var outcomes: [Outcome] = []

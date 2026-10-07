@@ -92,7 +92,19 @@ struct FigureCanvasRenderer {
 
     func draw(in context: inout GraphicsContext, size: CGSize) {
         guard size.width > 20, size.height > 20 else { return }
-        let window = scene.showAxes ? scene.window : Self.equalScale(scene.window, size: size)
+        // A data plot whose axes do not cross in view (a lake's depth against the day of the year) is framed: its
+        // axes run along the plot's left and bottom edges, with the numbers and names outside them, and its curves
+        // keep a margin inside the frame.
+        let data = scene.window
+        let framed = scene.showAxes && (scene.yReversed || (!data.x.contains(0) && !data.y.contains(0)))
+        let window: FigureScene.Window = {
+            guard scene.showAxes else { return Self.equalScale(scene.window, size: size) }
+            guard framed else { return scene.window }
+            let w = data.x.upperBound - data.x.lowerBound, h = data.y.upperBound - data.y.lowerBound
+            let below = h * 0.16, above = h * 0.04
+            let y = scene.yReversed ? (data.y.lowerBound - above)...(data.y.upperBound + below) : (data.y.lowerBound - below)...(data.y.upperBound + above)
+            return FigureScene.Window(x: (data.x.lowerBound - w * 0.12)...(data.x.upperBound + w * 0.03), y: y)
+        }()
         let xSpan = window.x.upperBound - window.x.lowerBound, ySpan = window.y.upperBound - window.y.lowerBound
         let sx = size.width / xSpan, sy = size.height / ySpan
         // Pixels per unit along each axis, signed: right and up unless the axis is reversed.
@@ -112,10 +124,15 @@ struct FigureCanvasRenderer {
         let dim = Color(hex: theme.inkDim)
         // Nothing is drawn outside the plot (a curve leaving the window stops at its edge).
         context.clip(to: Path(CGRect(origin: .zero, size: size)))
-        if scene.tintedPlot { context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(hex: theme.accentTint))) }
+        // The data's own frame on screen (the whole canvas unless framed).
+        let frame = framed
+            ? CGRect(x: min(px(data.x.lowerBound), px(data.x.upperBound)), y: min(py(data.y.lowerBound), py(data.y.upperBound)),
+                     width: abs(px(data.x.upperBound) - px(data.x.lowerBound)), height: abs(py(data.y.upperBound) - py(data.y.lowerBound)))
+            : CGRect(origin: .zero, size: size)
+        if scene.tintedPlot { context.fill(Path(frame), with: .color(Color(hex: theme.accentTint))) }
 
         // A depth axis (values growing downward, 0 at the top) has its horizontal axis along the bottom, as plotted.
-        let xAxisY = scene.yReversed ? size.height : min(max(py(0), 0), size.height), yAxisX = min(max(px(0), 0), size.width)
+        let xAxisY = framed ? frame.maxY : min(max(py(0), 0), size.height), yAxisX = framed ? frame.minX : min(max(px(0), 0), size.width)
         if scene.showAxes {
             // Grid: minor at half steps, major at the tick spacing.
             var minor = Path(), major = Path()
@@ -136,8 +153,10 @@ struct FigureCanvasRenderer {
 
             // Axes through the origin when it is in view; labels ride the axis or the nearest edge.
             var axes = Path()
-            if window.y.contains(0) { axes.move(to: CGPoint(x: 0, y: py(0))); axes.addLine(to: CGPoint(x: size.width, y: py(0))) }
-            if window.x.contains(0) { axes.move(to: CGPoint(x: px(0), y: 0)); axes.addLine(to: CGPoint(x: px(0), y: size.height)) }
+            if framed {
+                axes.addRect(frame)
+            } else if window.y.contains(0) { axes.move(to: CGPoint(x: 0, y: py(0))); axes.addLine(to: CGPoint(x: size.width, y: py(0))) }
+            if !framed, window.x.contains(0) { axes.move(to: CGPoint(x: px(0), y: 0)); axes.addLine(to: CGPoint(x: px(0), y: size.height)) }
             context.stroke(axes, with: .color(ink), lineWidth: 1.8)
         }
 
@@ -375,6 +394,15 @@ struct FigureCanvasRenderer {
 
         // Axis names at the ends of the axes, on whichever side has room.
         let xName = scene.xLabel ?? "x", yName = scene.yLabel ?? "y"
+        if framed {
+            // Under the numbers, centred; the vertical name up the left side, as a printed plot has them.
+            context.draw(Text(xName).font(axisNameFont).foregroundColor(ink), at: CGPoint(x: frame.midX, y: size.height - 4), anchor: .bottom)
+            var turned = context
+            turned.translateBy(x: 10, y: frame.midY)
+            turned.rotate(by: .degrees(-90))
+            turned.draw(Text(yName).font(axisNameFont).foregroundColor(ink), at: .zero, anchor: .center)
+            return
+        }
         let xNameY = xAxisY < 26 ? min(xAxisY + 12, size.height - 10) : xAxisY - 12
         context.draw(Text(xName).font(axisNameFont).foregroundColor(ink), at: CGPoint(x: size.width - 6, y: xNameY), anchor: .trailing)
         let yNameLeft = yAxisX > size.width - 26
