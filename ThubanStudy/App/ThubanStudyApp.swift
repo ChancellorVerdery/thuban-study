@@ -4,15 +4,14 @@ import ThubanCore
 @main
 struct ThubanStudyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var appModel: AppModel = {
-        // A `--refresh-icon` launch gets an in-memory store; `AppDelegate` exits before any window or load().
-        SmokeHarness.exitIfPointedAtLiveData()   // before the model opens the store or the credentials
-        SmokeHarness.installProxyTrapIfRequested()   // before any web view exists
-        return AppModel()
-    }()
+    @State private var appModel: AppModel
 
     init() {
-        guard !SharedTheme.isRefreshLaunch else { return }   // icon-only launch: no shortcuts, no UI
+        // Must run before anything touches NSApplication (see SharedTheme): an icon-only launch exits here.
+        SharedTheme.refreshIconAndExitIfRequested { AppIconRenderer.render(theme: $0) }
+        SmokeHarness.exitIfPointedAtLiveData()   // before the model opens the store or the credentials
+        SmokeHarness.installProxyTrapIfRequested()   // before any web view exists
+        _appModel = State(initialValue: AppModel())
         AppZoom.shared.installShortcuts()
     }
 
@@ -96,7 +95,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// A `--refresh-icon` launch stamps the themed icon on the bundle and exits before any window appears.
     func applicationWillFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated {
-            SharedTheme.handleRefreshLaunch { AppIconRenderer.render(theme: $0) }
         }
     }
 

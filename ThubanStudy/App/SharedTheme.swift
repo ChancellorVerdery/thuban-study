@@ -15,7 +15,7 @@ import ThubanCore
 @MainActor
 enum SharedTheme {
     static let notification = Notification.Name("com.thuban.theme.changed")
-    static let refreshFlag = "--refresh-icon"
+    nonisolated static let refreshFlag = "--refresh-icon"
     static let infoKey = "ThubanSharedTheme"
 
     static var fileURL: URL {
@@ -74,17 +74,40 @@ enum SharedTheme {
         NSWorkspace.shared.setIcon(image, forFile: Bundle.main.bundlePath, options: [])
     }
 
-    /// `--refresh-icon` launch: draw the icon for the shared theme, stamp it and exit before any UI appears.
-    /// Call first thing in `applicationWillFinishLaunching`.
-    static func handleRefreshLaunch(render: (ResolvedTheme) -> NSImage) {
+    /// `--refresh-icon` launch: draw the icon for the shared theme, stamp it and exit. Call as the FIRST statement of
+    /// the SwiftUI `App`'s `init()` — before `NSApplication` starts — so the process never registers with the Dock
+    /// (registering, even briefly, leaves a blank tile behind).
+    nonisolated static func refreshIconAndExitIfRequested(render: (ResolvedTheme) -> NSImage) {
         guard CommandLine.arguments.contains(refreshFlag) else { return }
-        NSApplication.shared.setActivationPolicy(.prohibited)
-        if let selection = load() {
+        let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("Thuban/theme.json")
+        if let url, let data = try? Data(contentsOf: url), let selection = try? JSONDecoder().decode(ThemeSelection.self, from: data) {
             let dark = UserDefaults.standard.string(forKey: "AppleInterfaceStyle")?.lowercased() == "dark"
             let theme = ThemeResolver.resolve(selection, systemIsDark: dark)
-            NSWorkspace.shared.setIcon(render(theme), forFile: Bundle.main.bundlePath, options: [])
+            NSWorkspace.shared.setIcon(bitmap(render(theme)), forFile: Bundle.main.bundlePath, options: [])
         }
         exit(0)
+    }
+
+    /// Fallback for apps that still call this from `applicationWillFinishLaunching`.
+    static func handleRefreshLaunch(render: (ResolvedTheme) -> NSImage) {
+        refreshIconAndExitIfRequested(render: render)
+    }
+
+    /// Rasterises a drawing-handler image into a 1024 px bitmap (works without a running NSApplication).
+    nonisolated static func bitmap(_ image: NSImage, pixels: Int = 1024) -> NSImage {
+        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: pixels, pixelsHigh: pixels, bitsPerSample: 8,
+                                         samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                         bytesPerRow: 0, bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: rep) else { return image }
+        rep.size = NSSize(width: pixels, height: pixels)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        image.draw(in: NSRect(x: 0, y: 0, width: pixels, height: pixels))
+        NSGraphicsContext.restoreGraphicsState()
+        let output = NSImage(size: rep.size)
+        output.addRepresentation(rep)
+        return output
     }
 
     /// Other installed Thuban apps that opt in and are not running: launch each with `--refresh-icon`.
