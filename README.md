@@ -131,7 +131,7 @@ and integration notes.
 **Requirements**
 
 - macOS 15 or newer and Xcode 26. The project uses the Swift 6 toolchain in Swift 5 language mode.
-- A local checkout of [Thuban Graph](https://github.com/GITHUB_USER/thuban-graph), which provides `ThubanGraphKit`.
+- A local checkout of [Thuban Graph](https://github.com/ChancellorVerdery/thuban-graph), which provides `ThubanGraphKit`.
 - A Claude account or an Anthropic API key, for the AI features. Without one, the bank, grading, graphing,
   calculator, equation sheets and flashcard review still work.
 
@@ -140,7 +140,7 @@ gitignored. `scripts/link-graph.sh` creates it. Every other script runs it first
 tell it where your checkout is:
 
 ```sh
-git clone https://github.com/GITHUB_USER/thuban-graph.git "../Thuban Graph"
+git clone https://github.com/ChancellorVerdery/thuban-graph.git "../Thuban Graph"
 export THUBAN_GRAPH_ROOT="$PWD/../Thuban Graph"   # default: ~/Desktop/Claude/Thuban Graph
 ```
 
@@ -185,12 +185,12 @@ from `project.yml`, so run `xcodegen` again after adding source files.
 
 Thuban Study is part of a set of macOS apps that share one color scheme:
 
-- [Thuban Graph](https://github.com/GITHUB_USER/thuban-graph): an offline 2D/3D graphing calculator (the engine
+- [Thuban Graph](https://github.com/ChancellorVerdery/thuban-graph): an offline 2D/3D graphing calculator (the engine
   inside Study)
-- [Thuban Canvas](https://github.com/GITHUB_USER/thuban-canvas): a native Canvas LMS client
-- [Thuban Desk](https://github.com/GITHUB_USER/thuban-desk): calendar and mail
-- [Thuban Gym](https://github.com/GITHUB_USER/thuban-gym): a workout tracker
-- [Thuban Planner](https://github.com/GITHUB_USER/thuban-planner): a degree planner
+- [Thuban Canvas](https://github.com/ChancellorVerdery/thuban-canvas): a native Canvas LMS client
+- [Thuban Desk](https://github.com/ChancellorVerdery/thuban-desk): calendar and mail
+- [Thuban Gym](https://github.com/ChancellorVerdery/thuban-gym): a workout tracker
+- [Thuban Planner](https://github.com/ChancellorVerdery/thuban-planner): a degree planner
 
 ---
 
