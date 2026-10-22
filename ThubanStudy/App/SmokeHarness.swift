@@ -833,8 +833,10 @@ enum SmokeHarness {
     /// Graph scenes: the window server's own pixels (`screencapture -l`), which include the Metal 3D view that
     /// `cacheDisplay` cannot read; falls back to the composited capture when that is unavailable. Once the Settings
     /// window has covered the main window, WebKit views come out blank in window-server captures (they are fine in
-    /// their own snapshots), so the later 2D scene (07) uses the composited capture.
+    /// their own snapshots), so the later 2D scene (07) uses the composited capture. On a 1x display the window
+    /// server has only 1x pixels, so the composited capture (rendered at 2x) is used instead.
     private static func captureGraph(window: NSWindow, name: String, in directory: URL) async throws -> URL {
+        if window.backingScaleFactor < 2 { return try await capture(window: window, name: name, in: directory) }
         let file = directory.appendingPathComponent("\(name).png")
         try? FileManager.default.removeItem(at: file)
         let screen = Process()
@@ -889,13 +891,19 @@ enum SmokeHarness {
     // MARK: Capture
 
     /// Renders the window's native content (`cacheDisplay`) and composites every visible `WKWebView` snapshot at
-    /// its frame, then writes `<directory>/<name>.png`.
+    /// its frame, then writes `<directory>/<name>.png`. Everything renders at 2x or the window's backing scale,
+    /// whichever is higher, so the screenshots are retina even from a 1x display.
     private static func capture(window: NSWindow, name: String, in directory: URL) async throws -> URL {
         guard let content = window.contentView else { throw ThubanError.store("smoke: window has no content view") }
         let bounds = content.bounds
-        guard let nativeRep = content.bitmapImageRepForCachingDisplay(in: bounds) else {
-            throw ThubanError.store("smoke: could not create a bitmap for \(name)")
-        }
+        let scale = max(window.backingScaleFactor, 2)
+        guard let nativeRep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(bounds.width * scale), pixelsHigh: Int(bounds.height * scale),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ) else { throw ThubanError.store("smoke: could not create a bitmap for \(name)") }
+        nativeRep.size = bounds.size
         content.cacheDisplay(in: bounds, to: nativeRep)
         let native = NSImage(size: bounds.size)
         native.addRepresentation(nativeRep)
@@ -911,6 +919,17 @@ enum SmokeHarness {
         let contentOrigin = content.convert(content.bounds, to: nil).origin
         var overlays: [(rect: NSRect, image: NSImage, source: NSRect)] = []
         var skipped = 0
+        // The 3D graph's Metal view, which `cacheDisplay` leaves blank: rendered offscreen at the same scale.
+        for view in subviews(of: content) where !view.isHiddenOrHasHiddenAncestor && view.visibleRect.width > 1 {
+            guard let cgImage = StudyGraphSnapshot.image(of: view, scale: scale) else { continue }
+            let visible = view.visibleRect
+            var rect = view.convert(visible, to: nil)
+            rect.origin.x -= contentOrigin.x
+            rect.origin.y -= contentOrigin.y
+            let sourceY = view.isFlipped ? view.bounds.height - visible.maxY : visible.minY
+            overlays.append((rect, NSImage(cgImage: cgImage, size: view.bounds.size),
+                             NSRect(x: visible.minX, y: sourceY, width: visible.width, height: visible.height)))
+        }
         for webView in subviews(of: content).compactMap({ $0 as? WKWebView }) {
             let visible = webView.visibleRect
             guard !webView.isHiddenOrHasHiddenAncestor, webView.window === window,
@@ -918,24 +937,26 @@ enum SmokeHarness {
             var rect = webView.convert(visible, to: nil)
             rect.origin.x -= contentOrigin.x
             rect.origin.y -= contentOrigin.y
-            if !isBlank(nativeRep, region: rect, bounds: bounds, scale: nativeRep.size.width > 0 ? CGFloat(nativeRep.pixelsWide) / bounds.width : 1) {
+            if !isBlank(nativeRep, region: rect, bounds: bounds, scale: scale) {
                 skipped += 1
                 continue
             }
             let configuration = WKSnapshotConfiguration()
             configuration.afterScreenUpdates = true
+            // `snapshotWidth` is in points at the backing scale: widen it so the snapshot holds `scale` pixels per point.
+            configuration.snapshotWidth = NSNumber(value: Double(webView.bounds.width * scale / window.backingScaleFactor))
             do {
                 let image = try await webView.takeSnapshot(configuration: configuration)
                 // Snapshot images are unflipped; WKWebView bounds are flipped (origin top-left).
                 let sourceY = webView.isFlipped ? webView.bounds.height - visible.maxY : visible.minY
-                let source = NSRect(x: visible.minX, y: sourceY, width: visible.width, height: visible.height)
+                let k = image.size.width / max(webView.bounds.width, 1)
+                let source = NSRect(x: visible.minX * k, y: sourceY * k, width: visible.width * k, height: visible.height * k)
                 overlays.append((rect, image, source))
             } catch {
                 logger.error("snapshot failed for a web view in \(name, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
 
-        let scale = window.backingScaleFactor
         guard let output = NSBitmapImageRep(
             bitmapDataPlanes: nil,
             pixelsWide: Int(bounds.width * scale), pixelsHigh: Int(bounds.height * scale),

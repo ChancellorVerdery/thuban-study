@@ -1,6 +1,7 @@
-import Foundation
+import AppKit
 internal import GraphModel
 internal import GraphTypes
+@_spi(GraphApp) internal import ThubanGraphKit
 
 /// Timing probes for the app's smoke run (slider drags and 3D camera orbits inside Study, on the shared engine).
 /// They drive the sessions with the commands the list's slider and the 3D view's drag send.
@@ -47,5 +48,20 @@ extension StudyGraphHost {
             worst = max(worst, ms)
         }
         return StepTiming(steps: count, meanMilliseconds: count == 0 ? 0 : total / Double(count), maxMilliseconds: worst)
+    }
+}
+
+/// Offscreen render of the 3D graph's Metal view (smoke screenshots): `cacheDisplay` cannot read it, and its own
+/// `snapshotImage()` follows the window's backing scale, which is 1 on a 1x display.
+public enum StudyGraphSnapshot {
+    /// `view` (the 3D graph's Metal view) rendered at `bounds` × `scale` pixels, overlays included; nil for any
+    /// other view or without Metal.
+    @MainActor public static func image(of view: NSView, scale: CGFloat) -> CGImage? {
+        guard let view = view as? Graph3DMTKView, let renderer = view.renderer, let model = view.model,
+              let session = model.session, view.bounds.width >= 1, view.bounds.height >= 1,
+              let graph = renderer.renderImage(camera: model.camera(session), size: view.bounds.size, scale: scale)
+        else { return nil }
+        guard let overlay = view.overlaySnapshot?(view.bounds.size, scale) else { return graph }
+        return Graph3DMTKView.composite(graph, overlay)
     }
 }
