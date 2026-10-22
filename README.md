@@ -1,49 +1,197 @@
 # Thuban Study
 
-A native macOS study app: import course documents, let a Claude agent build a question bank per class,
-then work problems WebAssign-style next to a tutor that guides instead of answers. Math questions regenerate
-with fresh numbers and any algebraically equivalent answer is accepted unless the question sets conditions.
-Offline 2D/3D graphing and a calculator (the Thuban Graph engine) sit one toggle away. Everything is stored locally.
+A native macOS study app for STEM classes: turn homework and exam PDFs into a question bank, then work problems
+next to a Claude tutor that guides you instead of giving you the answer.
 
-Design canvas: https://claude.ai/artifact/MbqgQgK5BeX9tkoCsXkV9X
+![The Study screen: a multivariable calculus question with math-input answer boxes and the tutor panel](docs/screenshots/study.png)
 
-## Requirements
+## Why
 
-- macOS 15 or newer, Xcode 26 (the project uses the Swift 6 toolchain in Swift 5 language mode).
-- A Thuban Graph checkout (for `ThubanGraphKit`) at `~/Desktop/Claude/Thuban Graph`, or set `THUBAN_GRAPH_ROOT`.
-  Every script runs `scripts/link-graph.sh`, which links it as `Vendor/ThubanGraph` (gitignored).
-- A Claude account (Settings › Claude account › Connect, a personal-use OAuth flow) or an Anthropic API key.
+Course platforms give you each homework set once, then lock it. Studying for an exam means going back through
+old PDFs and redoing problems you have already seen the answers to. Thuban Study takes the documents you already
+have, pulls the questions out into a bank for each class, and lets you work them again in a WebAssign-style
+form. Math questions come back with fresh numbers, and the tutor is told to coach you rather than solve the
+problem for you.
 
-## Build and run
+## Features
+
+**Question bank from your own documents**
+- Import PDF, Word, PowerPoint, Excel, CSV, HTML, MHTML, Markdown, plain text and images (with on-device OCR).
+- A Claude import agent splits each document into questions with lettered parts, answer kinds and problem-type
+  tags. It uses Sonnet by default and can escalate to Opus for dense material, if you allow it.
+- You can filter the bank by type, status (New, Learning, Mastered, Needs review) and source document.
+
+**Working problems**
+- MathLive answer boxes with a math keyboard. Answers are graded locally by a computer-algebra engine, so any
+  algebraically equivalent answer is accepted unless the question sets conditions (exact form, rationalized
+  denominator, and so on).
+- Template questions can be regenerated with new numbers from a seeded generator.
+- Every question tracks progress, so you can see what is new, what you are still learning and what you have
+  mastered.
+
+**AI tutor**
+- A chat panel next to the question, with three styles: Socratic, direct hints, or exam mode (it stays quiet
+  until you check your answers).
+- The tutor can read the work you have entered and can open, edit and re-frame the graph. You can turn graph
+  editing off.
+- It only gives a full solution if you ask for one explicitly.
+
+**Graphing and calculator**
+- An offline 2D and 3D grapher (the Thuban Graph engine) and a scientific calculator with exact and decimal
+  modes, both one toggle away from the question.
+
+**Figures**
+- Charts clipped from imported documents are read back into data (function curves, direction fields, line
+  series), checked against the question text, and redrawn in the app's graph style. You review each one and
+  choose to accept the redraw, keep the original image or skip the figure. Diagrams and photos keep their
+  original image.
+
+**Equation sheets and flashcards**
+- One equation sheet per class, with groups, typeset math, notes, search and export. After an import, Claude
+  suggests general equations the new questions need, and you approve or deny each one.
+- A flashcard deck per class, generated from notes or documents and reviewed by you before any card is added. It
+  uses spaced repetition with reviews at 1, 3, 7, 14 and then at most 21 days.
+
+**Look and feel**
+- Light and dark color schemes. The scheme is shared with the other Thuban apps.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/study-graph-2d.png" alt="Study screen with the 2D graph open beside the question and tutor"></td>
+    <td><img src="docs/screenshots/study-graph-3d-dark.png" alt="3D surface graph in a dark color scheme"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>2D graph next to the question; the tutor can edit it</sub></td>
+    <td align="center"><sub>3D surfaces and space curves, dark scheme</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/question-bank.png" alt="Question bank with filters by type, status and source"></td>
+    <td><img src="docs/screenshots/figure-review.png" alt="Figure review: the original clipped chart beside its standardized redraw"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Question bank built from an imported PDF</sub></td>
+    <td align="center"><sub>Figure review: the clipped original and its redraw</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/equation-sheet.png" alt="Equation sheet with grouped, typeset equations"></td>
+    <td><img src="docs/screenshots/study-calculator.png" alt="Scientific calculator with exact results over the graph"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Per-class equation sheet</sub></td>
+    <td align="center"><sub>Scientific calculator with exact answers</sub></td>
+  </tr>
+</table>
+
+The screenshots come from the app's offline smoke test, which uses a seeded demo class.
+
+## Built with
+
+- **Swift and SwiftUI** on macOS 15, with the Xcode project generated by [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+- **[GRDB.swift](https://github.com/groue/GRDB.swift)** (SQLite), **[ZIPFoundation](https://github.com/weichsel/ZIPFoundation)**,
+  **[SwiftSoup](https://github.com/scinfu/SwiftSoup)** and **[CoreXLSX](https://github.com/CoreOffice/CoreXLSX)** for
+  storage and document parsing; PDFKit and Vision for PDFs and OCR.
+- **Claude API** (Messages API with tool use and streaming) for the import, tutor, figure, equation and flashcard
+  agents. Models: `claude-sonnet-5` (default), `claude-opus-5` (escalation) and `claude-haiku-4-5-20251001`.
+- **Thuban Graph** (`ThubanGraphKit`) for the 2D/3D grapher and calculator.
+- Vendored web libraries, each under its own license:
+  - [MathLive](https://github.com/arnog/mathlive) 0.110.0 for math input and rendering (MIT, see
+    `ThubanStudy/Resources/web/vendor/mathlive/LICENSE.txt`)
+  - [Cortex Compute Engine](https://github.com/cortex-js/compute-engine) 0.128.13 for grading and equivalence
+    checks, run in JavaScriptCore (MIT)
+  - [marked](https://github.com/markedjs/marked) 15.0.12 (MIT) and [DOMPurify](https://github.com/cure53/DOMPurify)
+    3.4.15 (Apache-2.0 / MPL-2.0) for the tutor transcript
+
+## How it was built
+
+The owner designed and directed Thuban Study. The code was written with Claude Code (AI-assisted).
+
+## Architecture
+
+- **`Packages/ThubanCore`** is the engine and has no UI. It holds the domain models, the GRDB store, the theme
+  resolver, the math engine (Compute Engine in JavaScriptCore for grading, equivalence, answer conditions and
+  template instantiation), the Claude client and agents, and the document parsers.
+- **`Packages/StudyGraph`** connects the app to the Thuban Graph engine. It contains the graph pane, the
+  calculator, the tutor's graph tools and graph persistence.
+- **`ThubanStudy/`** is the SwiftUI app: the shell with class tabs, Study, Question bank, Equations, Flashcards,
+  Import with figure review, and Settings.
+- **`ThubanStudy/Resources/web`** has small WKWebView pages for anything that needs MathLive: the question form and
+  math keyboard, the tutor transcript, the equation sheet and the flashcard deck. They talk to Swift through a
+  message bridge.
+- **The agents** (`ThubanCore/AI/Agents`) are tool-using Claude loops. The import agent writes question drafts,
+  the tutor calls eight app tools (graph, calculator, read the student's work), and the figure pipeline fits,
+  verifies and reconciles chart data before you review it.
+
+[`ARCHITECTURE.md`](ARCHITECTURE.md) has the full contract. `docs/` holds the design brief, color values, icon set
+and integration notes.
+
+## Getting started
+
+**Requirements**
+
+- macOS 15 or newer and Xcode 26. The project uses the Swift 6 toolchain in Swift 5 language mode.
+- A local checkout of [Thuban Graph](https://github.com/GITHUB_USER/thuban-graph), which provides `ThubanGraphKit`.
+- A Claude account or an Anthropic API key, for the AI features. Without one, the bank, grading, graphing,
+  calculator, equation sheets and flashcard review still work.
+
+**Link Thuban Graph.** The build gets the graph engine through a symlink at `Vendor/ThubanGraph`, which is
+gitignored. `scripts/link-graph.sh` creates it. Every other script runs it first, so in practice you only need to
+tell it where your checkout is:
 
 ```sh
-./scripts/build.sh          # Debug build into .build/DerivedData
-open ".build/DerivedData/Build/Products/Debug/Thuban Study.app"
-./scripts/test.sh           # ThubanCore tests, then StudyGraph tests (tool schemas + replay, persistence, theme)
-./scripts/smoke.sh          # launches with seeded demo data and writes screenshots of every screen
-OFFLINE=1 ./scripts/smoke.sh  # the same with the network denied (app sandboxed, WebKit routed to a logging trap)
+git clone https://github.com/GITHUB_USER/thuban-graph.git "../Thuban Graph"
+export THUBAN_GRAPH_ROOT="$PWD/../Thuban Graph"   # default: ~/Desktop/Claude/Thuban Graph
 ```
 
-Or open `ThubanStudy.xcodeproj` in Xcode and run the `ThubanStudy` scheme. The project file is generated from
-`project.yml` with XcodeGen; regenerate it after adding source files.
+**Build, test, run**
 
-## Layout
+```sh
+./scripts/build.sh                 # Debug build into .build/DerivedData (ad-hoc signed)
+open ".build/DerivedData/Build/Products/Debug/Thuban Study.app"
+./scripts/test.sh                  # ThubanCore tests, then StudyGraph tests
+./scripts/smoke.sh                 # launch with seeded demo data and screenshot every screen
+OFFLINE=1 ./scripts/smoke.sh       # the same with the network denied
+./scripts/launch-check.sh          # launch the Debug build, confirm it stays up, quit it
+./scripts/install.sh               # Release build copied to /Applications
+```
 
-- `Packages/ThubanCore` — the engine: domain models, GRDB store, theme resolver (color schemes from Atlas),
-  math engine (Cortex Compute Engine in JavaScriptCore: grading, equivalence, conditions, template
-  instantiation), Claude client with OAuth and the tutor/import/figure agents, and document parsers
-  (PDF, Word, PowerPoint, Excel, CSV, HTML, MHTML, Markdown, text, images with OCR).
-- `ThubanStudy` — the SwiftUI app: shell with class tabs, Study (question form, tutor, graph, calculator,
-  math keyboard), Question bank, Import with figure review, Settings, modals.
-- `ThubanStudy/Resources/web` — the WKWebView pages: MathLive question form and keyboard, tutor
-  transcript renderer, equation sheet.
-- `Packages/StudyGraph` — the graph pane, calculator, tutor graph tools and graph persistence on the Thuban Graph
-  engine (`ThubanGraphKit`). Vendored libraries live under `web/vendor`.
-- `docs/` — design brief, color values, icon set, architecture contract, integration notes.
+You can also open `ThubanStudy.xcodeproj` in Xcode and run the `ThubanStudy` scheme. The project file is generated
+from `project.yml`, so run `xcodegen` again after adding source files.
 
-## Data
+**Connect Claude.** Open Settings › Claude account. There are two ways to connect:
 
-Everything lives under `~/Library/Application Support/Thuban Study` (SQLite database, imported documents,
-clipped figures, and `credentials.json` — the Claude tokens or API key, mode 0600, left out of exports). Set
-`THUBAN_HOME` to relocate it. Settings › Data & storage exports a zip. The login Keychain is not used: an
-ad-hoc-signed build changes identity on every rebuild, so Keychain items would prompt at each launch.
+- **Sign in with a Claude account.** This is a browser OAuth flow (authorization code with PKCE): you paste the
+  code the callback page shows, and the app refreshes the token itself after that.
+- **Paste an Anthropic API key.**
+
+## Privacy
+
+- **Everything stays on your Mac.** The SQLite database, imported documents, clipped figures and graphs all live
+  under `~/Library/Application Support/Thuban Study`. Set `THUBAN_HOME` to move it. Settings › Data & storage
+  exports everything as a zip.
+- **Credentials** (OAuth tokens or the API key) are kept in `credentials.json` in that folder with file mode
+  `0600`. The file is left out of exports. The login Keychain is not used, because an ad-hoc-signed build changes
+  its code identity on every rebuild, which would make macOS ask for Keychain access at every launch.
+- **What goes to the Claude API, and only when you use an AI feature:**
+  - Importing a document sends its extracted text and page images.
+  - Figure review sends the clipped figures.
+  - The tutor gets the current question, your messages and, through its tools, the answers you have entered.
+  - Flashcard generation sends the notes or documents you pick.
+  - Equation suggestions send the newly imported questions and the class's current equation sheet.
+- Grading, graphing, the calculator and question regeneration run entirely offline. Nothing is sent anywhere else.
+
+## The Thuban suite
+
+Thuban Study is part of a set of macOS apps that share one color scheme:
+
+- [Thuban Graph](https://github.com/GITHUB_USER/thuban-graph): an offline 2D/3D graphing calculator (the engine
+  inside Study)
+- [Thuban Canvas](https://github.com/GITHUB_USER/thuban-canvas): a native Canvas LMS client
+- [Thuban Desk](https://github.com/GITHUB_USER/thuban-desk): calendar and mail
+- [Thuban Gym](https://github.com/GITHUB_USER/thuban-gym): a workout tracker
+- [Thuban Planner](https://github.com/GITHUB_USER/thuban-planner): a degree planner
+
+---
+
+All rights reserved.
