@@ -55,6 +55,7 @@
 		7C1231DD149B6AEEDC68C602 /* DeleteClassAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34CCBA064123C65B63E41283 /* DeleteClassAlert.swift */; };
 		7EB8A84BDE90B5061C640D59 /* FigureCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8996B72D9D053D080BFD7A4C /* FigureCanvasView.swift */; };
 		7F5B98D2F7E8519964BE5AF9 /* ProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20DF246D546C4759E93C243 /* ProgressBar.swift */; };
+		89F850BBD5F88C6E639D43A0 /* FigureSelfReviewLaunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95E550EF0267119BD5289FB1 /* FigureSelfReviewLaunch.swift */; };
 		8A579E26738F001B6B42A37D /* EmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1CEB9ACB1D91668E88A25DC /* EmptyState.swift */; };
 		902E8D097DF6225B8BDB3117 /* AppModel+Diagrams.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30EF164FFAFF756B0D334491 /* AppModel+Diagrams.swift */; };
 		97E96A34EEE27B2A3445CBC0 /* SharedTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26E99F7FC62FF47B635E7719 /* SharedTheme.swift */; };
@@ -145,6 +146,7 @@
 		8996B72D9D053D080BFD7A4C /* FigureCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FigureCanvasView.swift; sourceTree = "<group>"; };
 		89F27B8A832C0FC7E38E208F /* ClaudeAccountSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeAccountSettings.swift; sourceTree = "<group>"; };
 		9138405FEDB4C9F2D51C45F2 /* AppModel+SettingsandModals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+SettingsandModals.swift"; sourceTree = "<group>"; };
+		95E550EF0267119BD5289FB1 /* FigureSelfReviewLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FigureSelfReviewLaunch.swift; sourceTree = "<group>"; };
 		9676B93BD738E096D9763F0A /* web */ = {isa = PBXFileReference; lastKnownFileType = folder; name = web; path = ThubanStudy/Resources/web; sourceTree = SOURCE_ROOT; };
 		96D0FACD36271498F439E012 /* ClassSession+Flashcards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ClassSession+Flashcards.swift"; sourceTree = "<group>"; };
 		9ABB35DCD3AC0CE45BE92549 /* AnswerResultsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnswerResultsSheet.swift; sourceTree = "<group>"; };
@@ -313,6 +315,7 @@
 				C463C7A24FD856196E75CCB0 /* ClassSession+Study.swift */,
 				ECB3AFA5D45551F433544E15 /* CommandBus.swift */,
 				D6130E36035D70355B9D2F14 /* FigureDump.swift */,
+				95E550EF0267119BD5289FB1 /* FigureSelfReviewLaunch.swift */,
 				04557EC482ADCDDE7624D15A /* ImportHarness.swift */,
 				F917FE53C90B0E81BA94FB95 /* RegenerateHarness.swift */,
 				26E99F7FC62FF47B635E7719 /* SharedTheme.swift */,
@@ -562,6 +565,7 @@
 				7EB8A84BDE90B5061C640D59 /* FigureCanvasView.swift in Sources */,
 				D761225C05EC7CF1F2172ACF /* FigureDump.swift in Sources */,
 				418A485B7A86954B315D5D9C /* FigureReviewView.swift in Sources */,
+				89F850BBD5F88C6E639D43A0 /* FigureSelfReviewLaunch.swift in Sources */,
 				33FB5AF64C22F6A8F91BF637 /* FlashcardDeckWebView.swift in Sources */,
 				9F5626C500AD53564E165069 /* FlashcardEditor.swift in Sources */,
 				76EBD8B9696366CF066B9777 /* FlashcardGenerateSheet.swift in Sources */,
